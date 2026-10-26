@@ -79,6 +79,28 @@ def key(url):
     return urlparse(url or "").path.rstrip("/").lower()
 
 
+def normalize_description(value):
+    """Keep source paragraphs and repair section/list boundaries in flattened exports."""
+    text = str(value or "").replace("\r\n", "\n").replace("\r", "\n").replace("\xa0", " ")
+    text = re.sub(r"[\t ]+", " ", text).strip()
+    # These two illustrations introduce the following paragraph in the catalogue copy.
+    text = re.sub(r"\s*([🦕🌿])\s*\n\s*\n\s*", r"\n\n\1 ", text)
+    text = re.sub(r"([.!?]) +(?=🦕)", r"\1\n\n", text)
+    heading = r"((?:🌿\s*)?Что внутри[^:\n]{0,65}:|(?:🎁\s*)?Кому подойд[её]т[^:\n]{0,35}:)"
+    text = re.sub(r"\s*" + heading + r"\s*", r"\n\n\1\n", text, flags=re.IGNORECASE)
+    # Split dashes only inside an explicit list section; prose dashes stay intact.
+    match = re.search(r"(?:🌿\s*)?Что внутри[^:\n]*:", text, re.IGNORECASE)
+    if match:
+        tail = text[match.end():]
+        end = re.search(r"\n\n(?=🎁|Кому подойд|Напишите нам)", tail, re.IGNORECASE)
+        length = end.start() if end else len(tail)
+        listing = re.sub(r"\s+[—•]\s+(?=[А-ЯЁA-Z])", "\n— ", tail[:length])
+        text = text[:match.end()] + listing + tail[length:]
+    text = re.sub(r"(?<=[.!?]) +(?=Напишите нам\s*[—-])", "\n\n", text)
+    text = re.sub(r" *\n *", "\n", text)
+    return re.sub(r"\n{3,}", "\n\n", text).strip()
+
+
 def main():
     if not TOKEN:
         print("FLOWWOW_API_KEY is not set; keeping the existing snapshot.")
@@ -124,7 +146,7 @@ def main():
             "status": "ready" if is_available else "preorder",
             "category": (prior or {}).get("category") or kind(item, names),
             "sourceCategory": (prior or {}).get("sourceCategory") or names.get((item.get("categoryId"), item.get("subCategoryId")), "Растения").strip().title(),
-            "description": item.get("description") or entry.get("description") or "Композиция ручной работы от студии БотаникАрт.",
+            "description": normalize_description(item.get("description") or entry.get("description") or "Композиция ручной работы от студии БотаникАрт."),
             "checkedAt": datetime.now(ZoneInfo("Europe/Moscow")).date().isoformat(),
             "flowwowProductId": item.get("productId"),
         })

@@ -42,3 +42,11 @@ At least one of email or phone is required. The Worker responds with a short-liv
 4. Add the Worker URL to the public site's `data/payment-config.js`.
 
 Do not commit terminal passwords or API tokens.
+
+## Current deployment and verification
+
+The deployed Cloudflare endpoint currently receives TLS error 526 from the bank; successful secret configuration is not a successful bank integration. Do not enable live checkout on this endpoint. The Node.js 22 adapter in `payments-yandex/` is prepared for Yandex Cloud Functions, whose runtime includes the Russian Trusted CA bundle. Build its upload ZIP with `python3 scripts/package-yandex.py OUTPUT.zip` from the repository root.
+
+`POST /api/payment-status` accepts the signed order reference from the bank return URL and calls CheckOrder. A paid result requires CONFIRMED and the expected amount. Production Init is blocked until `TBANK_RECEIPTS_READY=true`, taxation and VAT are configured. The screenshot confirmed `usn_income`; the VAT and cash-register provider remain unconfirmed.
+
+Run backend invariant checks with `npm test` in `payments-worker/`. No real card is used by these checks.

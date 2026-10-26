@@ -22,11 +22,11 @@ function cleanText(value, maxLength) {
 }
 
 function validEmail(value) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) && value.length <= 100;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) && value.length <= 64;
 }
 
 function validPhone(value) {
-  return /^\+?[0-9 ()-]{7,20}$/.test(value);
+  return /^\+[1-9][0-9]{6,14}$/.test(value);
 }
 
 async function makeToken(payload, password) {
@@ -38,6 +38,60 @@ async function makeToken(payload, password) {
   const source = entries.map(([, value]) => value).join("");
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(source));
   return [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function testMode(env){return /DEMO$/i.test(env.TBANK_TERMINAL_KEY||'')}
+
+async function referenceKey(env){
+ return crypto.subtle.importKey('raw',new TextEncoder().encode('botanikart-order:'+env.TBANK_PASSWORD),{name:'HMAC',hash:'SHA-256'},false,['sign','verify']);
+}
+function base64url(bytes){return btoa(String.fromCharCode(...bytes)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
+function fromBase64url(value){return Uint8Array.from(atob(value.replace(/-/g,'+').replace(/_/g,'/')),c=>c.charCodeAt(0))}
+async function orderReference(order,env){
+ const body=base64url(new TextEncoder().encode(JSON.stringify(order)));
+ const signature=await crypto.subtle.sign('HMAC',await referenceKey(env),new TextEncoder().encode(body));
+ return body+'.'+base64url(new Uint8Array(signature));
+}
+async function readReference(value,env){
+ try{
+  if(typeof value!=='string'||value.length>4096)return null;
+  const [body,signature,...extra]=value.split('.');
+  if(extra.length||!body||!signature)return null;
+  if(!await crypto.subtle.verify('HMAC',await referenceKey(env),fromBase64url(signature),new TextEncoder().encode(body)))return null;
+  const order=JSON.parse(new TextDecoder().decode(fromBase64url(body)));
+  if(!order.orderId||!Number.isSafeInteger(order.amount)||order.amount<=0||order.expires<Date.now())return null;
+  return order;
+ }catch{return null}
+}
+async function bankRequest(method,payload,env){
+ payload.Token=await makeToken(payload,env.TBANK_PASSWORD);
+ const bankFetch=env.BANK_FETCH||fetch;
+ const result=await bankFetch(new URL(method,env.TBANK_API_URL).href,{
+  method:'POST',headers:{'content-type':'application/json',...(env.TBANK_API_TOKEN?{authorization:`Bearer ${env.TBANK_API_TOKEN}`}:{})},
+  body:JSON.stringify(payload),signal:AbortSignal.timeout(12000)
+ });
+ if(result.status===526)throw new Error('bank_tls_unavailable');
+ let data;try{data=await result.json()}catch{throw new Error('payment_service_unavailable')}
+ if(!result.ok||!data.Success){
+  console.error('T-Bank request rejected',{method,status:result.status,errorCode:data.ErrorCode});
+  throw new Error('payment_init_failed');
+ }
+ return data;
+}
+async function paymentStatus(request,env,origin){
+ if(origin&&!allowedOrigins(env).has(origin))return response({error:'origin_not_allowed'},403,origin,env);
+ if(!env.TBANK_PASSWORD||!env.TBANK_TERMINAL_KEY)return response({error:'payment_not_configured'},503,origin,env);
+ let input;try{const raw=await request.text();if(raw.length>5000)throw new Error();input=JSON.parse(raw)}catch{return response({error:'invalid_order'},400,origin,env)}
+ const order=await readReference(input.reference,env);
+ if(!order)return response({error:'invalid_order'},400,origin,env);
+ try{
+  const result=await bankRequest('CheckOrder',{TerminalKey:env.TBANK_TERMINAL_KEY,OrderId:order.orderId},env);
+  if(result.OrderId!==order.orderId)return response({error:'order_mismatch'},502,origin,env);
+  const payments=Array.isArray(result.Payments)?result.Payments:[];
+  const paid=payments.some(payment=>payment.Status==='CONFIRMED'&&Number(payment.Amount)===order.amount);
+  const latest=payments[payments.length-1];
+  return response({orderId:order.orderId,title:order.title,productId:order.productId,amount:order.amount/100,paid,testMode:testMode(env),status:paid?'CONFIRMED':latest?.Status||'NEW'},200,origin,env);
+ }catch(error){console.error('T-Bank status failed',{message:error.message});return response({error:'payment_service_unavailable'},502,origin,env)}
 }
 
 async function getAvailableProduct(env, productId) {
@@ -59,7 +113,7 @@ function makeReceipt(env, item, amount, email, phone) {
       Quantity: 1,
       Amount: amount,
       Tax: env.TBANK_TAX,
-      PaymentMethod: "full_payment",
+      PaymentMethod: env.TBANK_PAYMENT_METHOD || "full_prepayment",
       PaymentObject: "commodity"
     }]
   };
@@ -73,6 +127,8 @@ async function createPayment(request, env, origin) {
   if (!env.TBANK_TERMINAL_KEY || !env.TBANK_PASSWORD) return response({ error: "payment_not_configured" }, 503, origin, env);
   if (!env.CATALOG_URL || !env.TBANK_API_URL) return response({ error: "payment_not_configured" }, 503, origin, env);
 
+  if (!testMode(env) && (env.TBANK_RECEIPTS_READY !== "true" || !env.TBANK_TAXATION || !env.TBANK_TAX)) return response({ error: "receipt_not_configured" }, 503, origin, env);
+
   let input;
   try {
     const raw = await request.text();
@@ -84,8 +140,10 @@ async function createPayment(request, env, origin) {
 
   const productId = cleanText(input.productId, 80);
   const email = cleanText(input.email, 100).toLowerCase();
-  const phone = cleanText(input.phone, 24);
-  if (!productId || !input.consent || (!email && !phone) || (email && !validEmail(email)) || (phone && !validPhone(phone))) {
+  const phoneInput = cleanText(input.phone, 24);
+  const digits = phoneInput.replace(/[^0-9]/g, "");
+  const phone = digits ? "+" + (digits.length === 11 && digits.startsWith("8") ? "7" + digits.slice(1) : digits) : "";
+  if (!productId || input.consent !== true || (!email && !phone) || (email && !validEmail(email)) || (phone && !validPhone(phone))) {
     return response({ error: "invalid_order_details" }, 400, origin, env);
   }
 
@@ -99,6 +157,7 @@ async function createPayment(request, env, origin) {
 
   const amount = Math.round(Number(product.price) * 100);
   const orderId = `ba-${Date.now().toString(36)}-${crypto.randomUUID().slice(0, 8)}`;
+  const reference = await orderReference({orderId,productId:product.id,title:cleanText(product.title,140),amount,expires:Date.now()+3*86400000},env);
   const payload = {
     TerminalKey: env.TBANK_TERMINAL_KEY,
     Amount: amount,
@@ -107,31 +166,21 @@ async function createPayment(request, env, origin) {
     Language: "ru",
     PayType: "O",
     DATA: { OperationInitiatorType: "0" },
-    SuccessURL: `${env.SITE_SUCCESS_URL}?order=${encodeURIComponent(orderId)}&product=${encodeURIComponent(product.id)}`,
+    SuccessURL: `${env.SITE_SUCCESS_URL}?reference=${encodeURIComponent(reference)}`,
     FailURL: `${env.SITE_FAILURE_URL}?order=${encodeURIComponent(orderId)}`
   };
 
   const receipt = makeReceipt(env, product, amount, email, phone);
   if (receipt) payload.Receipt = receipt;
-  payload.Token = await makeToken(payload, env.TBANK_PASSWORD);
-
-  let bankResponse;
-  try {
-    bankResponse = await fetch(env.TBANK_API_URL, {
-      method: "POST",
-      headers: { "content-type": "application/json", ...(env.TBANK_API_TOKEN ? { authorization: `Bearer ${env.TBANK_API_TOKEN}` } : {}) },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(12000)
-    });
-  } catch {
-    return response({ error: "payment_service_unavailable" }, 502, origin, env);
-  }
-
   let result;
-  try { result = await bankResponse.json(); } catch { return response({ error: "payment_service_unavailable" }, 502, origin, env); }
-  if (!bankResponse.ok || !result.Success || !result.PaymentURL) {
-    console.error("T-Bank Init failed", { status: bankResponse.status, errorCode: result.ErrorCode, message: result.Message });
-    return response({ error: "payment_init_failed" }, 502, origin, env);
+  try {
+    result = await bankRequest('Init',payload,env);
+    if (!result.PaymentURL) throw new Error('payment_init_failed');
+    const paymentURL = new URL(result.PaymentURL);
+    if (paymentURL.protocol !== 'https:' || paymentURL.hostname !== 'securepay.tinkoff.ru') throw new Error('payment_init_failed');
+  } catch (error) {
+    console.error('T-Bank Init failed',{message:error.message});
+    return response({error:error.message==='bank_tls_unavailable'?'bank_tls_unavailable':'payment_init_failed'},502,origin,env);
   }
 
   return response({ paymentUrl: result.PaymentURL, orderId }, 200, origin, env);
@@ -152,8 +201,9 @@ export default {
       }});
     }
     if (url.pathname === "/health" && request.method === "GET") {
-      return response({ ok: true, paymentConfigured: Boolean(env.TBANK_TERMINAL_KEY && env.TBANK_PASSWORD) }, 200, origin, env);
+      return response({ ok: true, paymentConfigured: Boolean(env.TBANK_TERMINAL_KEY && env.TBANK_PASSWORD), testMode: testMode(env), receiptConfigured: env.TBANK_RECEIPTS_READY === "true" && Boolean(env.TBANK_TAXATION && env.TBANK_TAX) }, 200, origin, env);
     }
+    if (url.pathname === "/api/payment-status" && request.method === "POST") return paymentStatus(request, env, origin);
     if (url.pathname === "/api/create-payment" && request.method === "POST") return createPayment(request, env, origin);
     return response({ error: "not_found" }, 404, origin, env);
   }
