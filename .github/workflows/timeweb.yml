@@ -1,0 +1,64 @@
+name: Sync Flowwow and publish to Timeweb
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: '17 * * * *'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: timeweb-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Sync Flowwow catalog
+        id: sync
+        continue-on-error: true
+        env:
+          FLOWWOW_API_KEY: ${{ secrets.FLOWWOW_API_KEY }}
+        run: python3 scripts/sync-flowwow.py
+      - name: Save refreshed catalog
+        if: steps.sync.outcome == 'success'
+        run: |
+          if ! git diff --quiet -- data/catalog.json data/catalog.js; then
+            git config user.name github-actions[bot]
+            git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+            git add data/catalog.json data/catalog.js
+            git commit -m "Refresh Flowwow catalog"
+            git push origin HEAD:main
+          fi
+      - name: Check PHP payment handler
+        run: |
+          find api hosting -name '*.php' -exec php -l {} \;
+          php hosting/tests/payments.php
+          python3 hosting/tests/check_api.py
+      - name: Build public site
+        run: python3 scripts/build-site.py --output "$RUNNER_TEMP/botanikart-public"
+      - name: Publish to Timeweb when enabled
+        if: vars.TIMEWEB_DEPLOY_ENABLED == 'true'
+        env:
+          TIMEWEB_HOST: ${{ secrets.TIMEWEB_HOST }}
+          TIMEWEB_USER: ${{ secrets.TIMEWEB_USER }}
+          TIMEWEB_PUBLIC_DIR: ${{ secrets.TIMEWEB_PUBLIC_DIR }}
+          TIMEWEB_SSH_KEY: ${{ secrets.TIMEWEB_SSH_KEY }}
+          TIMEWEB_KNOWN_HOSTS: ${{ secrets.TIMEWEB_KNOWN_HOSTS }}
+          TIMEWEB_KEY_FILE: ${{ runner.temp }}/timeweb-key
+          TIMEWEB_KNOWN_HOSTS_FILE: ${{ runner.temp }}/timeweb-known-hosts
+        run: |
+          umask 077
+          trap 'rm -f "$TIMEWEB_KEY_FILE" "$TIMEWEB_KNOWN_HOSTS_FILE"' EXIT
+          printf '%s\n' "$TIMEWEB_SSH_KEY" > "$TIMEWEB_KEY_FILE"
+          printf '%s\n' "$TIMEWEB_KNOWN_HOSTS" > "$TIMEWEB_KNOWN_HOSTS_FILE"
+          python3 -m venv "$RUNNER_TEMP/timeweb-tools"
+          "$RUNNER_TEMP/timeweb-tools/bin/pip" install 'paramiko>=3.5,<5'
+          "$RUNNER_TEMP/timeweb-tools/bin/python" scripts/deploy-timeweb.py --public "$RUNNER_TEMP/botanikart-public"

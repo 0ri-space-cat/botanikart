@@ -3,4 +3,7 @@
 *.token
 flowwow-products.json
 .DS_Store
-.wrangler/
+work/
+**/config.php
+**/orders/
+__pycache__/

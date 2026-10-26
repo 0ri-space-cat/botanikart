@@ -59,7 +59,9 @@ function openPurchase(id){
  purchaseDialog.innerHTML=`<button class="close-purchase" aria-label="Закрыть оформление">✕</button><div class="section-label">БОТАНИКАРТ · ВАША ПОКУПКА</div><h2>${title}</h2><div class="purchase-summary"><img src="${escapeHTML(p.images[0])}" alt="${escapeHTML(p.title)}"><div><h3>${escapeHTML(shortTitle(p))}</h3><p>${money(p.price)}</p></div></div><form class="purchase-form"><label>Электронная почта<input name="email" type="email" autocomplete="email" maxlength="64" placeholder="Для электронного чека"></label><label>Телефон<input name="phone" type="tel" autocomplete="tel" maxlength="24" placeholder="+7 999 123-45-67"></label><p class="purchase-pickup">Самовывоз бесплатный. Доставку курьером, Яндексом или СДЭКом можно оформить после оплаты. Для этого свяжитесь с нами в <a href="https://t.me/Ekaterina_Freed" target="_blank" rel="noopener">Telegram</a>.</p><label class="purchase-consent"><input name="consent" type="checkbox" required><span>Согласен с <a href="offer.html" target="_blank" rel="noopener">условиями продажи</a> и <a href="privacy.html#consent" target="_blank" rel="noopener">обработкой персональных данных</a>.</span></label><p class="checkout-message" role="status">${ready?'':'Онлайн-оплата скоро появится.'}</p><button type="submit" class="button primary" ${ready?'':'disabled'}>Купить</button></form>`;
  purchaseDialog.showModal();document.body.classList.add('modal-open');
  purchaseDialog.querySelector('.close-purchase').addEventListener('click',()=>purchaseDialog.close());
- purchaseDialog.querySelector('.purchase-form').addEventListener('submit',event=>startCheckout(event,p.id));
+ const form=purchaseDialog.querySelector('.purchase-form');
+ form.dataset.requestId=crypto.randomUUID();
+ form.addEventListener('submit',event=>startCheckout(event,p.id));
 }
 async function startCheckout(event,productId){
  event.preventDefault();
@@ -69,14 +71,15 @@ async function startCheckout(event,productId){
  if(!form.elements.consent.checked){message.textContent='Чтобы продолжить, подтвердите согласие с условиями и обработкой данных.';return}
  button.disabled=true;button.textContent='Готовим оплату…';message.textContent='Проверяем наличие и создаём платёж.';
  try{
-  const response=await fetch(window.BOTANIKART_PAYMENT_ENDPOINT,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({productId,expectedAmount:Math.round(Number(data.products.find(item=>item.id===productId)?.price)*100),email,phone,consent:true})});
+  const response=await fetch(window.BOTANIKART_PAYMENT_ENDPOINT,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({productId,requestId:form.dataset.requestId,expectedAmount:Math.round(Number(data.products.find(item=>item.id===productId)?.price)*100),email,phone,consent:true})});
   const result=await response.json();
   if(!response.ok||!result.paymentUrl)throw new Error(result.error||'payment_init_failed');
   const paymentUrl=new URL(result.paymentUrl);
-  if(paymentUrl.protocol!=='https:'||!['securepay.tinkoff.ru','securepayments.tinkoff.ru'].includes(paymentUrl.hostname.toLowerCase()))throw new Error('invalid_payment_url');
+  if(paymentUrl.protocol!=='https:'||paymentUrl.username||paymentUrl.password||(paymentUrl.port&&paymentUrl.port!=='443')||!['securepay.tinkoff.ru','securepayments.tinkoff.ru'].includes(paymentUrl.hostname.toLowerCase()))throw new Error('invalid_payment_url');
+  if(result.reference)sessionStorage.setItem('botanikart-payment-'+result.orderId,result.reference);
   window.location.assign(paymentUrl.href);
  }catch(error){
-  const messages={product_unavailable:'Этот товар уже недоступен. Обновите каталог и выберите другой.',price_changed:'Цена обновилась. Обновите каталог и проверьте стоимость товара.',payment_not_configured:'Приём оплаты ещё не включён. Попробуйте позже.',receipt_not_configured:'Онлайн-оплата ещё подключается.',bank_tls_unavailable:'Оплата временно недоступна. Попробуйте позже.',catalog_unavailable:'Не удалось проверить наличие. Повторите попытку чуть позже.',invalid_order_details:'Проверьте адрес электронной почты и номер телефона.',payment_service_unavailable:'Банк временно не ответил. Повторите попытку позже.',payment_init_failed:'Не удалось открыть оплату. Повторите попытку позже.'};
+  const messages={product_unavailable:'Этот товар уже недоступен. Обновите каталог и выберите другой.',price_changed:'Цена обновилась. Обновите каталог и проверьте стоимость товара.',payment_not_configured:'Оплата временно недоступна. Попробуйте позже.',receipt_not_configured:'Оплата временно недоступна. Попробуйте позже.',catalog_unavailable:'Не удалось проверить наличие. Повторите попытку чуть позже.',invalid_order_details:'Проверьте адрес электронной почты и номер телефона.',too_many_requests:'Слишком много попыток. Попробуйте через несколько минут.',payment_service_unavailable:'Банк временно не ответил. Повторите попытку позже.',payment_init_failed:'Не удалось открыть оплату. Повторите попытку позже.'};
   message.textContent=messages[error.message]||'Не удалось начать оплату. Проверьте соединение и попробуйте ещё раз.';
   button.disabled=false;button.textContent='Купить';
  }

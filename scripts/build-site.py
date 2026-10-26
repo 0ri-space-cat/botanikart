@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Create a clean, public-only static site directory for Yandex Object Storage."""
+"""Build only the public Timeweb website, including its PHP API entry points."""
 from __future__ import annotations
 
 import argparse
@@ -55,6 +55,9 @@ def main() -> None:
 
     for relative in PAGES:
         copy_file(relative, output)
+    for source in sorted((ROOT / "api").glob("*.php")):
+        copy_file(str(source.relative_to(ROOT)), output)
+    shutil.copy2(ROOT / "hosting/public.htaccess", output / ".htaccess")
 
     for relative in ("data/catalog.json", "data/catalog.js", "data/payment-config.js"):
         copy_file(relative, output)
@@ -73,7 +76,7 @@ def main() -> None:
         copy_file(relative, output)
 
     # Fail closed if implementation-only material ever appears in the publish tree.
-    forbidden = {".git", "work", "payments-worker", "payments-yandex", "private", ".env"}
+    forbidden = {".git", "work", "private", ".env", "config.php", "config.example.php", "orders.json"}
     leaked = sorted(path.name for path in output.rglob("*") if path.name in forbidden)
     if leaked:
         raise RuntimeError(f"Unexpected non-public material in site build: {leaked}")
