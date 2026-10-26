@@ -1,0 +1,5 @@
+.env
+.env.*
+*.token
+flowwow-products.json
+.DS_Store
