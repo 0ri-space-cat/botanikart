@@ -69,14 +69,14 @@ async function startCheckout(event,productId){
  if(!form.elements.consent.checked){message.textContent='Чтобы продолжить, подтвердите согласие с условиями и обработкой данных.';return}
  button.disabled=true;button.textContent='Готовим оплату…';message.textContent='Проверяем наличие и создаём платёж.';
  try{
-  const response=await fetch(window.BOTANIKART_PAYMENT_ENDPOINT,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({productId,email,phone,consent:true})});
+  const response=await fetch(window.BOTANIKART_PAYMENT_ENDPOINT,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({productId,expectedAmount:Math.round(Number(data.products.find(item=>item.id===productId)?.price)*100),email,phone,consent:true})});
   const result=await response.json();
   if(!response.ok||!result.paymentUrl)throw new Error(result.error||'payment_init_failed');
   const paymentUrl=new URL(result.paymentUrl);
-  if(paymentUrl.protocol!=='https:'||paymentUrl.hostname!=='securepay.tinkoff.ru')throw new Error('invalid_payment_url');
+  if(paymentUrl.protocol!=='https:'||!['securepay.tinkoff.ru','securepayments.tinkoff.ru'].includes(paymentUrl.hostname.toLowerCase()))throw new Error('invalid_payment_url');
   window.location.assign(paymentUrl.href);
  }catch(error){
-  const messages={product_unavailable:'Этот товар уже недоступен. Обновите каталог и выберите другой.',payment_not_configured:'Приём оплаты ещё не включён. Попробуйте позже.',receipt_not_configured:'Онлайн-оплата ещё подключается.',bank_tls_unavailable:'Оплата временно недоступна. Попробуйте позже.',catalog_unavailable:'Не удалось проверить наличие. Повторите попытку чуть позже.',invalid_order_details:'Проверьте адрес электронной почты и номер телефона.',payment_service_unavailable:'Банк временно не ответил. Повторите попытку позже.',payment_init_failed:'Не удалось открыть оплату. Повторите попытку позже.'};
+  const messages={product_unavailable:'Этот товар уже недоступен. Обновите каталог и выберите другой.',price_changed:'Цена обновилась. Обновите каталог и проверьте стоимость товара.',payment_not_configured:'Приём оплаты ещё не включён. Попробуйте позже.',receipt_not_configured:'Онлайн-оплата ещё подключается.',bank_tls_unavailable:'Оплата временно недоступна. Попробуйте позже.',catalog_unavailable:'Не удалось проверить наличие. Повторите попытку чуть позже.',invalid_order_details:'Проверьте адрес электронной почты и номер телефона.',payment_service_unavailable:'Банк временно не ответил. Повторите попытку позже.',payment_init_failed:'Не удалось открыть оплату. Повторите попытку позже.'};
   message.textContent=messages[error.message]||'Не удалось начать оплату. Проверьте соединение и попробуйте ещё раз.';
   button.disabled=false;button.textContent='Купить';
  }

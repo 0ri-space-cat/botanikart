@@ -48,7 +48,7 @@ async function referenceKey(env){
 function base64url(bytes){return btoa(String.fromCharCode(...bytes)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
 function fromBase64url(value){return Uint8Array.from(atob(value.replace(/-/g,'+').replace(/_/g,'/')),c=>c.charCodeAt(0))}
 async function orderReference(order,env){
- const body=base64url(new TextEncoder().encode(JSON.stringify(order)));
+ const body=base64url(new TextEncoder().encode(`${order.orderId}|${order.productId}|${order.amount}|${order.expires}`));
  const signature=await crypto.subtle.sign('HMAC',await referenceKey(env),new TextEncoder().encode(body));
  return body+'.'+base64url(new Uint8Array(signature));
 }
@@ -58,8 +58,9 @@ async function readReference(value,env){
   const [body,signature,...extra]=value.split('.');
   if(extra.length||!body||!signature)return null;
   if(!await crypto.subtle.verify('HMAC',await referenceKey(env),fromBase64url(signature),new TextEncoder().encode(body)))return null;
-  const order=JSON.parse(new TextDecoder().decode(fromBase64url(body)));
-  if(!order.orderId||!Number.isSafeInteger(order.amount)||order.amount<=0||order.expires<Date.now())return null;
+  const [orderId,productId,amountText,expiresText,...extraFields]=new TextDecoder().decode(fromBase64url(body)).split('|');
+  const order={orderId,productId,amount:Number(amountText),expires:Number(expiresText)};
+  if(extraFields.length||!order.orderId||!order.productId||!Number.isSafeInteger(order.amount)||order.amount<=0||!Number.isSafeInteger(order.expires)||order.expires<Date.now())return null;
   return order;
  }catch{return null}
 }
@@ -90,7 +91,12 @@ async function paymentStatus(request,env,origin){
   const payments=Array.isArray(result.Payments)?result.Payments:[];
   const paid=payments.some(payment=>payment.Status==='CONFIRMED'&&Number(payment.Amount)===order.amount);
   const latest=payments[payments.length-1];
-  return response({orderId:order.orderId,title:order.title,productId:order.productId,amount:order.amount/100,paid,testMode:testMode(env),status:paid?'CONFIRMED':latest?.Status||'NEW'},200,origin,env);
+  let title=order.productId;
+  try{
+   const catalogResponse=await fetch(env.CATALOG_URL,{headers:{accept:'application/json'},cf:{cacheTtl:0}});
+   if(catalogResponse.ok){const catalog=await catalogResponse.json();title=catalog.products?.find(item=>item.id===order.productId)?.title||title}
+  }catch{}
+  return response({orderId:order.orderId,title,productId:order.productId,amount:order.amount/100,paid,testMode:testMode(env),status:paid?'CONFIRMED':latest?.Status||'NEW'},200,origin,env);
  }catch(error){console.error('T-Bank status failed',{message:error.message});return response({error:'payment_service_unavailable'},502,origin,env)}
 }
 
@@ -143,7 +149,7 @@ async function createPayment(request, env, origin) {
   const phoneInput = cleanText(input.phone, 24);
   const digits = phoneInput.replace(/[^0-9]/g, "");
   const phone = digits ? "+" + (digits.length === 11 && digits.startsWith("8") ? "7" + digits.slice(1) : digits) : "";
-  if (!productId || input.consent !== true || (!email && !phone) || (email && !validEmail(email)) || (phone && !validPhone(phone))) {
+  if (!productId || !Number.isSafeInteger(input.expectedAmount) || input.expectedAmount<=0 || input.consent !== true || (!email && !phone) || (email && !validEmail(email)) || (phone && !validPhone(phone))) {
     return response({ error: "invalid_order_details" }, 400, origin, env);
   }
 
@@ -156,8 +162,14 @@ async function createPayment(request, env, origin) {
   if (!product) return response({ error: "product_unavailable" }, 409, origin, env);
 
   const amount = Math.round(Number(product.price) * 100);
+  if(input.expectedAmount!==amount)return response({error:'price_changed'},409,origin,env);
   const orderId = `ba-${Date.now().toString(36)}-${crypto.randomUUID().slice(0, 8)}`;
-  const reference = await orderReference({orderId,productId:product.id,title:cleanText(product.title,140),amount,expires:Date.now()+3*86400000},env);
+  const reference = await orderReference({orderId,productId:product.id,amount,expires:Date.now()+3*86400000},env);
+  const successURL=new URL(env.SITE_SUCCESS_URL);
+  successURL.searchParams.set('reference',reference);
+  const failURL=new URL(env.SITE_FAILURE_URL);
+  failURL.searchParams.set('order',orderId);
+  if(successURL.href.length>250||failURL.href.length>250)return response({error:'payment_not_configured'},503,origin,env);
   const payload = {
     TerminalKey: env.TBANK_TERMINAL_KEY,
     Amount: amount,
@@ -166,8 +178,8 @@ async function createPayment(request, env, origin) {
     Language: "ru",
     PayType: "O",
     DATA: { OperationInitiatorType: "0" },
-    SuccessURL: `${env.SITE_SUCCESS_URL}?reference=${encodeURIComponent(reference)}`,
-    FailURL: `${env.SITE_FAILURE_URL}?order=${encodeURIComponent(orderId)}`
+    SuccessURL: successURL.href,
+    FailURL: failURL.href
   };
 
   const receipt = makeReceipt(env, product, amount, email, phone);
@@ -177,7 +189,7 @@ async function createPayment(request, env, origin) {
     result = await bankRequest('Init',payload,env);
     if (!result.PaymentURL) throw new Error('payment_init_failed');
     const paymentURL = new URL(result.PaymentURL);
-    if (paymentURL.protocol !== 'https:' || paymentURL.hostname !== 'securepay.tinkoff.ru') throw new Error('payment_init_failed');
+    if (paymentURL.protocol !== 'https:' || !['securepay.tinkoff.ru','securepayments.tinkoff.ru'].includes(paymentURL.hostname.toLowerCase())) throw new Error('payment_init_failed');
   } catch (error) {
     console.error('T-Bank Init failed',{message:error.message});
     return response({error:error.message==='bank_tls_unavailable'?'bank_tls_unavailable':'payment_init_failed'},502,origin,env);
