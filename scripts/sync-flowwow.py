@@ -137,7 +137,7 @@ def main():
 
     # Preserve selected made-to-order examples that are no longer returned by Flowwow.
     for old in catalog["products"]:
-        if old.get("status") == "preorder" and key(old.get("url")) not in seen:
+        if old.get("status") in ("order", "preorder") and key(old.get("url")) not in seen:
             refreshed.append(old)
     if not refreshed:
         raise RuntimeError("Refusing to replace the catalog with an empty result")
