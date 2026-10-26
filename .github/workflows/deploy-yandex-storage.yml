@@ -1,0 +1,42 @@
+name: Publish BotanikArt to Yandex Object Storage
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out site
+        uses: actions/checkout@v4
+
+      - name: Build public site files
+        run: python3 scripts/build-site.py --output "$RUNNER_TEMP/botanikart-site"
+
+      - name: Configure AWS CLI for Yandex Object Storage
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.YC_STORAGE_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.YC_STORAGE_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ru-central1
+        run: |
+          python3 -m venv "$RUNNER_TEMP/awscli"
+          "$RUNNER_TEMP/awscli/bin/pip" install awscli
+          echo "$RUNNER_TEMP/awscli/bin" >> "$GITHUB_PATH"
+
+      - name: Upload static site
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.YC_STORAGE_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.YC_STORAGE_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ru-central1
+          YC_STORAGE_BUCKET: ${{ secrets.YC_STORAGE_BUCKET }}
+        run: |
+          if [ -z "$YC_STORAGE_BUCKET" ] || [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
+            echo "Yandex Object Storage credentials are not configured; nothing was uploaded."
+            exit 1
+          fi
+          aws s3 sync "$RUNNER_TEMP/botanikart-site/" "s3://$YC_STORAGE_BUCKET/" \
+            --endpoint-url https://storage.yandexcloud.net \
+            --delete --only-show-errors
