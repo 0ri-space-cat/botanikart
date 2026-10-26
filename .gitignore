@@ -3,3 +3,4 @@
 *.token
 flowwow-products.json
 .DS_Store
+.wrangler/
