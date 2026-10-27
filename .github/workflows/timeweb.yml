@@ -29,6 +29,7 @@ jobs:
         run: python3 scripts/sync-flowwow.py
       - name: Sync Avito listings
         id: avito
+        if: vars.AVITO_SYNC_ENABLED == 'true'
         continue-on-error: true
         env:
           AVITO_CLIENT_ID: ${{ secrets.AVITO_CLIENT_ID }}
