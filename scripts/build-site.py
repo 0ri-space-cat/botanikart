@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import re
 import shutil
 from pathlib import Path
 
@@ -63,6 +65,18 @@ def main() -> None:
 
     for relative in ("data/catalog.json", "data/catalog.js", "data/payment-config.js"):
         copy_file(relative, output)
+
+    # Timeweb's nginx caches JS independently of Apache/.htaccess headers.
+    # Give each actual catalog snapshot its own URL in the published HTML.
+    catalog_version = hashlib.sha256((output / "data/catalog.js").read_bytes()).hexdigest()[:16]
+    for page in ("index.html", "catalog.html"):
+        target = output / page
+        html = target.read_text(encoding="utf-8")
+        html, count = re.subn(r'src="data/catalog\.js(?:\?[^"<>]*)?"',
+                              f'src="data/catalog.js?v={catalog_version}"', html)
+        if count != 1:
+            raise RuntimeError(f"Expected exactly one catalog script in {page}")
+        target.write_text(html, encoding="utf-8")
 
     for relative in PUBLIC_ASSETS:
         copy_file(f"assets/{relative}", output)
