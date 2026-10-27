@@ -27,10 +27,17 @@ jobs:
         env:
           FLOWWOW_API_KEY: ${{ secrets.FLOWWOW_API_KEY }}
         run: python3 scripts/sync-flowwow.py
+      - name: Sync Avito listings
+        id: avito
+        continue-on-error: true
+        env:
+          AVITO_CLIENT_ID: ${{ secrets.AVITO_CLIENT_ID }}
+          AVITO_CLIENT_SECRET: ${{ secrets.AVITO_CLIENT_SECRET }}
+        run: python3 scripts/sync-avito.py
       - name: Check catalog classification
         run: python3 -m unittest discover -s scripts/tests -v
       - name: Save refreshed catalog
-        if: steps.sync.outcome == 'success'
+        if: steps.sync.outcome == 'success' || steps.avito.outcome == 'success'
         run: |
           if ! git diff --quiet -- data/catalog.json data/catalog.js; then
             git config user.name github-actions[bot]
