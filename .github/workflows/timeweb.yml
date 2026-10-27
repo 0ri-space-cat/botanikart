@@ -66,3 +66,6 @@ jobs:
           python3 -m venv "$RUNNER_TEMP/timeweb-tools"
           "$RUNNER_TEMP/timeweb-tools/bin/pip" install 'paramiko>=3.5,<5'
           "$RUNNER_TEMP/timeweb-tools/bin/python" scripts/deploy-timeweb.py --public "$RUNNER_TEMP/botanikart-public"
+      - name: Verify published domain and catalog
+        if: vars.TIMEWEB_DEPLOY_ENABLED == 'true'
+        run: python3 scripts/check-live-site.py
