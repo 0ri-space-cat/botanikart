@@ -16,9 +16,10 @@ import unicodedata
 from datetime import datetime
 from pathlib import Path
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
+import time
 
 from catalog_taxonomy import enrich
 
@@ -89,6 +90,33 @@ def listings(token: str) -> list[dict]:
     if not all_items:
         raise AvitoError("Avito returned no active listings; keeping the current snapshot")
     return all_items
+
+
+def account_id(token: str):
+    account = call("/core/v1/accounts/self", token=token)
+    value = first(account, "id", "user_id", "userId", "account_id", "accountId")
+    if value is None and isinstance(account.get("data"), dict):
+        value = first(account["data"], "id", "user_id", "userId", "account_id", "accountId")
+    if value is None:
+        shape = response_shape(account)
+        raise AvitoError(f"Cannot identify the Avito account; account field shape only: {json.dumps(shape, ensure_ascii=False)}")
+    return value
+
+
+def full_listing(token: str, user_id, summary: dict, index: int) -> dict:
+    item_id = first(summary, "id", "item_id", "itemId")
+    if item_id is None:
+        raise AvitoError("An Avito listing has no identifier")
+    # Pace requests conservatively while requesting every full card.
+    if index:
+        time.sleep(2.6)
+    path = f"/core/v1/accounts/{quote(str(user_id), safe='')}/items/{quote(str(item_id), safe='')}/"
+    detail = call(path, token=token)
+    for key in ("item", "data", "result"):
+        if isinstance(detail.get(key), dict):
+            detail = detail[key]
+            break
+    return {**summary, **detail}
 
 
 def first(item: dict, *keys: str):
@@ -186,7 +214,9 @@ def main() -> int:
         return 0
 
     token = access_token()
-    remote_items = listings(token)
+    user_id = account_id(token)
+    summaries = listings(token)
+    remote_items = [full_listing(token, user_id, item, index) for index, item in enumerate(summaries)]
     catalog_path = ROOT / "data/catalog.json"
     catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
     if not isinstance(catalog, dict) or not isinstance(catalog.get("products"), list):
