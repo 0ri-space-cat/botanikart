@@ -99,6 +99,17 @@ def first(item: dict, *keys: str):
     return None
 
 
+def response_shape(value, depth: int = 2):
+    """Describe field names/types only; never include listing values in CI logs."""
+    if isinstance(value, dict):
+        if depth <= 0:
+            return "object"
+        return {str(key): response_shape(child, depth - 1) for key, child in value.items()}
+    if isinstance(value, list):
+        return [response_shape(value[0], depth - 1)] if value and depth > 0 else "array"
+    return type(value).__name__
+
+
 def image_urls(value) -> list[str]:
     if not isinstance(value, list):
         return []
@@ -211,7 +222,8 @@ def main() -> int:
         imported.append(enrich(candidate, overrides))
 
     if skipped == len(remote_items):
-        raise AvitoError("No Avito listings had all required fields and photos; current catalogue retained")
+        shape = response_shape(remote_items[0]) if remote_items else "empty"
+        raise AvitoError(f"No Avito listings had all required fields and photos; first-record field shape only: {json.dumps(shape, ensure_ascii=False)}")
 
     # Keep previously imported ads not returned in this complete active-listings snapshot,
     # but label them as made to order rather than deleting their catalogue cards.
