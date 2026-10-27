@@ -34,6 +34,8 @@ PUBLIC_ASSETS = (
     "reserve0.jpg",
     "reserve2.jpg",
     "studio-logo.jpg",
+    "workshops.png",
+    "materials.png",
 )
 
 
