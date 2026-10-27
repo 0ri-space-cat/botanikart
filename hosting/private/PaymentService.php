@@ -309,6 +309,10 @@ final class PaymentService
         if (!is_string($id) || !preg_match('/^ba-[a-f0-9]{24}$/D', $id)) throw new ApiError('invalid_order');
         // Query the bank rather than trust ordering of repeated notification deliveries.
         $this->refresh($id);
+        $this->store->transaction(function (array &$state) use ($id) {
+            $state['orders'][$id]['lastNotificationAt'] = time();
+            $state['orders'][$id]['notificationCount'] = ($state['orders'][$id]['notificationCount'] ?? 0) + 1;
+        });
     }
 
     public function reconcile(): int

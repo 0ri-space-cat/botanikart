@@ -74,6 +74,9 @@ try {
     $guard = \BotanikArt\OrderStore::GUARD;
     check(str_starts_with(file_get_contents($statePath), $guard), 'Direct PHP access cannot print order data');
     $state = json_decode(substr(file_get_contents($statePath), strlen($guard)), true);
+    check(($state['orders'][$result['orderId']]['notificationCount'] ?? 0) === 2
+        && ($state['orders'][$result['orderId']]['lastNotificationAt'] ?? 0) > 0,
+        'Verified bank notifications are tracked independently of status polling');
     $state['orders'][$second['orderId']]['expiresAt'] = time() - 60;
     file_put_contents($statePath, $guard . json_encode($state));
     $service->reconcile();
