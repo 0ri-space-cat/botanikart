@@ -76,7 +76,7 @@ def main() -> None:
         copy_file(relative, output)
 
     # Fail closed if implementation-only material ever appears in the publish tree.
-    forbidden = {".git", "work", "private", ".env", "config.php", "config.example.php", "orders.json"}
+    forbidden = {".git", "work", "private", ".env", "config.php", "config.example.php", "orders.json", "orders.php"}
     leaked = sorted(path.name for path in output.rglob("*") if path.name in forbidden)
     if leaked:
         raise RuntimeError(f"Unexpected non-public material in site build: {leaked}")

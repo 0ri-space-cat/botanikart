@@ -20,16 +20,17 @@ if not PHP:
 with tempfile.TemporaryDirectory(prefix="botanikart-http-") as temporary:
     base = Path(temporary)
     public = base / "public_html"
-    private = base / "botanikart-private"
-    private.mkdir(mode=0o700)
+    private = public / "api/.private"
     subprocess.run([sys.executable, str(ROOT / "scripts/build-site.py"), "--output", str(public)], check=True)
+    private.mkdir(mode=0o700)
     shutil.copy2(ROOT / "hosting/private/PaymentService.php", private / "PaymentService.php")
     (private / "config.php").write_text("<?php return ['site_url'=>'https://botanikart.ru',"
         "'terminal_key'=>'TESTDEMO','password'=>'fixture-only','order_secret'=>'" + "a" * 64
         + "','catalog_path'=>" + repr(str(public / "data/catalog.json"))
         + ",'data_dir'=>" + repr(str(private / "orders")) + "];\n")
     router = base / "router.php"
-    router.write_text("<?php if(!is_file($_SERVER['DOCUMENT_ROOT'].parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH)))"
+    router.write_text("<?php if(str_contains($_SERVER['REQUEST_URI'], '/.private/')){http_response_code(403);return true;}"
+                      "if(!is_file($_SERVER['DOCUMENT_ROOT'].parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH)))"
                       "{http_response_code(404);return true;} return false;\n")
     with socket.socket() as socket_:
         socket_.bind(("127.0.0.1", 0))
@@ -62,6 +63,7 @@ with tempfile.TemporaryDirectory(prefix="botanikart-http-") as temporary:
         assert call("/api/create-payment.php", {}, origin="https://evil.example")[0] == 403
         assert call("/api/create-payment.php", raw=b"{")[0] == 400
         assert call("/api/create-payment.php", raw=b" " * 17000)[0] == 413
+        assert call("/api/.private/config.php")[0] == 403
         catalog = json.loads((public / "data/catalog.json").read_text())
         product = next(item for item in catalog["products"] if item["available"])
         body = {"productId": product["id"], "requestId": "12345678-1234-1234-1234-123456789012",
@@ -69,7 +71,7 @@ with tempfile.TemporaryDirectory(prefix="botanikart-http-") as temporary:
         assert call("/api/create-payment.php", body)[0] == 409
         (private / "config.php").unlink()
         assert call("/api/create-payment.php", body)[0] == 503
-        print("HTTP API checks passed: 9 scenarios, no real bank requests.")
+        print("HTTP API checks passed: 10 scenarios, no real bank requests.")
     finally:
         server.terminate()
         server.wait(timeout=5)

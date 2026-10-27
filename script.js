@@ -75,7 +75,7 @@ async function startCheckout(event,productId){
   const result=await response.json();
   if(!response.ok||!result.paymentUrl)throw new Error(result.error||'payment_init_failed');
   const paymentUrl=new URL(result.paymentUrl);
-  if(paymentUrl.protocol!=='https:'||paymentUrl.username||paymentUrl.password||(paymentUrl.port&&paymentUrl.port!=='443')||!['securepay.tinkoff.ru','securepayments.tinkoff.ru'].includes(paymentUrl.hostname.toLowerCase()))throw new Error('invalid_payment_url');
+  if(paymentUrl.protocol!=='https:'||paymentUrl.username||paymentUrl.password||(paymentUrl.port&&paymentUrl.port!=='443')||!['securepay.tinkoff.ru','securepayments.tinkoff.ru','pay.tbank-online.com'].includes(paymentUrl.hostname.toLowerCase()))throw new Error('invalid_payment_url');
   if(result.reference)sessionStorage.setItem('botanikart-payment-'+result.orderId,result.reference);
   window.location.assign(paymentUrl.href);
  }catch(error){

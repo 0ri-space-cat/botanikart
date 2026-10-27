@@ -55,7 +55,7 @@ def main():
     target = posixpath.normpath(os.environ["TIMEWEB_PUBLIC_DIR"])
     if not target.startswith("/") or not target.endswith("/public_html") or len(target.split("/")) < 4:
         raise RuntimeError("Use the absolute site-specific public_html directory from the hosting panel")
-    private = posixpath.join(posixpath.dirname(target), "botanikart-private")
+    private = posixpath.join(target, "api/.private")
     if not (public / "index.html").is_file() or not (public / "api/create-payment.php").is_file():
         raise RuntimeError("Not a complete public release")
     client = paramiko.SSHClient()

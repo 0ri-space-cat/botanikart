@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Create a Timeweb ZIP with separate public and private directories."""
+"""Create a Timeweb ZIP with a protected PHP service directory."""
 import argparse
 import subprocess
 import sys
@@ -25,7 +25,7 @@ def main():
                 if file.is_file():
                     archive.write(file, "public_html/" + file.relative_to(public).as_posix())
             for name in PRIVATE_FILES:
-                info = ZipInfo("botanikart-private/" + name)
+                info = ZipInfo("public_html/api/.private/" + name)
                 info.external_attr = 0o100600 << 16
                 info.compress_type = ZIP_DEFLATED
                 archive.writestr(info, (ROOT / "hosting/private" / name).read_bytes())

@@ -9,10 +9,11 @@ header('Referrer-Policy: no-referrer');
 function apiRun(callable $callback, bool $notification = false): void
 {
     try {
-        $private = getenv('BOTANIKART_PRIVATE_DIR') ?: dirname(__DIR__, 2) . '/botanikart-private';
+        $private = getenv('BOTANIKART_PRIVATE_DIR') ?: __DIR__ . '/.private';
         $private = realpath($private);
         $public = realpath(dirname(__DIR__));
-        if (!$private || !$public || $private === $public || str_starts_with($private, $public . DIRECTORY_SEPARATOR)
+        if (!$private || !$public || $private === $public
+            || (str_starts_with($private, $public . DIRECTORY_SEPARATOR) && $private !== $public . '/api/.private')
             || !is_file($private . '/config.php') || !is_file($private . '/PaymentService.php')) {
             http_response_code(503);
             echo '{"error":"payment_not_configured"}';

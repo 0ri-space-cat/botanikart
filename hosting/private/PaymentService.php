@@ -14,6 +14,7 @@ final class ApiError extends \RuntimeException
 /** Small-shop storage. The lock is separate from the atomically replaced data file. */
 final class OrderStore
 {
+    public const GUARD = "<?php exit; ?>\n";
     public function __construct(private readonly string $directory)
     {
         if (!is_dir($directory) && !mkdir($directory, 0700, true) && !is_dir($directory)) {
@@ -23,26 +24,31 @@ final class OrderStore
 
     public function transaction(callable $callback): mixed
     {
-        $lock = fopen($this->directory . '/orders.lock', 'c');
+        $lock = fopen($this->directory . '/orders.lock.php', 'c');
         if (!$lock || !flock($lock, LOCK_EX)) {
             throw new \RuntimeException('Cannot lock orders');
         }
         try {
-            $path = $this->directory . '/orders.json';
-            $state = is_file($path)
-                ? json_decode((string) file_get_contents($path), true, 512, JSON_THROW_ON_ERROR)
-                : ['orders' => [], 'reservations' => []];
+            $path = $this->directory . '/orders.php';
+            $state = ['orders' => [], 'reservations' => []];
+            if (is_file($path)) {
+                $raw = (string) file_get_contents($path);
+                if (!str_starts_with($raw, self::GUARD)) throw new \RuntimeException('Invalid order file guard');
+                $state = json_decode(substr($raw, strlen(self::GUARD)), true, 512, JSON_THROW_ON_ERROR);
+            }
             if (!isset($state['orders'], $state['reservations']) || !is_array($state['orders']) || !is_array($state['reservations'])) {
                 throw new \RuntimeException('Invalid order store');
             }
             $result = $callback($state);
-            $temporary = tempnam($this->directory, 'orders-');
-            if ($temporary === false) {
+            $temporary = $this->directory . '/.orders-' . bin2hex(random_bytes(12)) . '.php';
+            $temporaryFile = fopen($temporary, 'x');
+            if ($temporaryFile === false) {
                 throw new \RuntimeException('Cannot create order file');
             }
+            fclose($temporaryFile);
             try {
                 chmod($temporary, 0600);
-                $json = json_encode($state, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+                $json = self::GUARD . json_encode($state, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
                 if (file_put_contents($temporary, $json) !== strlen($json) || !rename($temporary, $path)) {
                     throw new \RuntimeException('Cannot save orders');
                 }
@@ -232,7 +238,7 @@ final class PaymentService
         }
         $result = $this->callBank('Init', $payload);
         $url = parse_url($result['PaymentURL'] ?? '');
-        if (($url['scheme'] ?? '') !== 'https' || !in_array(strtolower($url['host'] ?? ''), ['securepay.tinkoff.ru', 'securepayments.tinkoff.ru'], true)
+        if (($url['scheme'] ?? '') !== 'https' || !in_array(strtolower($url['host'] ?? ''), ['securepay.tinkoff.ru', 'securepayments.tinkoff.ru', 'pay.tbank-online.com'], true)
             || isset($url['user']) || isset($url['pass']) || (isset($url['port']) && $url['port'] !== 443)
             || empty($result['PaymentId']) || (isset($result['OrderId']) && $result['OrderId'] !== $orderId)) throw new ApiError('payment_init_failed', 502);
         $this->store->transaction(function (array &$s) use ($orderId, $result) {

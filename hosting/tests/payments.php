@@ -22,7 +22,7 @@ try {
     $config = ['site_url' => 'https://botanikart.ru', 'terminal_key' => 'TESTDEMO', 'password' => 'fixture-only',
         'order_secret' => str_repeat('a', 64), 'catalog_path' => $directory . '/catalog.json', 'data_dir' => $directory . '/data',
         'taxation' => 'usn_income', 'tax' => '', 'receipts_ready' => false];
-    $calls = []; $bankStatus = 'NEW'; $bankAmount = 12300; $bankHost = 'securepayments.tinkoff.ru'; $bankOrder = '';
+    $calls = []; $bankStatus = 'NEW'; $bankAmount = 12300; $bankHost = 'pay.tbank-online.com'; $bankOrder = '';
     $bank = function (string $method, array $payload) use (&$calls, &$bankStatus, &$bankAmount, &$bankHost, &$bankOrder): array {
         $calls[] = [$method, $payload];
         if ($method === 'Init') {
@@ -70,19 +70,21 @@ try {
     $bankStatus = 'NEW';
     $second = $service->create(array_replace($input, ['requestId' => requestId()]));
     check($second['orderId'] !== $result['orderId'], 'Restocking explicitly permits a new order');
-    $statePath = $directory . '/data/test/orders.json';
-    $state = json_decode(file_get_contents($statePath), true);
+    $statePath = $directory . '/data/test/orders.php';
+    $guard = \BotanikArt\OrderStore::GUARD;
+    check(str_starts_with(file_get_contents($statePath), $guard), 'Direct PHP access cannot print order data');
+    $state = json_decode(substr(file_get_contents($statePath), strlen($guard)), true);
     $state['orders'][$second['orderId']]['expiresAt'] = time() - 60;
-    file_put_contents($statePath, json_encode($state));
+    file_put_contents($statePath, $guard . json_encode($state));
     $service->reconcile();
     check($bankStatus === 'CANCELED', 'An expired payment is cancelled at the bank before releasing stock');
-    check(!isset(json_decode(file_get_contents($statePath), true)['reservations'][$productId]), 'A confirmed cancellation releases the product');
+    check(!isset(json_decode(substr(file_get_contents($statePath), strlen($guard)), true)['reservations'][$productId]), 'A confirmed cancellation releases the product');
     $bankHost = 'attacker.example';
     rejects(fn() => $service->create(array_replace($input, ['requestId' => requestId()])), 'payment_init_failed');
     $scalarPayload = ['Success' => true, 'Amount' => 10, 'Nested' => ['x' => 1]];
     check(BankClient::token($scalarPayload, 'secret') === hash('sha256', '10secrettrue'), 'Bank signature uses sorted scalar values and lowercase booleans');
     check((fileperms($statePath) & 0777) === 0600, 'Orders are readable only by the hosting account');
-    file_put_contents($statePath, '{');
+    file_put_contents($statePath, $guard . '{');
     try { $service->reconcile(); throw new RuntimeException('Corrupt storage was accepted'); }
     catch (JsonException) { $assertions++; }
     echo "Payment tests passed: $assertions assertions.\n";
