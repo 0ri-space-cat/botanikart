@@ -237,6 +237,9 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except (AvitoError, HTTPError, URLError, TimeoutError, ValueError, OSError) as error:
+    except AvitoError as error:
+        print(f"Avito sync failed; current catalogue retained: {error}", file=sys.stderr)
+        raise SystemExit(1)
+    except (HTTPError, URLError, TimeoutError, ValueError, OSError) as error:
         print(f"Avito sync failed; current catalogue retained: {type(error).__name__}.", file=sys.stderr)
         raise SystemExit(1)
