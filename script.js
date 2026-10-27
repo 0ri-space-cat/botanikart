@@ -30,15 +30,23 @@ function descriptionHTML(raw){
 const availabilityLabel=p=>p.available?'В наличии':p.status==='sold'?'Нет в наличии':'Под заказ';
 function productCard(p){
  const size=p.width&&p.height?`<span>${p.width} × ${p.height} см</span>`:'';
- return `<button class="product-card ${p.available?'':'is-unavailable'}" data-product="${escapeHTML(p.id)}" aria-label="Открыть ${escapeHTML(p.title)}"><span class="product-image"><img src="${escapeHTML(p.images[0])}" alt="${escapeHTML(p.title)}" loading="lazy"><span class="product-badge ${p.available?'':'muted'}">${availabilityLabel(p)}</span></span><span class="product-name">${escapeHTML(shortTitle(p))}</span><span class="product-card-meta">${escapeHTML(categoryNames[productGroup(p)]||'Растение')}${size}</span><span class="product-price">${money(p.price)}${p.available?'':'<small>последняя цена</small>'}</span></button>`;
+ return `<button class="product-card ${p.source==='avito'?'source-avito':''} ${p.available?'':'is-unavailable'}" data-product="${escapeHTML(p.id)}" aria-label="Открыть ${escapeHTML(p.title)}"><span class="product-image"><img src="${escapeHTML(p.images[0])}" alt="${escapeHTML(p.title)}" loading="lazy"><span class="product-badge ${p.available?'':'muted'}">${availabilityLabel(p)}</span></span><span class="product-name">${escapeHTML(shortTitle(p))}</span><span class="product-card-meta">${escapeHTML(categoryNames[productGroup(p)]||'Растение')}${size}</span><span class="product-price">${money(p.price)}${p.available?'':'<small>последняя цена</small>'}</span></button>`;
 }
 const featured=document.querySelector('[data-featured]');
 if(featured)featured.innerHTML=data.featured.map(id=>data.products.find(p=>p.id===id)).filter(p=>p?.available).slice(0,4).map(productCard).join('');
 const dialog=document.querySelector('.product-dialog');
 const lightbox=document.querySelector('.lightbox');
 let previousFocus=null;
+function productAction(p){
+ if(p.available&&p.purchaseMode==='inquiry'){
+  const text='Здравствуйте! Хочу выбрать '+p.title+'. Цена за один экземпляр — '+money(p.price)+'. Подскажите, какие варианты есть в наличии, чтобы согласовать выбор перед оплатой.';
+  return `<a class="button primary" href="https://t.me/Ekaterina_Freed?text=${encodeURIComponent(text)}" target="_blank" rel="noopener">Согласовать выбор</a>`;
+ }
+ if(p.available)return `<button type="button" class="button primary buy-button" data-buy="${escapeHTML(p.id)}">Купить</button>`;
+ return '<a class="button primary" href="https://t.me/Ekaterina_Freed" target="_blank" rel="noopener">Обсудить заказ</a>';
+}
 function openProduct(id){const p=data.products.find(p=>p.id===id);if(!p)return;previousFocus=document.activeElement;
- dialog.innerHTML=`<button class="close-product" aria-label="Закрыть карточку">✕</button><div class="product-detail"><div class="product-detail-visual"><button class="detail-main-image" aria-label="Увеличить фотографию"><img src="${escapeHTML(p.images[0])}" alt="${escapeHTML(p.title)}"></button><div class="product-thumbs">${p.images.map((src,i)=>`<button class="${i===0?'selected':''}" data-photo="${i}" aria-label="Фотография ${i+1}" aria-pressed="${i===0}"><img src="${escapeHTML(src)}" alt=""></button>`).join('')}</div></div><div class="product-detail-copy"><h2>${escapeHTML(shortTitle(p))}</h2><p class="product-category">${escapeHTML(categoryNames[productGroup(p)]||'Растение')}${p.available?'':' · '+availabilityLabel(p)}</p><div class="detail-price">${money(p.price)}</div><div class="product-description">${descriptionHTML(p.description)}</div>${p.width&&p.height?`<dl class="product-specs"><div><dt>Ширина</dt><dd>${p.width} см</dd></div><div><dt>Высота</dt><dd>${p.height} см</dd></div></dl>`:''}${p.fullDescription&&p.fullDescription!==p.description?`<details class="full-description"><summary>Подробнее</summary><div class="product-description">${descriptionHTML(p.fullDescription)}</div></details>`:''}<div class="product-actions">${p.available?`<button type="button" class="button primary buy-button" data-buy="${escapeHTML(p.id)}">Купить</button>`:'<a class="button primary" href="https://t.me/Ekaterina_Freed" target="_blank" rel="noopener">Обсудить заказ</a>'}</div></div></div><a class="text-link detail-question" href="https://t.me/Ekaterina_Freed" target="_blank" rel="noopener">Задать вопрос</a>`;
+ dialog.innerHTML=`<button class="close-product" aria-label="Закрыть карточку">✕</button><div class="product-detail"><div class="product-detail-visual"><button class="detail-main-image" aria-label="Увеличить фотографию"><img src="${escapeHTML(p.images[0])}" alt="${escapeHTML(p.title)}"></button><div class="product-thumbs">${p.images.map((src,i)=>`<button class="${i===0?'selected':''}" data-photo="${i}" aria-label="Фотография ${i+1}" aria-pressed="${i===0}"><img src="${escapeHTML(src)}" alt=""></button>`).join('')}</div></div><div class="product-detail-copy"><h2>${escapeHTML(shortTitle(p))}</h2><p class="product-category">${escapeHTML(categoryNames[productGroup(p)]||'Растение')}${p.available?'':' · '+availabilityLabel(p)}</p><div class="detail-price">${money(p.price)}</div><div class="product-description">${descriptionHTML(p.description)}</div>${p.width&&p.height?`<dl class="product-specs"><div><dt>Ширина</dt><dd>${p.width} см</dd></div><div><dt>Высота</dt><dd>${p.height} см</dd></div></dl>`:''}${p.fullDescription&&p.fullDescription!==p.description?`<details class="full-description"><summary>Подробнее</summary><div class="product-description">${descriptionHTML(p.fullDescription)}</div></details>`:''}<div class="product-actions">${productAction(p)}</div></div></div><a class="text-link detail-question" href="https://t.me/Ekaterina_Freed" target="_blank" rel="noopener">Задать вопрос</a>`;
  dialog.showModal();document.body.classList.add('modal-open');
  dialog.querySelector('.close-product').addEventListener('click',()=>dialog.close());
  dialog.querySelectorAll('[data-photo]').forEach(button=>button.addEventListener('click',()=>{dialog.querySelector('.detail-main-image img').src=p.images[Number(button.dataset.photo)];dialog.querySelectorAll('[data-photo]').forEach(b=>{const selected=b===button;b.classList.toggle('selected',selected);b.setAttribute('aria-pressed',String(selected))})}));
@@ -59,7 +67,7 @@ const paymentSettings=fetch(window.BOTANIKART_PAYMENT_CONFIG_ENDPOINT,{cache:'no
  .then(response=>response.ok?response.json():{enabled:false,testMode:false})
  .catch(()=>({enabled:false,testMode:false}));
 async function openPurchase(id){
- const p=data.products.find(item=>item.id===id);if(!p||!p.available)return;
+ const p=data.products.find(item=>item.id===id);if(!p||!p.available||p.purchaseMode==='inquiry')return;
  const title='Оформление покупки';
  const settings=await paymentSettings;
  const ready=settings.enabled===true&&Boolean(window.BOTANIKART_PAYMENT_ENDPOINT);

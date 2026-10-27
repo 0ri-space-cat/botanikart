@@ -42,6 +42,23 @@ try {
     $bad=$manual;$bad['version']=$store->all(true)[1]['version'];$bad['images']=['https://attacker.example/file.svg'];
     try { $store->save($bad);throw new RuntimeException('Arbitrary upload reference accepted'); } catch (InvalidArgumentException) {}
     check(count(glob($root.'/api/.private/catalogue/backup-*.sqlite'))===1,'Backup was not created');
+    $variant=['source'=>'avito','avitoItemId'=>'1234567890','avitoVariant'=>'one-litre','title'=>'Грунт, 1 л','description'=>'Фасовка 1 л','price'=>200,'catalogGroup'=>'material','status'=>'ready','images'=>[$image],'url'=>'https://www.avito.ru/1234567890'];
+    $second=$variant;$second['avitoVariant']='three-litres';$second['title']='Грунт, 3 л';$second['price']=400;
+    $before=count($store->all(true));
+    $dry=$store->importBatch([$variant,$second]);
+    check($dry['created']===2 && count($store->all(true))===$before,'Dry-run changed the catalog');
+    $bad=$second;$bad['price']=0;
+    try { $store->importBatch([$variant,$bad],true);throw new RuntimeException('Invalid batch was accepted'); } catch (InvalidArgumentException) {}
+    check(count($store->all(true))===$before,'Failed batch was partially committed');
+    $import=$store->importBatch([$variant,$second],true);
+    check($import['created']===2,'Distinct variants of one Avito ad were rejected');
+    $imported=array_values(array_filter($store->all(true),fn($p)=>($p['avitoVariant']??'')==='one-litre'))[0];
+    $imported['price']=250;$imported['hidden']=true;unset($imported['avitoItemId'],$imported['avitoVariant']);
+    $store->save($imported);
+    $again=$store->importBatch([$variant,$second],true);
+    check($again['created']===0 && $again['alreadyPresent']===2,'Batch was not idempotent');
+    $edited=array_values(array_filter($store->all(true),fn($p)=>($p['avitoVariant']??'')==='one-litre'))[0];
+    check($edited['price']===250 && $edited['hidden'],'Repeat import overwrote the owner edits');
     echo "Catalogue checks passed: hidden flags, Flowwow authority, local records, edit conflicts, photos, backups and payment price/visibility.\n";
 } finally {
     $files=new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root,FilesystemIterator::SKIP_DOTS),RecursiveIteratorIterator::CHILD_FIRST);

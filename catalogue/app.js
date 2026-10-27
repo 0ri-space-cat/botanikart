@@ -25,7 +25,7 @@ function render(){
  const query=$('#search').value.toLocaleLowerCase('ru-RU').replace(/ё/g,'е').trim();const visibility=$('#visibility').value;const category=$('#category').value;
  const items=products.filter(p=>(category==='all'||productGroup(p)===category)&&(source==='all'||p.source===source)&&(!query||(p.title+' '+p.description).toLocaleLowerCase('ru-RU').replace(/ё/g,'е').includes(query))&&(visibility==='all'||visibility==='hidden'&&(p.hidden||p.sourceMissing)||visibility==='visible'&&!p.hidden&&!p.sourceMissing||visibility==='ready'&&p.available||visibility==='sold'&&p.status==='sold'));
  $('#total').textContent=products.length;$('#empty').hidden=items.length!==0;
- $('#products').innerHTML=items.map(p=>`<button class="product ${p.hidden||p.sourceMissing?'is-hidden':''}" data-id="${escape(p.id)}"><img src="${escape(imageURL(p.images?.[0]||'assets/logo-mark-roots.png'))}" alt="" loading="lazy">${p.hidden||p.sourceMissing?'<span class="hidden-badge">Скрыт</span>':''}<div class="product-body"><span class="source-badge ${escape(p.source)}">${escape(names[p.source]||'Своё')}</span><h2>${escape(p.title)}</h2><span class="product-category">${escape(categories[productGroup(p)]||'Растение')}</span><span class="product-price">${money(p.price)}</span><span class="product-status">${escape(statuses[p.status]||(p.available?'В наличии':'Под заказ'))}</span></div></button>`).join('');
+ $('#products').innerHTML=items.map(p=>`<button class="product ${p.source==='avito'?'source-avito':''} ${p.hidden||p.sourceMissing?'is-hidden':''}" data-id="${escape(p.id)}"><img src="${escape(imageURL(p.images?.[0]||'assets/logo-mark-roots.png'))}" alt="" loading="lazy">${p.hidden||p.sourceMissing?'<span class="hidden-badge">Скрыт</span>':''}<div class="product-body"><span class="source-badge ${escape(p.source)}">${escape(names[p.source]||'Своё')}</span><h2>${escape(p.title)}</h2><span class="product-category">${escape(categories[productGroup(p)]||'Растение')}</span><span class="product-price">${money(p.price)}</span><span class="product-status">${escape(statuses[p.status]||(p.available?'В наличии':'Под заказ'))}</span></div></button>`).join('');
 }
 function renderPhotos(){
  $('#photo-count').textContent=images.length+' / 20';
@@ -34,7 +34,7 @@ function renderPhotos(){
 function openEditor(id){
  editing=products.find(p=>p.id===id)||null;const p=editing||{title:'',price:'',description:'',source:'manual',catalogGroup:$('#category').value==='all'?'plant':$('#category').value,status:'ready',url:'',images:[],hidden:false};
  const form=$('#edit-form');form.reset();for(const key of ['title','price','description','source','catalogGroup','status','url'])form.elements[key].value=p[key]??'';
- form.elements.catalogGroup.value=productGroup(p);$('#editor-category').textContent=categories[productGroup(p)]||'Растение';form.elements.visible.checked=!p.hidden;form.elements.source.disabled=Boolean(editing);$('#product-fields').disabled=p.source==='flowwow';
+ form.elements.catalogGroup.value=productGroup(p);$('#editor-category').textContent=categories[productGroup(p)]||'Растение';form.elements.inquiry.checked=p.purchaseMode==='inquiry';form.elements.visible.checked=!p.hidden;form.elements.source.disabled=Boolean(editing);$('#product-fields').disabled=p.source==='flowwow';
  $('#editor-heading').textContent=editing?'Карточка товара':'Новый товар';$('#editor-source').className='source-badge '+p.source;$('#editor-source').textContent=names[p.source];
  $('#flowwow-note').hidden=p.source!=='flowwow';$('#missing-note').hidden=!p.sourceMissing;images=[...(p.images||[])];renderPhotos();message($('#edit-message'));dirty=false;
  $('#source-url-label').textContent=p.source==='flowwow'?'Ссылка на Flowwow':'Ссылка на объявление Авито';$('#editor').showModal();$('#editor').scrollTop=0;document.body.style.overflow='hidden';
@@ -65,7 +65,7 @@ $('#photo-input').addEventListener('change',async e=>{
 });
 $('#edit-form').addEventListener('submit',async e=>{
  e.preventDefault();if(uploading)return;const form=e.target;const payload={id:editing?.id||'',version:editing?.version||0,hidden:!form.elements.visible.checked};
- if(editing?.source!=='flowwow'){for(const key of ['title','description','source','catalogGroup','status','url'])payload[key]=form.elements[key].value;payload.price=Number(form.elements.price.value);payload.images=images;if(!images.length){message($('#edit-message'),'Добавьте хотя бы одну фотографию.',true);return}}
+ if(editing?.source!=='flowwow'){for(const key of ['title','description','source','catalogGroup','status','url'])payload[key]=form.elements[key].value;payload.purchaseMode=form.elements.inquiry.checked?'inquiry':'direct';payload.price=Number(form.elements.price.value);payload.images=images;if(!images.length){message($('#edit-message'),'Добавьте хотя бы одну фотографию.',true);return}}
  $('#save').disabled=true;message($('#edit-message'),'Сохраняем…');
  try{await api('save',payload);dirty=false;$('#editor').close();await load();toast('Изменения сохранены на сайте')}catch(error){message($('#edit-message'),error.message,true)}finally{$('#save').disabled=false}
 });

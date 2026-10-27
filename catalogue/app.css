@@ -2,3 +2,7 @@
 
 /* Product categories are independent of the marketplace/source labels. */
 .toolbar{display:grid;grid-template-columns:minmax(180px,1fr) 220px 170px;align-items:center}.toolbar select{max-width:none;width:100%}.search{min-width:0}.product-category{display:block;font-size:11px;line-height:1.4;color:var(--muted);margin:-2px 0 13px;min-height:30px}.category-badge{display:inline-block;margin-left:8px;font-size:11px;color:var(--muted);line-height:1.5}@media(max-width:700px){.toolbar{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}.toolbar .search{grid-column:1/-1}.toolbar select{max-width:none;font-size:13px}.product-category{font-size:10px;min-height:28px;margin-bottom:10px}.category-badge{font-size:10px}}
+
+.product.source-avito>img{object-fit:contain;background:#edf1f1}
+
+.assortment-toggle{display:flex;gap:10px;align-items:flex-start;padding:15px;background:#edf3e5;border-radius:12px}.assortment-toggle input{margin:2px 0 0;accent-color:#345e41}.assortment-toggle small{display:block;margin-top:5px;font-size:11px;color:var(--muted);font-weight:400;line-height:1.5}

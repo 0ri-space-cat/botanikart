@@ -15,7 +15,8 @@ final class CatalogStore
         @chmod($directory . '/catalogue.sqlite', 0600);
         $this->db->exec('PRAGMA busy_timeout=10000');
         $this->db->exec('CREATE TABLE IF NOT EXISTS products (id TEXT PRIMARY KEY, source TEXT NOT NULL, document TEXT NOT NULL, hidden INTEGER NOT NULL DEFAULT 0, missing INTEGER NOT NULL DEFAULT 0, version INTEGER NOT NULL DEFAULT 1, updated_at TEXT NOT NULL)');
-        $this->db->exec("CREATE UNIQUE INDEX IF NOT EXISTS avito_reference ON products(json_extract(document,'$.avitoItemId')) WHERE source='avito'");
+        $this->db->exec("CREATE UNIQUE INDEX IF NOT EXISTS avito_variant_reference ON products(json_extract(document,'$.avitoItemId'),COALESCE(json_extract(document,'$.avitoVariant'),'')) WHERE source='avito'");
+        $this->db->exec('DROP INDEX IF EXISTS avito_reference');
         $this->db->exec('CREATE TABLE IF NOT EXISTS metadata (name TEXT PRIMARY KEY, value TEXT NOT NULL)');
         $this->db->exec('CREATE TABLE IF NOT EXISTS login_attempts (address TEXT PRIMARY KEY, attempts INTEGER NOT NULL, started INTEGER NOT NULL)');
         $this->refresh();
@@ -108,10 +109,12 @@ final class CatalogStore
             $price = $input['price'] ?? null;
             $group = $input['catalogGroup'] ?? '';
             $status = $input['status'] ?? '';
+            $purchaseMode = $input['purchaseMode'] ?? ($existing ? (json_decode($existing['document'],true)['purchaseMode'] ?? 'direct') : 'direct');
             if (mb_strlen($title) < 2 || mb_strlen($title) > 250 || mb_strlen($description) > 30000
                 || !is_numeric($price) || (float) $price <= 0 || (float) $price > 10000000
                 || !in_array($group, ['florarium','composition','potted','plant','material'], true)
-                || !in_array($status, ['ready','preorder','sold'], true)) throw new \InvalidArgumentException('invalid_product');
+                || !in_array($status, ['ready','preorder','sold'], true)
+                || !in_array($purchaseMode,['direct','inquiry'],true)) throw new \InvalidArgumentException('invalid_product');
             $images = $input['images'] ?? [];
             if (!is_array($images) || !array_is_list($images) || !$images || count($images) > 20) throw new \InvalidArgumentException('invalid_images');
             $prior = $existing ? json_decode($existing['document'], true, 512, JSON_THROW_ON_ERROR) : [];
@@ -126,8 +129,21 @@ final class CatalogStore
             if ($id === '') $id = ($source === 'avito' ? 'avito-local-' : 'local-') . bin2hex(random_bytes(12));
             $product = ['id'=>$id,'title'=>$title,'description'=>$description,'price'=>round((float)$price, 2),
                 'source'=>$source,'url'=>$url,'category'=>$group,'catalogGroup'=>$group,'images'=>array_values(array_unique($images)),
-                'available'=>$status==='ready','status'=>$status];
-            if ($source === 'avito' && preg_match('/_(\d+)(?:\?|$)/', $url, $match)) $product['avitoItemId'] = $match[1];
+                'available'=>$status==='ready','status'=>$status,'purchaseMode'=>$purchaseMode];
+            if ($source === 'avito') {
+                $externalId = $prior['avitoItemId'] ?? ($input['avitoItemId'] ?? '');
+                if (preg_match('~(?:_|/)(\d+)(?:/)?(?:\?|$)~', $url, $match)) {
+                    if ($externalId !== '' && $externalId !== $match[1]) throw new \InvalidArgumentException('invalid_source_identity');
+                    $externalId = $match[1];
+                }
+                if ($externalId !== '') {
+                    if (!is_string($externalId) || !preg_match('/^\d{5,20}$/D', $externalId)) throw new \InvalidArgumentException('invalid_source_identity');
+                    $product['avitoItemId'] = $externalId;
+                }
+                $variant = $prior['avitoVariant'] ?? ($input['avitoVariant'] ?? '');
+                if (!is_string($variant) || ($variant !== '' && !preg_match('/^[a-z0-9-]{1,100}$/D', $variant))) throw new \InvalidArgumentException('invalid_source_identity');
+                if ($variant !== '') $product['avitoVariant'] = $variant;
+            }
             $document = json_encode($product, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
             if ($existing) {
                 $update = $this->db->prepare('UPDATE products SET document=?,hidden=?,version=version+1,updated_at=? WHERE id=? AND version=?');
@@ -156,5 +172,30 @@ final class CatalogStore
                 foreach (array_slice($files,14) as $file) unlink($file);
             }
         } finally { flock($lock,LOCK_UN); fclose($lock); }
+    }
+
+    /** Import a trusted, reviewed batch once; repeat deployments never overwrite an owner's edits. */
+    public function importBatch(array $items, bool $apply = false): array
+    {
+        if (!$items || count($items)>200 || !array_is_list($items)) throw new \InvalidArgumentException('invalid_import');
+        $this->backup();
+        $this->db->exec('BEGIN IMMEDIATE');
+        try {
+            $known=[];
+            foreach ($this->all(true) as $p) {
+                if ($p['source']==='avito' && !empty($p['avitoItemId'])) $known[$p['avitoItemId'].'/'.($p['avitoVariant']??'')]=true;
+            }
+            $created=[];$skipped=0;
+            foreach ($items as $item) {
+                if (($item['source']??'')!=='avito' || empty($item['avitoItemId'])) throw new \InvalidArgumentException('invalid_import_source');
+                $key=$item['avitoItemId'].'/'.($item['avitoVariant']??'');
+                if (isset($known[$key])) { $skipped++; continue; }
+                $item['id']='';$item['version']=0;
+                $created[]=$this->save($item);
+                $known[$key]=true;
+            }
+            $this->db->exec($apply?'COMMIT':'ROLLBACK');
+            return ['applied'=>$apply,'created'=>count($created),'alreadyPresent'=>$skipped,'ids'=>$created];
+        } catch (\Throwable $error) { $this->db->exec('ROLLBACK');throw $error; }
     }
 }

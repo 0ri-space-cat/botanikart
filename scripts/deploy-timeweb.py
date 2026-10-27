@@ -3,6 +3,9 @@
 import argparse
 import os
 import posixpath
+import json
+import re
+import shlex
 import stat
 import uuid
 from pathlib import Path
@@ -75,6 +78,24 @@ def main():
             # Upload backend first, then data/assets, and entry pages last.
             upload(sftp, Path(__file__).resolve().parents[1] / "hosting/private", private, private=True)
             upload(sftp, public, target)
+            for manifest_path in sorted((Path(__file__).resolve().parents[1] / 'imports').glob('*/catalog.json')):
+                manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+                batch = manifest.get('batch', '')
+                if not re.fullmatch('[a-z0-9-]{1,80}', batch):
+                    raise RuntimeError('Invalid reviewed import identifier')
+                import_dir = posixpath.join(private, 'imports')
+                mkdirs(sftp, import_dir, 0o700)
+                remote_manifest = posixpath.join(import_dir, batch + '.json')
+                temporary = remote_manifest + '.upload-' + uuid.uuid4().hex
+                sftp.put(str(manifest_path), temporary)
+                sftp.chmod(temporary, 0o600)
+                sftp.posix_rename(temporary, remote_manifest)
+                command = '/opt/php83/bin/php ' + shlex.quote(posixpath.join(private, 'import-catalogue.php')) + ' ' + shlex.quote(remote_manifest) + ' --apply'
+                _, stdout, stderr = client.exec_command(command, timeout=30)
+                result = stdout.read().decode('utf-8')
+                if stdout.channel.recv_exit_status() != 0:
+                    raise RuntimeError('Reviewed catalogue import failed; its database transaction was rolled back')
+                print(result.strip())
         print("Timeweb release uploaded. Private configuration and orders were preserved.")
     finally:
         client.close()

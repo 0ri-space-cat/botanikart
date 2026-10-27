@@ -24,7 +24,7 @@ PAGES = (
 )
 PUBLIC_ASSETS = (
     "catalog/florarium-s-kryshkoy-tam-gde-c-1.jpg",
-    "catalog/podvesnoy-florarium-domik-lesn-3.jpg",
+    "catalog/florarium-shepot-lesa-1.jpg",
     "aglaonema.jpg",
     "favicon.svg",
     "forest1.jpg",
@@ -97,6 +97,20 @@ def main() -> None:
     }
     for relative in sorted(image_paths):
         copy_file(relative, output)
+
+    # Reviewed one-time imports contain public product photographs only, never raw account screenshots.
+    for manifest_path in sorted((ROOT / 'imports').glob('*/catalog.json')):
+        manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+        for product in manifest.get('items', []):
+            for relative in product.get('images', []):
+                if not re.fullmatch(r'assets/uploads/catalogue/[a-f0-9]{32}\.jpg', relative):
+                    raise ValueError('Invalid imported photograph path')
+                source = manifest_path.parent / 'images' / Path(relative).name
+                if not source.is_file():
+                    raise FileNotFoundError('An imported photograph is missing')
+                target = output / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source, target)
 
     # Fail closed if implementation-only material ever appears in the publish tree.
     forbidden = {".git", "work", "private", ".env", "config.php", "config.example.php", "orders.json", "orders.php"}

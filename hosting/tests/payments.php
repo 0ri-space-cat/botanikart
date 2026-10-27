@@ -38,6 +38,13 @@ try {
     check(count($calls) === 0, 'Stale prices must not reach the bank');
     $live = new PaymentService(array_replace($config, ['terminal_key' => 'LIVE']), $bank);
     rejects(fn() => $live->create($input), 'receipt_not_configured');
+    $originalCatalog = file_get_contents($directory . '/catalog.json');
+    $assortmentCatalog = json_decode($originalCatalog, true);
+    $assortmentCatalog['products'][0]['purchaseMode'] = 'inquiry';
+    file_put_contents($directory . '/catalog.json', json_encode($assortmentCatalog));
+    rejects(fn() => $service->create($input), 'product_unavailable');
+    check(count($calls) === 0, 'Assortment choice must be agreed before any bank request');
+    file_put_contents($directory . '/catalog.json', $originalCatalog);
     $result = $service->create($input);
     check($calls[0][1]['Amount'] === 12300, 'The catalog controls the amount');
     check(strlen($calls[0][1]['SuccessURL']) <= 250 && strlen($calls[0][1]['FailURL']) <= 250, 'Return URLs must fit bank limits');

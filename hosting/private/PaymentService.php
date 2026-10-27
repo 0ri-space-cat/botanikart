@@ -169,7 +169,9 @@ final class PaymentService
             $catalog = json_decode((string) file_get_contents($this->config['catalog_path']), true, 512, JSON_THROW_ON_ERROR);
         }
         foreach ($catalog['products'] ?? [] as $product) {
-            if (($product['id'] ?? '') === $id && ($product['available'] ?? false) === true && is_numeric($product['price'] ?? null) && (float) $product['price'] > 0) return $product;
+            if (($product['id'] ?? '') === $id && ($product['available'] ?? false) === true
+                && ($product['purchaseMode'] ?? 'direct') === 'direct'
+                && is_numeric($product['price'] ?? null) && (float) $product['price'] > 0) return $product;
         }
         throw new ApiError('product_unavailable', 409);
     }
