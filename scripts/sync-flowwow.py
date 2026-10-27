@@ -10,6 +10,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
+from catalog_taxonomy import enrich
 
 ROOT = Path(__file__).resolve().parents[1]
 SHOP_ID = 257704
@@ -110,7 +111,9 @@ def main():
     names = category_names()
     data_path = ROOT / "data/catalog.json"
     catalog = json.loads(data_path.read_text(encoding="utf-8"))
-    existing = {key(p.get("url")): p for p in catalog["products"] if p.get("url")}
+    existing = {key(p.get("url")): p for p in catalog["products"] if p.get("url") and p.get("source", "flowwow") == "flowwow"}
+    existing_ids = {str(p["flowwowProductId"]): p for p in existing.values() if p.get("flowwowProductId") is not None}
+    overrides = json.loads((ROOT / "data/catalog-groups.json").read_text(encoding="utf-8"))
     seen = set()
     refreshed = []
 
@@ -121,7 +124,7 @@ def main():
         if not url:
             raise RuntimeError("Flowwow item is missing its product URL")
         product_key = key(url)
-        prior = existing.get(product_key)
+        prior = existing_ids.get(str(item.get("productId"))) or existing.get(product_key)
         archived = bool(item.get("isArchived"))
         active = bool(item.get("isActive")) and not archived
         # Keep only selected archived products from the manually curated snapshot.
@@ -130,6 +133,8 @@ def main():
         if not active and not prior:
             continue
         seen.add(product_key)
+        if prior:
+            seen.add(key(prior.get("url")))
         current_price = float(item.get("price") or 0)
         discount = float(item.get("discount") or 0)
         if discount:
@@ -149,6 +154,7 @@ def main():
             "description": normalize_description(item.get("description") or entry.get("description") or "Композиция ручной работы от студии БотаникАрт."),
             "checkedAt": datetime.now(ZoneInfo("Europe/Moscow")).date().isoformat(),
             "flowwowProductId": item.get("productId"),
+            "source": "flowwow",
         })
         api_images = item.get("images") or []
         if api_images:
@@ -159,7 +165,7 @@ def main():
 
     # Preserve selected made-to-order examples that are no longer returned by Flowwow.
     for old in catalog["products"]:
-        if old.get("status") in ("order", "preorder") and key(old.get("url")) not in seen:
+        if old.get("source", "flowwow") != "flowwow" or (old.get("status") in ("order", "preorder") and key(old.get("url")) not in seen):
             refreshed.append(old)
     if not refreshed:
         raise RuntimeError("Refusing to replace the catalog with an empty result")
@@ -172,7 +178,7 @@ def main():
             break
         if product.get("category") == "florarium" and product.get("available") and product["id"] not in featured:
             featured.append(product["id"])
-    catalog["products"] = refreshed
+    catalog["products"] = [enrich(product, overrides) for product in refreshed]
     catalog["checkedAt"] = datetime.now(ZoneInfo("Europe/Moscow")).date().isoformat()
     catalog["featured"] = featured[:4]
     catalog["source"] = "Flowwow Seller API"

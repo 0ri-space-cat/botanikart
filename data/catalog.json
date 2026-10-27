@@ -27,7 +27,10 @@
         "https://content2.flowwow-images.com/data/flowers/1000x1000/12/1791298914_96542112.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/94/1791298914_58206794.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/74/1791298914_64345674.jpg"
-      ]
+      ],
+      "source": "flowwow",
+      "catalogGroup": "potted",
+      "tags": []
     },
     {
       "id": "flowwow-77312176",
@@ -48,7 +51,10 @@
         "https://content2.flowwow-images.com/data/flowers/1000x1000/63/1791299386_20523463.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/14/1791299386_89984114.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/53/1791299386_86909853.jpg"
-      ]
+      ],
+      "source": "flowwow",
+      "catalogGroup": "potted",
+      "tags": []
     },
     {
       "id": "flowwow-77312145",
@@ -68,7 +74,10 @@
         "https://content2.flowwow-images.com/data/flowers/1000x1000/19/1791299111_12662119.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/89/1791299111_21461789.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/86/1791299111_91686686.jpg"
-      ]
+      ],
+      "source": "flowwow",
+      "catalogGroup": "potted",
+      "tags": []
     },
     {
       "id": "flowwow-77312081",
@@ -89,7 +98,10 @@
         "https://content2.flowwow-images.com/data/flowers/1000x1000/37/1791298616_73374637.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/63/1791298616_74409663.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/80/1791298616_26910480.jpg"
-      ]
+      ],
+      "source": "flowwow",
+      "catalogGroup": "potted",
+      "tags": []
     },
     {
       "id": "flowwow-77312050",
@@ -109,7 +121,10 @@
         "https://content2.flowwow-images.com/data/flowers/1000x1000/76/1791298363_92599176.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/81/1791298363_91558481.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/21/1791298363_69611821.jpg"
-      ]
+      ],
+      "source": "flowwow",
+      "catalogGroup": "potted",
+      "tags": []
     },
     {
       "id": "flowwow-77433271",
@@ -129,6 +144,11 @@
         "https://content2.flowwow-images.com/data/flowers/1000x1000/97/1792331725_33135697.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/42/1792331726_96960242.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/21/1792331726_24009321.jpg"
+      ],
+      "source": "flowwow",
+      "catalogGroup": "potted",
+      "tags": [
+        "succulent"
       ]
     },
     {
@@ -150,7 +170,10 @@
         "https://content2.flowwow-images.com/data/flowers/1000x1000/76/1792335584_78320776.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/78/1792335584_34374578.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/37/1792335584_97617837.jpg"
-      ]
+      ],
+      "source": "flowwow",
+      "catalogGroup": "potted",
+      "tags": []
     },
     {
       "id": "flowwow-77433830",
@@ -171,7 +194,10 @@
         "https://content2.flowwow-images.com/data/flowers/1000x1000/98/1792335919_74743998.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/82/1792335919_89652282.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/69/1792335920_70848469.jpg"
-      ]
+      ],
+      "source": "flowwow",
+      "catalogGroup": "potted",
+      "tags": []
     },
     {
       "id": "flowwow-77433846",
@@ -190,7 +216,10 @@
         "https://content2.flowwow-images.com/data/flowers/1000x1000/55/1792336109_45689155.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/21/1792336109_54922621.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/04/1792336110_75674204.jpg"
-      ]
+      ],
+      "source": "flowwow",
+      "catalogGroup": "potted",
+      "tags": []
     },
     {
       "id": "flowwow-77433874",
@@ -210,7 +239,10 @@
         "https://content2.flowwow-images.com/data/flowers/1000x1000/54/1792338796_14425554.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/50/1792338800_81973550.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/85/1792338804_48370085.jpg"
-      ]
+      ],
+      "source": "flowwow",
+      "catalogGroup": "potted",
+      "tags": []
     },
     {
       "id": "flowwow-77197947",
@@ -233,7 +265,10 @@
         "https://content2.flowwow-images.com/data/flowers/1000x1000/86/1790339142_77481786.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/15/1790339147_70563315.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/63/1790339157_55262563.jpg"
-      ]
+      ],
+      "source": "flowwow",
+      "catalogGroup": "florarium",
+      "tags": []
     },
     {
       "id": "flowwow-71612007",
@@ -255,7 +290,10 @@
         "https://content2.flowwow-images.com/data/flowers/1000x1000/56/1782742324_95556256.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/75/1782742328_98860675.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/88/1782742331_86031688.jpg"
-      ]
+      ],
+      "source": "flowwow",
+      "catalogGroup": "florarium",
+      "tags": []
     },
     {
       "id": "flowwow-76819648",
@@ -275,6 +313,11 @@
         "https://content2.flowwow-images.com/data/flowers/1000x1000/67/1787148543_26036367.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/26/1787148545_79058226.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/60/1787148547_95542960.jpg"
+      ],
+      "source": "flowwow",
+      "catalogGroup": "potted",
+      "tags": [
+        "ficus"
       ]
     },
     {
@@ -296,7 +339,10 @@
         "https://content2.flowwow-images.com/data/flowers/1000x1000/79/1791300513_78039579.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/49/1791300513_73321749.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/33/1791300513_77182833.jpg"
-      ]
+      ],
+      "source": "flowwow",
+      "catalogGroup": "potted",
+      "tags": []
     },
     {
       "id": "flowwow-77330720",
@@ -318,6 +364,11 @@
         "https://content2.flowwow-images.com/data/flowers/1000x1000/15/1791454689_61785215.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/08/1791454689_14829908.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/14/1791454689_20358214.jpg"
+      ],
+      "source": "flowwow",
+      "catalogGroup": "potted",
+      "tags": [
+        "succulent"
       ]
     },
     {
@@ -338,7 +389,10 @@
         "https://content2.flowwow-images.com/data/flowers/1000x1000/40/1791455017_13153740.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/41/1791455017_72005841.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/37/1791455017_76734837.jpg"
-      ]
+      ],
+      "source": "flowwow",
+      "catalogGroup": "potted",
+      "tags": []
     },
     {
       "id": "flowwow-77330659",
@@ -359,6 +413,11 @@
         "https://content2.flowwow-images.com/data/flowers/1000x1000/36/1791454456_98044336.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/19/1791454456_58165219.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/96/1791454457_21255896.jpg"
+      ],
+      "source": "flowwow",
+      "catalogGroup": "potted",
+      "tags": [
+        "succulent"
       ]
     },
     {
@@ -378,6 +437,11 @@
         "https://content2.flowwow-images.com/data/flowers/1000x1000/35/1791454824_23981135.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/22/1791454824_40306622.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/37/1791454825_49265637.jpg"
+      ],
+      "source": "flowwow",
+      "catalogGroup": "potted",
+      "tags": [
+        "succulent"
       ]
     },
     {
@@ -400,7 +464,10 @@
         "https://content2.flowwow-images.com/data/flowers/1000x1000/83/1784556241_14543583.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/18/1784556244_29923118.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/55/1784556246_84771855.jpg"
-      ]
+      ],
+      "source": "flowwow",
+      "catalogGroup": "composition",
+      "tags": []
     },
     {
       "id": "flowwow-75560814",
@@ -423,7 +490,10 @@
         "https://content2.flowwow-images.com/data/flowers/1000x1000/27/1777229623_42824927.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/04/1777229625_60899004.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/99/1777229627_47092899.jpg"
-      ]
+      ],
+      "source": "flowwow",
+      "catalogGroup": "composition",
+      "tags": []
     },
     {
       "id": "flowwow-77433736",
@@ -444,7 +514,10 @@
         "https://content2.flowwow-images.com/data/flowers/1000x1000/77/1792335431_42710977.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/48/1792335431_33867348.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/93/1792335432_24203093.jpg"
-      ]
+      ],
+      "source": "flowwow",
+      "catalogGroup": "potted",
+      "tags": []
     },
     {
       "id": "flowwow-77330904",
@@ -466,7 +539,10 @@
         "https://content2.flowwow-images.com/data/flowers/1000x1000/79/1791455380_68381379.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/03/1791455380_54439603.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/13/1791455381_80778313.jpg"
-      ]
+      ],
+      "source": "flowwow",
+      "catalogGroup": "composition",
+      "tags": []
     },
     {
       "id": "flowwow-77330867",
@@ -489,7 +565,10 @@
         "https://content2.flowwow-images.com/data/flowers/1000x1000/01/1791455259_95880501.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/01/1791455259_62139701.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/38/1791455259_19531538.jpg"
-      ]
+      ],
+      "source": "flowwow",
+      "catalogGroup": "composition",
+      "tags": []
     },
     {
       "id": "flowwow-76819700",
@@ -508,7 +587,10 @@
         "https://content2.flowwow-images.com/data/flowers/1000x1000/74/1787148818_10633474.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/57/1787148820_65572757.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/65/1787148822_47562565.jpg"
-      ]
+      ],
+      "source": "flowwow",
+      "catalogGroup": "potted",
+      "tags": []
     },
     {
       "id": "flowwow-77433388",
@@ -529,7 +611,10 @@
         "https://content2.flowwow-images.com/data/flowers/1000x1000/93/1792332778_92122993.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/05/1792332779_11859705.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/66/1792332779_53744466.jpg"
-      ]
+      ],
+      "source": "flowwow",
+      "catalogGroup": "florarium",
+      "tags": []
     },
     {
       "id": "flowwow-77433457",
@@ -552,7 +637,10 @@
         "https://content2.flowwow-images.com/data/flowers/1000x1000/19/1792333337_22327219.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/29/1792333338_59316829.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/78/1792333338_36038078.jpg"
-      ]
+      ],
+      "source": "flowwow",
+      "catalogGroup": "florarium",
+      "tags": []
     },
     {
       "id": "flowwow-77433666",
@@ -574,7 +662,10 @@
         "https://content2.flowwow-images.com/data/flowers/1000x1000/95/1792334992_11038495.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/91/1792334992_41159591.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/37/1792334992_92794637.jpg"
-      ]
+      ],
+      "source": "flowwow",
+      "catalogGroup": "potted",
+      "tags": []
     },
     {
       "id": "flowwow-77433568",
@@ -594,7 +685,10 @@
         "https://content2.flowwow-images.com/data/flowers/1000x1000/32/1792334082_38625332.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/53/1792334082_39982253.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/26/1792334083_54085526.jpg"
-      ]
+      ],
+      "source": "flowwow",
+      "catalogGroup": "potted",
+      "tags": []
     },
     {
       "id": "flowwow-77433611",
@@ -614,7 +708,10 @@
         "https://content2.flowwow-images.com/data/flowers/1000x1000/88/1792334456_45203088.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/15/1792334456_15037415.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/60/1792334456_30945060.jpg"
-      ]
+      ],
+      "source": "flowwow",
+      "catalogGroup": "potted",
+      "tags": []
     },
     {
       "id": "flowwow-77433595",
@@ -634,7 +731,10 @@
         "https://content2.flowwow-images.com/data/flowers/1000x1000/01/1792334289_28997601.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/94/1792334289_35210994.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/57/1792334289_62130057.jpg"
-      ]
+      ],
+      "source": "flowwow",
+      "catalogGroup": "potted",
+      "tags": []
     },
     {
       "id": "flowwow-73229741",
@@ -654,7 +754,10 @@
         "https://content2.flowwow-images.com/data/flowers/1000x1000/39/1772022114_82438939.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/53/1772022118_66661653.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/08/1772022121_36477008.jpg"
-      ]
+      ],
+      "source": "flowwow",
+      "catalogGroup": "florarium",
+      "tags": []
     },
     {
       "id": "flowwow-77198003",
@@ -676,7 +779,10 @@
         "https://content2.flowwow-images.com/data/flowers/1000x1000/78/1790339517_98448178.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/14/1790339528_10877314.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/11/1790339535_63427111.jpg"
-      ]
+      ],
+      "source": "flowwow",
+      "catalogGroup": "florarium",
+      "tags": []
     },
     {
       "id": "flowwow-75561151",
@@ -697,7 +803,10 @@
         "https://content2.flowwow-images.com/data/flowers/1000x1000/74/1788351282_98604974.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/90/1788351284_84050190.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/96/1788351286_79438996.jpg"
-      ]
+      ],
+      "source": "flowwow",
+      "catalogGroup": "florarium",
+      "tags": []
     },
     {
       "id": "flowwow-76364430",
@@ -720,7 +829,10 @@
         "https://content2.flowwow-images.com/data/flowers/1000x1000/09/1788610687_53596509.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/22/1788610698_86357022.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/14/1788610709_38281814.jpg"
-      ]
+      ],
+      "source": "flowwow",
+      "catalogGroup": "florarium",
+      "tags": []
     },
     {
       "id": "flowwow-75561203",
@@ -742,7 +854,10 @@
         "https://content2.flowwow-images.com/data/flowers/1000x1000/23/1784558808_35927523.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/68/1784558811_42206468.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/30/1784558813_45952230.jpg"
-      ]
+      ],
+      "source": "flowwow",
+      "catalogGroup": "florarium",
+      "tags": []
     },
     {
       "id": "flowwow-73252457",
@@ -763,7 +878,10 @@
         "https://content2.flowwow-images.com/data/flowers/1000x1000/66/1787047595_98884466.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/34/1787047601_79997634.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/19/1787047605_79756719.jpg"
-      ]
+      ],
+      "source": "flowwow",
+      "catalogGroup": "florarium",
+      "tags": []
     },
     {
       "id": "flowwow-76289177",
@@ -782,7 +900,10 @@
         "https://content2.flowwow-images.com/data/flowers/1000x1000/58/1792331805_45043458.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/37/1792331806_74599637.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/16/1792331806_18066216.jpg"
-      ]
+      ],
+      "source": "flowwow",
+      "catalogGroup": "florarium",
+      "tags": []
     },
     {
       "id": "flowwow-76711120",
@@ -802,7 +923,10 @@
         "https://content2.flowwow-images.com/data/flowers/1000x1000/97/1786189337_86531597.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/14/1786189343_47903714.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/94/1786189350_50869894.jpg"
-      ]
+      ],
+      "source": "flowwow",
+      "catalogGroup": "florarium",
+      "tags": []
     },
     {
       "id": "flowwow-76712138",
@@ -824,7 +948,10 @@
         "https://content2.flowwow-images.com/data/flowers/1000x1000/13/1786194801_45874313.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/51/1786194806_87220051.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/21/1786194810_37253121.jpg"
-      ]
+      ],
+      "source": "flowwow",
+      "catalogGroup": "florarium",
+      "tags": []
     },
     {
       "id": "flowwow-77433503",
@@ -843,7 +970,10 @@
         "https://content2.flowwow-images.com/data/flowers/1000x1000/75/1792333616_92897575.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/89/1792333616_56097289.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/05/1792333616_58028605.jpg"
-      ]
+      ],
+      "source": "flowwow",
+      "catalogGroup": "potted",
+      "tags": []
     },
     {
       "id": "flowwow-77433639",
@@ -865,7 +995,10 @@
         "https://content2.flowwow-images.com/data/flowers/1000x1000/83/1792334745_44951083.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/63/1792334745_52393763.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/62/1792334746_30258562.jpg"
-      ]
+      ],
+      "source": "flowwow",
+      "catalogGroup": "potted",
+      "tags": []
     },
     {
       "id": "flowwow-77433536",
@@ -886,7 +1019,10 @@
         "https://content2.flowwow-images.com/data/flowers/1000x1000/38/1792333849_19224138.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/20/1792333850_64559520.jpg",
         "https://content2.flowwow-images.com/data/flowers/1000x1000/36/1792333850_96751736.jpg"
-      ]
+      ],
+      "source": "flowwow",
+      "catalogGroup": "potted",
+      "tags": []
     },
     {
       "id": "florarium-s-kryshkoy-zelenaya-",
@@ -904,7 +1040,10 @@
       ],
       "status": "order",
       "checkedAt": "2026-10-26",
-      "fullDescription": "Волшебный уголок природы в стекле. Внутри — живые растения и несколько видов фиалок, которые при правильном уходе радуют яркими цветами."
+      "fullDescription": "Волшебный уголок природы в стекле. Внутри — живые растения и несколько видов фиалок, которые при правильном уходе радуют яркими цветами.",
+      "source": "flowwow",
+      "catalogGroup": "florarium",
+      "tags": []
     },
     {
       "id": "florarium-zemlyanichniy-bor",
@@ -922,7 +1061,10 @@
       ],
       "status": "order",
       "checkedAt": "2026-10-26",
-      "fullDescription": "Миниатюрный живой сад с атмосферой цветущей лесной опушки. Среди пышной солейролии яркими ягодными брызгами горят красная фиттония и розовая каллизия."
+      "fullDescription": "Миниатюрный живой сад с атмосферой цветущей лесной опушки. Среди пышной солейролии яркими ягодными брызгами горят красная фиттония и розовая каллизия.",
+      "source": "flowwow",
+      "catalogGroup": "florarium",
+      "tags": []
     },
     {
       "id": "maranta-lemon-laym-v-tehgorshk",
@@ -940,7 +1082,10 @@
       ],
       "status": "order",
       "checkedAt": "2026-10-26",
-      "fullDescription": "Насыщенная зелень и контрастные лимонные жилки — маленький яркий акцент для дома. Растение нашего выращивания; вечером маранта поднимает листья, а утром вновь раскрывает их."
+      "fullDescription": "Насыщенная зелень и контрастные лимонные жилки — маленький яркий акцент для дома. Растение нашего выращивания; вечером маранта поднимает листья, а утром вновь раскрывает их.",
+      "source": "flowwow",
+      "catalogGroup": "plant",
+      "tags": []
     },
     {
       "id": "florarium-biokolba",
@@ -958,7 +1103,10 @@
       ],
       "status": "order",
       "checkedAt": "2026-10-26",
-      "fullDescription": "Настоящая лаборатория природы на вашем столе. В конической колбе — живые тропические растения и контрастные слои декоративного песка."
+      "fullDescription": "Настоящая лаборатория природы на вашем столе. В конической колбе — живые тропические растения и контрастные слои декоративного песка.",
+      "source": "flowwow",
+      "catalogGroup": "florarium",
+      "tags": []
     },
     {
       "id": "paporotnik-nefrolepis-voz-9559",
@@ -976,7 +1124,10 @@
       ],
       "status": "order",
       "checkedAt": "2026-10-26",
-      "fullDescription": "Пышный зелёный акцент для дома или офиса. Нефролепис уже пересажен в прозрачное кашпо с автополивом: через стенки удобно наблюдать за корнями и уровнем воды."
+      "fullDescription": "Пышный зелёный акцент для дома или офиса. Нефролепис уже пересажен в прозрачное кашпо с автополивом: через стенки удобно наблюдать за корнями и уровнем воды.",
+      "source": "flowwow",
+      "catalogGroup": "potted",
+      "tags": []
     },
     {
       "id": "cvetushchaya-mini-fialka-shirl",
@@ -994,7 +1145,10 @@
       ],
       "status": "order",
       "checkedAt": "2026-10-26",
-      "fullDescription": "Нежное фиолетовое облако с необычной пёстрой листвой. Этот кустик выращен в нашей студии из черенка и уже адаптирован к комнатным условиям."
+      "fullDescription": "Нежное фиолетовое облако с необычной пёстрой листвой. Этот кустик выращен в нашей студии из черенка и уже адаптирован к комнатным условиям.",
+      "source": "flowwow",
+      "catalogGroup": "potted",
+      "tags": []
     },
     {
       "id": "begoniya-arabskiy-zakat-v-svet",
@@ -1012,7 +1166,10 @@
       ],
       "status": "order",
       "checkedAt": "2026-10-26",
-      "fullDescription": "Глубокие оттенки и выразительная листва в светло-бежевом кашпо. Бегония выращена в студии, укоренена и пересажена в подходящий грунт."
+      "fullDescription": "Глубокие оттенки и выразительная листва в светло-бежевом кашпо. Бегония выращена в студии, укоренена и пересажена в подходящий грунт.",
+      "source": "flowwow",
+      "catalogGroup": "potted",
+      "tags": []
     },
     {
       "id": "begoniya-hyu-maklahan-hugh-mcl",
@@ -1030,7 +1187,10 @@
       ],
       "status": "order",
       "checkedAt": "2026-10-26",
-      "fullDescription": "Сложная палитра листвы, напоминающая живую акварель. Бегония выращена в нашей студии и уже пересажена в прозрачное кашпо."
+      "fullDescription": "Сложная палитра листвы, напоминающая живую акварель. Бегония выращена в нашей студии и уже пересажена в прозрачное кашпо.",
+      "source": "flowwow",
+      "catalogGroup": "potted",
+      "tags": []
     },
     {
       "id": "kompoziciya-chetyre-begonii",
@@ -1048,7 +1208,10 @@
       ],
       "status": "order",
       "checkedAt": "2026-10-26",
-      "fullDescription": "Четыре вида бегоний и пушистый нефролепис в открытом стеклянном кубе. Живая коллекция фактур, которую можно рассматривать с любой стороны."
+      "fullDescription": "Четыре вида бегоний и пушистый нефролепис в открытом стеклянном кубе. Живая коллекция фактур, которую можно рассматривать с любой стороны.",
+      "source": "flowwow",
+      "catalogGroup": "composition",
+      "tags": []
     },
     {
       "id": "florarium-zakrytiy-geometriya-",
@@ -1066,7 +1229,10 @@
       ],
       "status": "order",
       "checkedAt": "2026-10-26",
-      "fullDescription": "Мирт, яркие фиттонии и плотный ковёр зелёного мха в закрытой геометрической форме. Маленький мир, который сохраняет влагу внутри."
+      "fullDescription": "Мирт, яркие фиттонии и плотный ковёр зелёного мха в закрытой геометрической форме. Маленький мир, который сохраняет влагу внутри.",
+      "source": "flowwow",
+      "catalogGroup": "florarium",
+      "tags": []
     },
     {
       "id": "aloe-v-kashpo-botan-bratan",
@@ -1084,7 +1250,12 @@
       ],
       "status": "order",
       "checkedAt": "2026-10-26",
-      "fullDescription": "Наш зелёный герой в необычном кашпо. Нетребовательное алоэ переносит сухой воздух квартир и прощает редкий полив."
+      "fullDescription": "Наш зелёный герой в необычном кашпо. Нетребовательное алоэ переносит сухой воздух квартир и прощает редкий полив.",
+      "source": "flowwow",
+      "catalogGroup": "potted",
+      "tags": [
+        "succulent"
+      ]
     }
   ],
   "liveStoreCount": 139,
