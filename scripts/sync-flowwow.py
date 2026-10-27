@@ -98,6 +98,7 @@ def normalize_description(value):
         listing = re.sub(r"\s+[—•]\s+(?=[А-ЯЁA-Z])", "\n— ", tail[:length])
         text = text[:match.end()] + listing + tail[length:]
     text = re.sub(r"(?<=[.!?]) +(?=Напишите нам\s*[—-])", "\n\n", text)
+    text = re.sub(r"\s+(?=Добавьте магазин в [Ии]збранное)", "\n\n", text)
     text = re.sub(r" *\n *", "\n", text)
     return re.sub(r"\n{3,}", "\n\n", text).strip()
 
