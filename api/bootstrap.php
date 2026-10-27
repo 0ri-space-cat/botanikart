@@ -6,21 +6,23 @@ header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: no-referrer');
 
+function apiContext(): array
+{
+    $private = realpath(getenv('BOTANIKART_PRIVATE_DIR') ?: __DIR__ . '/.private');
+    $public = realpath(dirname(__DIR__));
+    if (!$private || !$public || $private === $public
+        || (str_starts_with($private, $public . DIRECTORY_SEPARATOR) && $private !== $public . '/api/.private')
+        || !is_file($private . '/PaymentService.php')) throw new \RuntimeException('Payment service is not installed');
+    require_once $private . '/PaymentService.php';
+    if (!is_file($private . '/config.php')) throw new \BotanikArt\ApiError('payment_not_configured', 503);
+    $config = require $private . '/config.php';
+    return [$config, new \BotanikArt\PaymentService($config)];
+}
+
 function apiRun(callable $callback, bool $notification = false): void
 {
     try {
-        $private = getenv('BOTANIKART_PRIVATE_DIR') ?: __DIR__ . '/.private';
-        $private = realpath($private);
-        $public = realpath(dirname(__DIR__));
-        if (!$private || !$public || $private === $public
-            || (str_starts_with($private, $public . DIRECTORY_SEPARATOR) && $private !== $public . '/api/.private')
-            || !is_file($private . '/config.php') || !is_file($private . '/PaymentService.php')) {
-            http_response_code(503);
-            echo '{"error":"payment_not_configured"}';
-            return;
-        }
-        require_once $private . '/PaymentService.php';
-        $config = require $private . '/config.php';
+        [$config, $service] = apiContext();
         $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
         $expected = parse_url($config['site_url'] ?? '');
         $siteOrigin = ($expected['scheme'] ?? '') . '://' . ($expected['host'] ?? '') . (isset($expected['port']) ? ':' . $expected['port'] : '');
@@ -33,7 +35,6 @@ function apiRun(callable $callback, bool $notification = false): void
         try { $input = json_decode($raw, true, 32, JSON_THROW_ON_ERROR); }
         catch (\JsonException) { throw new \BotanikArt\ApiError('invalid_json', 400); }
         if (!is_array($input) || array_is_list($input)) throw new \BotanikArt\ApiError('invalid_json', 400);
-        $service = new \BotanikArt\PaymentService($config);
         $result = $callback($service, $input);
         if ($notification) {
             header('Content-Type: text/plain; charset=utf-8');

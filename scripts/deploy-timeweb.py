@@ -28,7 +28,7 @@ def upload(sftp, source, destination, private=False):
         if not file.is_file():
             continue
         target = posixpath.join(destination, file.relative_to(source).as_posix())
-        if target.endswith("/config.php") or "/orders/" in target:
+        if target.endswith(("/config.php", "/production.pending.php")) or "/orders/" in target:
             raise RuntimeError("Credentials/order files must never be deployed")
         mkdirs(sftp, posixpath.dirname(target), 0o700 if private else 0o755)
         temporary = target + ".upload-" + uuid.uuid4().hex

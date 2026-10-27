@@ -60,6 +60,8 @@ with tempfile.TemporaryDirectory(prefix="botanikart-http-") as temporary:
             status, response = call(route, body)
             assert status == expected, (route, status)
             assert b"fixture-only" not in response
+        status, settings = call('/api/payment-config.php')
+        assert status == 200 and json.loads(settings) == {'enabled': True, 'testMode': True}
         assert call("/api/create-payment.php", {}, origin="https://evil.example")[0] == 403
         assert call("/api/create-payment.php", raw=b"{")[0] == 400
         assert call("/api/create-payment.php", raw=b" " * 17000)[0] == 413
@@ -71,7 +73,8 @@ with tempfile.TemporaryDirectory(prefix="botanikart-http-") as temporary:
         assert call("/api/create-payment.php", body)[0] == 409
         (private / "config.php").unlink()
         assert call("/api/create-payment.php", body)[0] == 503
-        print("HTTP API checks passed: 10 scenarios, no real bank requests.")
+        assert call('/api/payment-config.php')[0] == 503
+        print("HTTP API checks passed: 12 scenarios, no real bank requests.")
     finally:
         server.terminate()
         server.wait(timeout=5)

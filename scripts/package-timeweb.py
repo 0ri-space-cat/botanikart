@@ -8,7 +8,7 @@ from pathlib import Path
 from zipfile import ZipFile, ZIP_DEFLATED, ZipInfo
 
 ROOT = Path(__file__).resolve().parents[1]
-PRIVATE_FILES = ("PaymentService.php", "config.example.php", "configure.php", "console.php", ".htaccess")
+PRIVATE_FILES = ("PaymentService.php", "config.example.php", "configure.php", "stage-production.php", "console.php", ".htaccess")
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)

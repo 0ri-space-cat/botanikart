@@ -5,5 +5,6 @@ flowwow-products.json
 .DS_Store
 work/
 **/config.php
+**/production.pending.php
 **/orders/
 __pycache__/

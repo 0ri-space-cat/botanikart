@@ -10,7 +10,7 @@ return [
     'data_dir' => __DIR__ . '/orders',
     'ca_bundle' => '', // Optional trusted CA bundle; TLS verification always stays enabled.
     'taxation' => 'usn_income',
-    'tax' => '', // Confirm with the owner/cash register provider.
+    'tax' => 'none', // Owner confirmed no VAT on 2026-10-27.
     'payment_method' => 'full_prepayment',
     'receipts_ready' => false,
 ];

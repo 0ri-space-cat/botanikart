@@ -52,12 +52,18 @@ if(grid){let category='all';const search=document.querySelector('.catalog-search
 }
 
 const purchaseDialog=document.querySelector('.purchase-dialog');
-function openPurchase(id){
+const paymentSettings=fetch(window.BOTANIKART_PAYMENT_CONFIG_ENDPOINT,{cache:'no-store'})
+ .then(response=>response.ok?response.json():{enabled:false,testMode:false})
+ .catch(()=>({enabled:false,testMode:false}));
+async function openPurchase(id){
  const p=data.products.find(item=>item.id===id);if(!p||!p.available)return;
  const title='Оформление покупки';
- const ready=window.BOTANIKART_PAYMENT_ENABLED===true&&Boolean(window.BOTANIKART_PAYMENT_ENDPOINT);
- purchaseDialog.innerHTML=`<button class="close-purchase" aria-label="Закрыть оформление">✕</button><div class="section-label">БОТАНИКАРТ · ВАША ПОКУПКА</div><h2>${title}</h2><div class="purchase-summary"><img src="${escapeHTML(p.images[0])}" alt="${escapeHTML(p.title)}"><div><h3>${escapeHTML(shortTitle(p))}</h3><p>${money(p.price)}</p></div></div><form class="purchase-form"><label>Электронная почта<input name="email" type="email" autocomplete="email" maxlength="64" placeholder="Для электронного чека"></label><label>Телефон<input name="phone" type="tel" autocomplete="tel" maxlength="24" placeholder="+7 999 123-45-67"></label><p class="purchase-pickup">Самовывоз бесплатный. Доставку курьером, Яндексом или СДЭКом можно оформить после оплаты. Для этого свяжитесь с нами в <a href="https://t.me/Ekaterina_Freed" target="_blank" rel="noopener">Telegram</a>.</p><label class="purchase-consent"><input name="consent" type="checkbox" required><span>Согласен с <a href="offer.html" target="_blank" rel="noopener">условиями продажи</a> и <a href="privacy.html#consent" target="_blank" rel="noopener">обработкой персональных данных</a>.</span></label><p class="checkout-message" role="status">${ready?'':'Онлайн-оплата скоро появится.'}</p><button type="submit" class="button primary" ${ready?'':'disabled'}>Купить</button></form>`;
- purchaseDialog.showModal();document.body.classList.add('modal-open');
+ const settings=await paymentSettings;
+ const ready=settings.enabled===true&&Boolean(window.BOTANIKART_PAYMENT_ENDPOINT);
+ purchaseDialog.innerHTML=`<button class="close-purchase" aria-label="Закрыть оформление">✕</button><div class="section-label">БОТАНИКАРТ · ВАША ПОКУПКА</div><h2>${title}</h2><div class="purchase-summary"><img src="${escapeHTML(p.images[0])}" alt="${escapeHTML(p.title)}"><div><h3>${escapeHTML(shortTitle(p))}</h3><p>${money(p.price)}</p></div></div><form class="purchase-form"><label>Электронная почта<input name="email" type="email" autocomplete="email" maxlength="64" placeholder="Для электронного чека"></label><label>Телефон<input name="phone" type="tel" autocomplete="tel" maxlength="24" placeholder="+7 999 123-45-67"></label><p class="purchase-pickup">Самовывоз бесплатный. Доставку курьером, Яндексом или СДЭКом можно оформить после оплаты. Для этого свяжитесь с нами в <a href="https://t.me/Ekaterina_Freed" target="_blank" rel="noopener">Telegram</a>.</p><label class="purchase-consent"><input name="consent" type="checkbox" required><span>Согласен с <a href="offer.html" target="_blank" rel="noopener">условиями продажи</a> и <a href="privacy.html#consent" target="_blank" rel="noopener">обработкой персональных данных</a>.</span></label><p class="checkout-message" role="status"></p><button type="submit" class="button primary" ${ready?'':'disabled'}>Купить</button></form>`;
+ const checkoutMessage=purchaseDialog.querySelector('.checkout-message');
+ checkoutMessage.textContent=ready?(settings.testMode?'Тестовая оплата — используйте только тестовую карту.':''):'Оплата временно недоступна. Попробуйте позже.';
+ if(!purchaseDialog.open)purchaseDialog.showModal();document.body.classList.add('modal-open');
  purchaseDialog.querySelector('.close-purchase').addEventListener('click',()=>purchaseDialog.close());
  const form=purchaseDialog.querySelector('.purchase-form');
  form.dataset.requestId=crypto.randomUUID();
