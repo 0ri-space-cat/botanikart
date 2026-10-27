@@ -88,3 +88,29 @@ h1 em,h2 em{color:#4c8d3e}
 @media(prefers-reduced-motion:reduce){.product-card .product-image>img,.product-price{transition:none}}
 
 [hidden]{display:none!important}.payment-result button{border:0;cursor:pointer}
+
+/* Studio activities stay within the existing about section. */
+.studio-services{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;margin-top:54px}
+.studio-service{display:flex;flex-direction:column;align-items:flex-start;min-width:0;padding:32px;border:1px solid #d2dfc7;border-radius:24px;background:#f9faf2cc}
+.service-eyebrow{font-size:9px;letter-spacing:1.7px;line-height:1.6;color:#718565}
+.studio-service h3{font:32px/1.15 var(--serif);letter-spacing:-.7px;margin:13px 0 16px}
+.studio-service>p{font-size:13px;line-height:1.85;color:#526f50;margin:0;max-width:440px}
+.service-meta{display:flex;align-items:center;flex-wrap:wrap;gap:16px;margin-top:22px;font-size:12px;color:#657b59}
+.service-price{padding:9px 14px;border-radius:30px;background:#e4edd6;color:#42613b;font-weight:500}
+.workshop-formats{width:100%;margin:22px 0 24px;border-top:1px solid #dce5d3;border-bottom:1px solid #dce5d3;font-size:12px;color:#526f50}
+.workshop-formats summary{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:15px 0;cursor:pointer;list-style:none;line-height:1.5}
+.workshop-formats summary::-webkit-details-marker{display:none}
+.workshop-formats summary::after{content:'+';font-size:20px;font-weight:300;flex-shrink:0}
+.workshop-formats[open] summary::after{content:'−'}
+.workshop-formats summary:focus-visible{outline:2px solid #8d9e57;outline-offset:4px;border-radius:3px}
+.workshop-formats ul{list-style:none;padding:0 0 15px;margin:0}
+.workshop-formats li{display:flex;justify-content:space-between;align-items:baseline;gap:20px;line-height:1.65;padding:8px 0}
+.workshop-formats li span:last-child{white-space:nowrap;color:#78886c}
+.service-materials{display:grid;gap:11px;list-style:none;padding:0;margin:23px 0 28px;font-size:13px;color:#526f50}
+.service-materials li{display:flex;align-items:center;gap:11px}
+.service-materials li::before{content:'';width:5px;height:5px;border-radius:50%;background:#a4b98d;flex-shrink:0}
+.studio-service .service-link{margin-top:auto;font-size:12px;line-height:1.65}
+.contact-route{display:block;font-size:12px;line-height:1.7;color:#65805a;margin-top:9px}
+.contact-booking{text-decoration:underline;text-underline-offset:3px}
+@media(max-width:1000px){.studio-service{padding:25px}.studio-service h3{font-size:28px}}
+@media(max-width:760px){.studio-services{grid-template-columns:1fr;gap:18px;margin-top:34px}.studio-service{padding:24px;border-radius:20px}.studio-service h3{font-size:29px}.studio-service>p{font-size:12px}.service-eyebrow{font-size:8px;letter-spacing:1.4px}.service-meta{margin-top:18px}.studio-service .service-link{font-size:11px}.contact-route{font-size:11px}}

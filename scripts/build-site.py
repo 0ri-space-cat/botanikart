@@ -21,6 +21,8 @@ PAGES = (
     "payment-result.js",
 )
 PUBLIC_ASSETS = (
+    "catalog/florarium-s-kryshkoy-tam-gde-c-1.jpg",
+    "catalog/podvesnoy-florarium-domik-lesn-3.jpg",
     "aglaonema.jpg",
     "favicon.svg",
     "forest1.jpg",
