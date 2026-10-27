@@ -28,7 +28,7 @@ def upload(sftp, source, destination, private=False):
         if not file.is_file():
             continue
         target = posixpath.join(destination, file.relative_to(source).as_posix())
-        if target.endswith(("/config.php", "/production.pending.php")) or "/orders/" in target:
+        if target.endswith(("/config.php", "/production.pending.php", "/catalogue-auth.php")) or "/orders/" in target or "/catalogue/catalogue.sqlite" in target:
             raise RuntimeError("Credentials/order files must never be deployed")
         mkdirs(sftp, posixpath.dirname(target), 0o700 if private else 0o755)
         temporary = target + ".upload-" + uuid.uuid4().hex
@@ -65,6 +65,10 @@ def main():
         client.connect(os.environ["TIMEWEB_HOST"], port=int(os.environ.get("TIMEWEB_PORT", "22")),
                        username=os.environ["TIMEWEB_USER"], key_filename=os.environ["TIMEWEB_KEY_FILE"],
                        allow_agent=False, look_for_keys=False, timeout=15, auth_timeout=15, banner_timeout=15)
+        # Check the database/image runtime before changing the public storefront.
+        _, stdout, stderr = client.exec_command("/opt/php83/bin/php -r 'exit(!in_array(\"sqlite\", PDO::getAvailableDrivers(), true) || !extension_loaded(\"gd\") || !extension_loaded(\"mbstring\"));'", timeout=20)
+        if stdout.channel.recv_exit_status() != 0:
+            raise RuntimeError("Timeweb needs PHP PDO SQLite, GD and mbstring before this release can be published")
         with client.open_sftp() as sftp:
             mkdirs(sftp, private, 0o700)
             sftp.chmod(private, 0o700)

@@ -27,18 +27,10 @@ jobs:
         env:
           FLOWWOW_API_KEY: ${{ secrets.FLOWWOW_API_KEY }}
         run: python3 scripts/sync-flowwow.py
-      - name: Sync Avito listings
-        id: avito
-        if: vars.AVITO_SYNC_ENABLED == 'true'
-        continue-on-error: true
-        env:
-          AVITO_CLIENT_ID: ${{ secrets.AVITO_CLIENT_ID }}
-          AVITO_CLIENT_SECRET: ${{ secrets.AVITO_CLIENT_SECRET }}
-        run: python3 scripts/sync-avito.py
       - name: Check catalog classification
         run: python3 -m unittest discover -s scripts/tests -v
       - name: Save refreshed catalog
-        if: steps.sync.outcome == 'success' || steps.avito.outcome == 'success'
+        if: steps.sync.outcome == 'success'
         run: |
           if ! git diff --quiet -- data/catalog.json data/catalog.js; then
             git config user.name github-actions[bot]
@@ -49,9 +41,11 @@ jobs:
           fi
       - name: Check PHP payment handler
         run: |
-          find api hosting -name '*.php' -exec php -l {} \;
+          find api hosting catalogue -name '*.php' -exec php -l {} \;
           php hosting/tests/payments.php
+          php hosting/tests/catalogue.php
           python3 hosting/tests/check_api.py
+          python3 hosting/tests/check_catalogue_api.py
       - name: Build public site
         run: python3 scripts/build-site.py --output "$RUNNER_TEMP/botanikart-public"
       - name: Publish to Timeweb when enabled

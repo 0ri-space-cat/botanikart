@@ -1,0 +1,102 @@
+#!/usr/bin/env python3
+"""Check session, CSRF, private data and live catalog behavior on an isolated local server."""
+import http.cookiejar
+import json
+import os
+import shutil
+import socket
+import subprocess
+import tempfile
+import time
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+PHP = shutil.which("php")
+with tempfile.TemporaryDirectory(prefix="botanikart-catalogue-http-") as temporary:
+    base = Path(temporary)
+    public = base / "public_html"
+    subprocess.run(["python3", str(ROOT / "scripts/build-site.py"), "--output", str(public)], check=True)
+    private = public / "api/.private"
+    private.mkdir(mode=0o700)
+    shutil.copy2(ROOT / "hosting/private/CatalogStore.php", private / "CatalogStore.php")
+    password_hash = subprocess.check_output([PHP, "-r", "echo password_hash('fixture-admin-password',PASSWORD_DEFAULT);"]).decode()
+    auth = private / "catalogue-auth.php"
+    auth.write_text("<?php return ['username'=>'fixture','password_hash'=>'" + password_hash + "','revision'=>'first-test'];")
+    router = base / "router.php"
+    router.write_text("<?php if(str_contains($_SERVER['REQUEST_URI'],'/.private/')){http_response_code(403);return true;} return false;")
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+    origin = f"http://127.0.0.1:{port}"
+    server = subprocess.Popen([PHP, "-S", f"127.0.0.1:{port}", "-t", str(public), str(router)],
+                              env={**os.environ, "CATALOGUE_LOCAL_TEST":"1"}, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    cookies = http.cookiejar.CookieJar()
+    client = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cookies))
+
+    def call(action, body=None, csrf=None, custom_origin=None, path=None):
+        headers = {"Origin": custom_origin or origin}
+        if csrf: headers["X-CSRF-Token"] = csrf
+        if body is not None: headers["Content-Type"] = "application/json"
+        request = urllib.request.Request(origin + (path or "/catalogue/api.php?action="+action),
+                                         data=json.dumps(body).encode() if body is not None else None, headers=headers)
+        try:
+            with client.open(request, timeout=5) as response:
+                raw = response.read()
+                return response.status, json.loads(raw) if response.headers.get_content_type()=="application/json" else raw
+        except urllib.error.HTTPError as error:
+            raw = error.read()
+            try: raw=json.loads(raw)
+            except json.JSONDecodeError: pass
+            return error.code, raw
+    try:
+        for _ in range(30):
+            try:
+                status, session = call("session")
+                break
+            except urllib.error.URLError: time.sleep(.1)
+        assert status == 200 and not session["authenticated"]
+        assert call("products")[0] == 401
+        credentials = {"username":"fixture", "password":"fixture-admin-password"}
+        assert call("login", credentials)[0] == 403
+        assert call("login", credentials, session["csrf"], "https://evil.example")[0] == 403
+        status, login = call("login", credentials, session["csrf"])
+        assert status == 200 and login["authenticated"], login
+        assert call("session")[1]["authenticated"]
+        assert any(cookie.name=="BOTANIKART_CATALOGUE" and cookie.expires is not None for cookie in cookies)
+        status, data = call("products")
+        assert status == 200 and data["products"]
+        product = data["products"][0]
+        assert call("save", {"id":product["id"],"version":product["version"],"hidden":True}, login["csrf"])[0] == 200
+        status, public_catalog = call("", path="/api/catalog.php")
+        decoded=json.loads(public_catalog.decode().removeprefix("window.BOTANIK_CATALOG=").rstrip(";"))
+        assert status == 200 and product["id"] not in [p["id"] for p in decoded["products"]]
+        assert call("save", {"id":product["id"],"version":product["version"],"hidden":False}, login["csrf"])[0] == 409
+        image = subprocess.check_output([PHP,"-r","$i=imagecreatetruecolor(2,2);imagepng($i);"])
+        boundary = "fixture-image-boundary"
+        multipart = (f'--{boundary}\r\nContent-Disposition: form-data; name="image"; filename="plant.png"\r\nContent-Type: image/png\r\n\r\n'.encode()
+                     + image + f'\r\n--{boundary}--\r\n'.encode())
+        upload = urllib.request.Request(origin+"/catalogue/api.php?action=upload",data=multipart,
+             headers={"Origin":origin,"X-CSRF-Token":login["csrf"],"Content-Type":"multipart/form-data; boundary="+boundary})
+        with client.open(upload,timeout=5) as response: uploaded=json.load(response)["path"]
+        assert (public/uploaded).read_bytes().startswith(b'\xff\xd8'), "Upload was not safely re-encoded"
+        manual = {"title":"Тестовое растение","price":490,"description":"Абзац один.\n\nАбзац два.","status":"ready",
+                  "catalogGroup":"plant","source":"avito","url":"https://www.avito.ru/moskva/rasteniya/test_8303205392","images":[uploaded]}
+        status, created = call("save",manual,login["csrf"])
+        assert status==200, created
+        assert call("save",manual,login["csrf"])[0]==409, "Same Avito listing was imported twice"
+        local = next(p for p in call("products")[1]["products"] if p["id"]==created["id"])
+        local["price"]=700;local["status"]="sold"
+        assert call("save",local,login["csrf"])[0]==200
+        public_data = call("",path="/api/catalog.php")[1]
+        published = json.loads(public_data.decode().removeprefix("window.BOTANIK_CATALOG=").rstrip(";"))
+        changed = next(p for p in published["products"] if p["id"]==created["id"])
+        assert changed["price"]==700 and not changed["available"] and changed["description"]==manual["description"]
+        assert call("", path="/api/.private/catalogue/catalogue.sqlite")[0] == 403
+        auth.write_text(auth.read_text().replace("first-test","second-test"))
+        assert call("products")[0] == 401, "Password revision did not invalidate the session"
+        print("Catalogue HTTP checks passed: sessions, CSRF, origin, hidden product, conflicts, photo upload, local product creation/editing, Avito deduplication, private storage and session invalidation.")
+    finally:
+        server.terminate()
+        server.wait(timeout=5)

@@ -61,22 +61,29 @@ def main() -> None:
         copy_file(relative, output)
     for source in sorted((ROOT / "api").glob("*.php")):
         copy_file(str(source.relative_to(ROOT)), output)
+    for source in sorted((ROOT / "catalogue").rglob("*")):
+        if source.is_file() and source.suffix != '.md':
+            copy_file(str(source.relative_to(ROOT)), output)
     shutil.copy2(ROOT / "hosting/public.htaccess", output / ".htaccess")
 
     for relative in ("data/catalog.json", "data/catalog.js", "data/payment-config.js"):
         copy_file(relative, output)
 
-    # Timeweb's nginx caches JS independently of Apache/.htaccess headers.
-    # Give each actual catalog snapshot its own URL in the published HTML.
-    catalog_version = hashlib.sha256((output / "data/catalog.js").read_bytes()).hexdigest()[:16]
+    # The server merges Flowwow with local products and persistent visibility settings.
     for page in ("index.html", "catalog.html"):
         target = output / page
         html = target.read_text(encoding="utf-8")
         html, count = re.subn(r'src="data/catalog\.js(?:\?[^"<>]*)?"',
-                              f'src="data/catalog.js?v={catalog_version}"', html)
+                              'src="api/catalog.php"', html)
         if count != 1:
             raise RuntimeError(f"Expected exactly one catalog script in {page}")
         target.write_text(html, encoding="utf-8")
+
+    # Version the UI code so an earlier cached script cannot mislabel local stock.
+    for page in ("index.html", "catalog.html"):
+        target = output / page
+        version = hashlib.sha256((output / 'script.js').read_bytes()).hexdigest()[:16]
+        target.write_text(re.sub(r'src="script\.js(?:\?[^"<>]*)?"', f'src="script.js?v={version}"', target.read_text(encoding='utf-8')), encoding='utf-8')
 
     for relative in PUBLIC_ASSETS:
         copy_file(f"assets/{relative}", output)

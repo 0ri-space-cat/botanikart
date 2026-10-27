@@ -8,3 +8,7 @@ work/
 **/production.pending.php
 **/orders/
 __pycache__/
+**/catalogue-auth.php
+**/*.sqlite
+**/*.sqlite-*
+assets/uploads/

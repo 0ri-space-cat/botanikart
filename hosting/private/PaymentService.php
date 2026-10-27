@@ -160,7 +160,14 @@ final class PaymentService
 
     private function product(string $id): array
     {
-        $catalog = json_decode((string) file_get_contents($this->config['catalog_path']), true, 512, JSON_THROW_ON_ERROR);
+        $catalogRoot = dirname($this->config['catalog_path'], 2);
+        $catalogService = $catalogRoot . '/api/.private/CatalogStore.php';
+        if (is_file($catalogService)) {
+            if (!class_exists(CatalogStore::class)) require_once $catalogService;
+            $catalog = (new CatalogStore($catalogRoot . '/api/.private/catalogue', $this->config['catalog_path']))->publicCatalog();
+        } else {
+            $catalog = json_decode((string) file_get_contents($this->config['catalog_path']), true, 512, JSON_THROW_ON_ERROR);
+        }
         foreach ($catalog['products'] ?? [] as $product) {
             if (($product['id'] ?? '') === $id && ($product['available'] ?? false) === true && is_numeric($product['price'] ?? null) && (float) $product['price'] > 0) return $product;
         }

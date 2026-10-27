@@ -1,6 +1,6 @@
 Options -Indexes
-DirectoryIndex index.html
-<FilesMatch "(^\.|\.upload-|\.(?:env|ini|log|sql|bak|zip|ya?ml|toml|lock)$)">
+DirectoryIndex index.html index.php
+<FilesMatch "(^\.|\.upload-|\.(?:env|ini|log|sql|sqlite|db|bak|zip|ya?ml|toml|lock)$)">
     Require all denied
 </FilesMatch>
 <IfModule mod_headers.c>
