@@ -20,7 +20,14 @@ if($mode==='start'&&!$state){
  $new=array_intersect_key($p,array_flip(['title','description','catalogGroup','price','images','purchaseMode']));
  $new['source']='manual';$new['hidden']=true;$new['status']='ready';$new['url']='';
  $dir=dirname(__DIR__,2).'/assets/uploads/catalogue';if(!is_dir($dir))mkdir($dir,0755,true);$images=[];
- foreach($p['images'] as $path){$file=dirname(__DIR__,2).'/'.$path;if(is_file($file)){$name=bin2hex(random_bytes(16)).'.jpg';copy($file,$dir.'/'.$name);chmod($dir.'/'.$name,0644);$images[]='assets/uploads/catalogue/'.$name;}}
+ foreach(($fw['images']??$p['images']) as $path){
+  if(!is_string($path))continue;$bytes=false;
+  if(str_starts_with($path,'https://')&&preg_match('/^content[0-9]*\.flowwow-images\.com$/D',parse_url($path,PHP_URL_HOST)??'')){$h=curl_init($path);curl_setopt_array($h,[CURLOPT_RETURNTRANSFER=>true,CURLOPT_TIMEOUT=>15,CURLOPT_FOLLOWLOCATION=>false]);$bytes=curl_exec($h);$code=curl_getinfo($h,CURLINFO_RESPONSE_CODE);curl_close($h);if($code!==200)$bytes=false;}
+  elseif(is_file(dirname(__DIR__,2).'/'.$path))$bytes=file_get_contents(dirname(__DIR__,2).'/'.$path);
+  if(!is_string($bytes)||strlen($bytes)>20000000)continue;$size=@getimagesizefromstring($bytes);if(!$size||$size[2]!==IMAGETYPE_JPEG)continue;
+  $name=bin2hex(random_bytes(16)).'.jpg';file_put_contents($dir.'/'.$name,$bytes);chmod($dir.'/'.$name,0644);$images[]='assets/uploads/catalogue/'.$name;
+  if(count($images)>=3)break;
+ }
  if(!$images)throw new RuntimeException('No base photographs');$new['images']=$images;
  $new['channels']=['avito'=>['configure'=>true,'enabled'=>true,'category'=>'rasteniya_drugoe','attributes'=>['AdType'=>'Товар от производителя']],'flowwow'=>['configure'=>true,'enabled'=>true,'category'=>(string)$fw['subCategoryId'],'properties'=>$properties]];
  $state=['id'=>$store->save($new),'createdAt'=>gmdate('c'),'base'=>'flowwow-76364430'];$persist();
