@@ -25,6 +25,14 @@ final class TelegramBot {
         return $data['result']??true;
     }
     private function setting(string $name): ?string {$q=$this->db->prepare('SELECT value FROM settings WHERE name=?');$q->execute([$name]);$v=$q->fetchColumn();return $v===false?null:$v;}
+    public function ensureWebhook(): void {
+        $fingerprint=hash('sha256',$this->config['webhook_secret'].$this->config['site_url']);
+        if($this->setting('webhook_ready')===$fingerprint)return;
+        $url=$this->config['site_url'].'/api/telegram-webhook.php';
+        $this->request('setWebhook',['url'=>$url,'secret_token'=>$this->config['webhook_secret'],'allowed_updates'=>['message','callback_query'],'max_connections'=>4,'drop_pending_updates'=>false]);
+        $info=$this->request('getWebhookInfo');if(($info['url']??'')!==$url)throw new \RuntimeException('Webhook not confirmed');
+        $this->put('webhook_ready',$fingerprint);
+    }
     public function owner(): ?string {return $this->setting('owner');}
     private function put(string $name,string $value): void {$q=$this->db->prepare('INSERT INTO settings(name,value) VALUES(?,?) ON CONFLICT(name) DO UPDATE SET value=excluded.value');$q->execute([$name,$value]);}
     public function pairingLink(): string {$code=bin2hex(random_bytes(20));$this->put('pair_hash',hash('sha256',$code));$this->put('pair_expires',(string)(time()+172800));return 'https://t.me/'.$this->config['username'].'?start=owner_'.$code;}
