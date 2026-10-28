@@ -8,7 +8,7 @@ from pathlib import Path
 from zipfile import ZipFile, ZIP_DEFLATED, ZipInfo
 
 ROOT = Path(__file__).resolve().parents[1]
-PRIVATE_FILES = ("PaymentService.php", "CatalogStore.php", "MarketplaceService.php", "AvitoFeed.php", "FlowwowPublisher.php", "PublicationRunner.php", "sync-publications.php", "flowwow-fields.json", "avito-legacy.json", "marketplaces-config.example.php", "configure-catalogue.php", "import-catalogue.php", "config.example.php", "configure.php", "stage-production.php", "console.php", ".htaccess")
+PRIVATE_FILES = ("TelegramBot.php", "configure-telegram.php", "telegram-worker.php", "PaymentService.php", "CatalogStore.php", "MarketplaceService.php", "AvitoFeed.php", "FlowwowPublisher.php", "PublicationRunner.php", "sync-publications.php", "flowwow-fields.json", "avito-legacy.json", "marketplaces-config.example.php", "configure-catalogue.php", "import-catalogue.php", "config.example.php", "configure.php", "stage-production.php", "console.php", ".htaccess")
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)

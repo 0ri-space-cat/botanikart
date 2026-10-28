@@ -45,6 +45,13 @@ try {
     rejects(fn() => $service->create($input), 'product_unavailable');
     check(count($calls) === 0, 'Assortment choice must be agreed before any bank request');
     file_put_contents($directory . '/catalog.json', $originalCatalog);
+    rejects(fn() => $service->create(array_replace($input, ['telegramContext'=>'forged'])), 'invalid_telegram_checkout');
+    check(count($calls) === 0, 'Invalid Telegram identity never reaches the bank');
+    $service = new PaymentService($config, $bank, function($token, $id) use($productId) {
+        if($token !== 'signed-fixture' || $id !== $productId) throw new InvalidArgumentException();
+        return '101';
+    });
+    $input['telegramContext'] = 'signed-fixture';
     $result = $service->create($input);
     check($calls[0][1]['Amount'] === 12300, 'The catalog controls the amount');
     check(strlen($calls[0][1]['SuccessURL']) <= 250 && strlen($calls[0][1]['FailURL']) <= 250, 'Return URLs must fit bank limits');
@@ -81,6 +88,7 @@ try {
     $guard = \BotanikArt\OrderStore::GUARD;
     check(str_starts_with(file_get_contents($statePath), $guard), 'Direct PHP access cannot print order data');
     $state = json_decode(substr(file_get_contents($statePath), strlen($guard)), true);
+    check($state['orders'][$result['orderId']]['telegramChatId'] === '101', 'Verified Telegram buyer stays attached to the order');
     check(($state['orders'][$result['orderId']]['notificationCount'] ?? 0) === 2
         && ($state['orders'][$result['orderId']]['lastNotificationAt'] ?? 0) > 0,
         'Verified bank notifications are tracked independently of status polling');

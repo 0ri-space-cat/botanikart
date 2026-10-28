@@ -108,7 +108,7 @@ async function startCheckout(event,productId){
  if(!form.elements.consent.checked){message.textContent='Чтобы продолжить, подтвердите согласие с условиями и обработкой данных.';return}
  button.disabled=true;button.textContent='Готовим оплату…';message.textContent='Проверяем наличие и создаём платёж.';
  try{
-  const response=await fetch(window.BOTANIKART_PAYMENT_ENDPOINT,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({productId,requestId:form.dataset.requestId,expectedAmount:Math.round(Number(data.products.find(item=>item.id===productId)?.price)*100),email,phone,consent:true})});
+  const response=await fetch(window.BOTANIKART_PAYMENT_ENDPOINT,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({productId,requestId:form.dataset.requestId,expectedAmount:Math.round(Number(data.products.find(item=>item.id===productId)?.price)*100),email,phone,consent:true,telegramContext:productId===telegramCheckoutProduct?telegramCheckoutContext:''})});
   const result=await response.json();
   if(!response.ok||!result.paymentUrl)throw new Error(result.error||'payment_init_failed');
   const paymentUrl=new URL(result.paymentUrl);
@@ -116,7 +116,7 @@ async function startCheckout(event,productId){
   if(result.reference)sessionStorage.setItem('botanikart-payment-'+result.orderId,result.reference);
   window.location.assign(paymentUrl.href);
  }catch(error){
-  const messages={product_unavailable:'Этот товар уже недоступен. Обновите каталог и выберите другой.',price_changed:'Цена обновилась. Обновите каталог и проверьте стоимость товара.',payment_not_configured:'Оплата временно недоступна. Попробуйте позже.',receipt_not_configured:'Оплата временно недоступна. Попробуйте позже.',catalog_unavailable:'Не удалось проверить наличие. Повторите попытку чуть позже.',invalid_order_details:'Проверьте адрес электронной почты и номер телефона.',too_many_requests:'Слишком много попыток. Попробуйте через несколько минут.',payment_service_unavailable:'Банк временно не ответил. Повторите попытку позже.',payment_init_failed:'Не удалось открыть оплату. Повторите попытку позже.'};
+  const messages={invalid_telegram_checkout:'Ссылка покупки из Telegram устарела. Откройте товар в боте ещё раз.',product_unavailable:'Этот товар уже недоступен. Обновите каталог и выберите другой.',price_changed:'Цена обновилась. Обновите каталог и проверьте стоимость товара.',payment_not_configured:'Оплата временно недоступна. Попробуйте позже.',receipt_not_configured:'Оплата временно недоступна. Попробуйте позже.',catalog_unavailable:'Не удалось проверить наличие. Повторите попытку чуть позже.',invalid_order_details:'Проверьте адрес электронной почты и номер телефона.',too_many_requests:'Слишком много попыток. Попробуйте через несколько минут.',payment_service_unavailable:'Банк временно не ответил. Повторите попытку позже.',payment_init_failed:'Не удалось открыть оплату. Повторите попытку позже.'};
   message.textContent=messages[error.message]||'Не удалось начать оплату. Проверьте соединение и попробуйте ещё раз.';
   button.disabled=false;button.textContent='Купить';
  }
@@ -124,3 +124,13 @@ async function startCheckout(event,productId){
 document.addEventListener('click',event=>{const button=event.target.closest('[data-buy]');if(button)openPurchase(button.dataset.buy)});
 purchaseDialog.addEventListener('click',e=>{if(e.target===purchaseDialog){const r=purchaseDialog.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)purchaseDialog.close()}});
 purchaseDialog.addEventListener('close',()=>{if(!dialog.open)document.body.classList.remove('modal-open')});
+
+// Bot checkout links share the website's existing product and payment flow.
+const telegramCheckoutParams=new URLSearchParams(location.search);
+const telegramCheckoutProduct=telegramCheckoutParams.get('product')||'';
+const telegramCheckoutContext=telegramCheckoutParams.get('tg')||'';
+if(telegramCheckoutContext){const clean=new URL(location.href);clean.searchParams.delete('tg');history.replaceState(null,'',clean.pathname+clean.search+clean.hash)}
+if(telegramCheckoutProduct&&data.products.some(p=>p.id===telegramCheckoutProduct)){
+ openProduct(telegramCheckoutProduct);
+ if(telegramCheckoutParams.get('checkout')==='1')openPurchase(telegramCheckoutProduct);
+}

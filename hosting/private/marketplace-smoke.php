@@ -19,7 +19,9 @@ if($mode==='start'&&!$state){
  $editor=$runner->flowwow()->editor($p);$properties=$editor['properties'];foreach(['offerId','productType','subCategoryId','name','price','discount','description','images'] as $key)unset($properties[$key]);
  $new=array_intersect_key($p,array_flip(['title','description','catalogGroup','price','images','purchaseMode']));
  $new['source']='manual';$new['hidden']=true;$new['status']='ready';$new['url']='';
- if(!empty($fw['images'])&&is_string($fw['images'][0]??null))$new['images']=$fw['images'];
+ $dir=dirname(__DIR__,2).'/assets/uploads/catalogue';if(!is_dir($dir))mkdir($dir,0755,true);$images=[];
+ foreach($p['images'] as $path){$file=dirname(__DIR__,2).'/'.$path;if(is_file($file)){$name=bin2hex(random_bytes(16)).'.jpg';copy($file,$dir.'/'.$name);chmod($dir.'/'.$name,0644);$images[]='assets/uploads/catalogue/'.$name;}}
+ if(!$images)throw new RuntimeException('No base photographs');$new['images']=$images;
  $new['channels']=['avito'=>['configure'=>true,'enabled'=>true,'category'=>'rasteniya_drugoe','attributes'=>['AdType'=>'Товар от производителя']],'flowwow'=>['configure'=>true,'enabled'=>true,'category'=>(string)$fw['subCategoryId'],'properties'=>$properties]];
  $state=['id'=>$store->save($new),'createdAt'=>gmdate('c'),'base'=>'flowwow-76364430'];$persist();
 }

@@ -45,6 +45,7 @@ jobs:
           find api hosting catalogue -name '*.php' -exec php -l {} \;
           php hosting/tests/payments.php
           php hosting/tests/orders.php
+          php hosting/tests/telegram.php
           node hosting/tests/payment-result.cjs
           php hosting/tests/catalogue.php
           php hosting/tests/publications.php

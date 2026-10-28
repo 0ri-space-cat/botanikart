@@ -39,6 +39,8 @@ function apiRun(callable $callback, bool $notification = false): void
         if ($notification) {
             header('Content-Type: text/plain; charset=utf-8');
             echo 'OK';
+            if(function_exists('fastcgi_finish_request'))fastcgi_finish_request();
+            try{if(is_file(__DIR__.'/.private/telegram-config.php')){require_once __DIR__.'/.private/TelegramBot.php';\BotanikArt\TelegramBot::installed(__DIR__.'/.private')->drain(3);}}catch(\Throwable){error_log('BotanikArt: Telegram delivery pending');}
         } else {
             echo json_encode($result, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
         }

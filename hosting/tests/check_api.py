@@ -66,6 +66,18 @@ with tempfile.TemporaryDirectory(prefix="botanikart-http-") as temporary:
         assert call("/api/create-payment.php", raw=b"{")[0] == 400
         assert call("/api/create-payment.php", raw=b" " * 17000)[0] == 413
         assert call("/api/.private/config.php")[0] == 403
+        assert call('/api/telegram-webhook.php')[0] == 405
+        assert call('/api/telegram-webhook.php', {})[0] == 503
+        (private / 'telegram-config.php').write_text("<?php return ['webhook_secret'=>'test-only-secret'];")
+        assert call('/api/telegram-webhook.php', {})[0] == 403
+        request = urllib.request.Request(f'http://127.0.0.1:{port}/api/telegram-webhook.php',
+            data=b'{', headers={'X-Telegram-Bot-Api-Secret-Token':'test-only-secret'})
+        try:
+            urllib.request.urlopen(request)
+            raise AssertionError('Malformed webhook accepted')
+        except urllib.error.HTTPError as error:
+            assert error.code == 400
+        (private / 'telegram-config.php').unlink()
         catalog = json.loads((public / "data/catalog.json").read_text())
         product = next(item for item in catalog["products"] if item["available"])
         body = {"productId": product["id"], "requestId": "12345678-1234-1234-1234-123456789012",

@@ -115,7 +115,7 @@ final class PaymentService
     private readonly \Closure $bank;
     private const FINAL_UNPAID = ['REJECTED', 'CANCELED', 'DEADLINE_EXPIRED', 'REVERSED'];
 
-    public function __construct(private readonly array $config, ?callable $bank = null)
+    public function __construct(private readonly array $config, ?callable $bank = null, private readonly mixed $telegramVerifier = null)
     {
         $this->store = new OrderStore($config['data_dir'] . ($this->isTest() ? '/test' : '/live'));
         $this->bank = \Closure::fromCallable($bank ?? new BankClient($config));
@@ -189,6 +189,14 @@ final class PaymentService
         $email = is_string($input['email'] ?? null) ? strtolower(trim($input['email'])) : '';
         $digits = preg_replace('/\D/', '', is_string($input['phone'] ?? null) ? $input['phone'] : '');
         $phone = $digits ? '+' . (strlen($digits) === 11 && $digits[0] === '8' ? '7' . substr($digits, 1) : $digits) : '';
+        $telegramChat='';
+        if(($input['telegramContext']??'')!==''){
+            try{
+                if(!is_string($input['telegramContext']))throw new \InvalidArgumentException();
+                if($this->telegramVerifier)$telegramChat=($this->telegramVerifier)($input['telegramContext'],$id);
+                else{if(!is_file(__DIR__.'/telegram-config.php'))throw new \InvalidArgumentException();require_once __DIR__.'/TelegramBot.php';$telegramChat=TelegramBot::verifyContext($input['telegramContext'],$id,require __DIR__.'/telegram-config.php');}
+            }catch(\Throwable){throw new ApiError('invalid_telegram_checkout');}
+        }
         $requestId = $input['requestId'] ?? '';
         if (!is_string($requestId) || !preg_match('/^[a-f0-9-]{36}$/Di', $requestId) || strlen($id) > 160 || !$id
             || ($input['consent'] ?? false) !== true || !is_int($input['expectedAmount'] ?? null) || $input['expectedAmount'] <= 0
@@ -205,10 +213,10 @@ final class PaymentService
         if (strlen($success) > 250 || strlen($failure) > 250) throw new ApiError('payment_not_configured', 503);
         $blocking = $this->store->transaction(fn(array &$s) => $s['reservations'][$id] ?? null);
         if ($blocking && $blocking !== $orderId) $this->refresh($blocking, true);
-        $order = $this->store->transaction(function (array &$state) use ($orderId, $id, $product, $amount, $email, $phone, $clientAddress) {
+        $order = $this->store->transaction(function (array &$state) use ($orderId, $id, $product, $amount, $email, $phone, $clientAddress, $telegramChat) {
             if (isset($state['orders'][$orderId])) {
                 $existing = $state['orders'][$orderId];
-                if ($existing['productId'] !== $id || $existing['amount'] !== $amount || $existing['email'] !== $email || $existing['phone'] !== $phone) throw new ApiError('invalid_order_details');
+                if ($existing['productId'] !== $id || $existing['amount'] !== $amount || $existing['email'] !== $email || $existing['phone'] !== $phone || ($existing['telegramChatId']??'') !== $telegramChat) throw new ApiError('invalid_order_details');
                 return $existing + ['_new' => false];
             }
             if (isset($state['reservations'][$id])) throw new ApiError('product_unavailable', 409);
@@ -222,7 +230,7 @@ final class PaymentService
             }
             $order = ['orderId' => $orderId, 'productId' => $id, 'title' => mb_substr($product['title'], 0, 140),
                 'amount' => $amount, 'email' => $email, 'phone' => $phone, 'testMode' => $this->isTest(),
-                'createdAt' => time(), 'expiresAt' => time() + 1800, 'status' => 'CREATING', 'paid' => false, 'sold' => false];
+                'telegramChatId' => $telegramChat, 'createdAt' => time(), 'expiresAt' => time() + 1800, 'status' => 'CREATING', 'paid' => false, 'sold' => false];
             $state['orders'][$orderId] = $order;
             $state['reservations'][$id] = $orderId;
             return $order + ['_new' => true];
@@ -278,7 +286,7 @@ final class PaymentService
             $o['updatedAt'] = time();
         });
         if (!$this->isTest()) {
-            try { (new MerchantOrders($this->config))->sendPending(1); }
+            try { $notifications=new MerchantOrders($this->config);$notifications->sendPending(1);$notifications->queueTelegram(); }
             catch (\Throwable) { error_log('BotanikArt: merchant email queued for retry'); }
         }
     }
@@ -377,6 +385,13 @@ final class MerchantOrders
             if(!isset($s['orders'][$id])||($s['orders'][$id]['testMode']??true)||!($s['orders'][$id]['sold']??false))throw new \OutOfBoundsException('Order missing');
             $o=&$s['orders'][$id];$o['fulfillment']=$completed?'completed':'open';$o['completedAt']=$completed?time():null;
         });
+    }
+    public function queueTelegram(): void
+    {
+        if(!is_file(__DIR__.'/telegram-config.php'))return;
+        require_once __DIR__.'/TelegramBot.php';$bot=TelegramBot::installed(__DIR__);
+        $orders=$this->store->transaction(fn(array &$s)=>array_values(array_filter($s['orders'],fn($o)=>empty($o['testMode'])&&!empty($o['paid'])&&($o['status']??'')==='CONFIRMED'&&empty($o['telegramNoticeQueued']))));
+        foreach($orders as $o)if($bot->enqueuePaid($o))$this->store->transaction(function(array &$s)use($o){$s['orders'][$o['orderId']]['telegramNoticeQueued']=true;});
     }
     public function sendPending(int $limit=5): int
     {
