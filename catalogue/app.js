@@ -44,7 +44,7 @@ function openEditor(id){
  $('#editor-heading').textContent=editing?'Карточка товара':'Новый товар';$('#editor-source').innerHTML=productBadges(p);
  updatePurchaseChoice();updateVisibility();images=[...(p.images||[])];renderPhotos();message($('#edit-message'));dirty=false;
  renderPublicationSettings(p);renderAvitoFields(channelData(p).avito);$('#publication-preview').hidden=true;form.elements.url.closest('label').hidden=p.source!=='avito';
- $('#source-url-label').textContent=p.source==='flowwow'?'Ссылка на Flowwow':'Ссылка на объявление Авито';$('#editor').showModal();$('#editor').scrollTop=0;document.body.style.overflow='hidden';
+ $('#source-url-label').textContent=p.source==='flowwow'?'Ссылка на Flowwow':'Ссылка на объявление Авито';$('#editor').showModal();fitTitle();$('#editor').scrollTop=0;document.body.style.overflow='hidden';
 }
 function closeEditor(){if(uploading)return;if(dirty&&!confirm('Закрыть карточку без сохранения?'))return;$('#editor').close()}
 function toast(text){$('#toast').textContent=text;$('#toast').hidden=false;setTimeout(()=>{$('#toast').hidden=true},3000)}
@@ -241,3 +241,7 @@ $('#orders-refresh').addEventListener('click',()=>loadOrders().catch(e=>message(
 document.querySelectorAll('[data-orders]').forEach(button=>button.addEventListener('click',()=>{orderFilter=button.dataset.orders;document.querySelectorAll('[data-orders]').forEach(b=>b.classList.toggle('active',b===button));renderOrders()}));
 $('#orders-list').addEventListener('click',async e=>{const button=e.target.closest('[data-complete-order]');if(!button)return;button.disabled=true;try{await api('complete-order',{id:button.dataset.completeOrder,completed:button.dataset.completed==='true'});await loadOrders();toast(button.dataset.completed==='true'?'Заказ выполнен':'Заказ возвращён в новые')}catch(error){toast(error.message)}finally{button.disabled=false}});
 setInterval(()=>{if(authenticated&&document.visibilityState==='visible')loadOrders(true).catch(()=>{})},60000);
+
+function fitTitle(){const field=$('#edit-form').elements.title;field.style.height='auto';const height=field.scrollHeight+2;field.style.height=Math.min(height,120)+'px';field.style.overflowY=height>120?'auto':'hidden'}
+$('#edit-form').elements.title.addEventListener('input',fitTitle);
+window.addEventListener('resize',()=>{if($('#editor').open)fitTitle()});
