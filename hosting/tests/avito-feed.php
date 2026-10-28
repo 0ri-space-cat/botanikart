@@ -9,7 +9,7 @@ $p=['id'=>'manual-fixture','title'=>'Пилея & мох','description'=>'Пер
 $xml=$feed->render([$p],'https://botanikart.ru');$dom=new DOMDocument();assertFeed($dom->loadXML($xml),'XML malformed');
 assertFeed($dom->getElementsByTagName('Id')->item(0)->textContent==='ba-manual-fixture','ID not stable');
 assertFeed($dom->getElementsByTagName('Price')->item(0)->textContent==='450','Override price lost');
-assertFeed($dom->getElementsByTagName('Description')->item(0)->textContent===$p['description'],'Description damaged');
+assertFeed($dom->getElementsByTagName('Description')->item(0)->textContent===str_replace('\\n',"\n",$p['description']),'Description damaged');
 assertFeed($dom->getElementsByTagName('AdStatus')->item(0)->textContent==='Free','Paid promotion enabled');
 assertFeed($dom->getElementsByTagName('ListingFee')->item(0)->textContent==='Package','Balance fallback enabled');
 $external=$p;$external['id']='old-import';$external['channels']['avito']['management']='external';
