@@ -1,0 +1,20 @@
+name: Check Timeweb connectivity and mail
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect existing hosting services
+        env:
+          TIMEWEB_HOST: ${{ secrets.TIMEWEB_HOST }}
+          TIMEWEB_USER: ${{ secrets.TIMEWEB_USER }}
+          TIMEWEB_SSH_KEY: ${{ secrets.TIMEWEB_SSH_KEY }}
+          TIMEWEB_KNOWN_HOSTS: ${{ secrets.TIMEWEB_KNOWN_HOSTS }}
+        run: |
+          python3 -m venv "$RUNNER_TEMP/check-tools"
+          "$RUNNER_TEMP/check-tools/bin/pip" -q install 'paramiko>=3.5,<5'
+          "$RUNNER_TEMP/check-tools/bin/python" scripts/check-timeweb.py
