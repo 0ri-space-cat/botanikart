@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
-"""Read-only hosting diagnostics; never reads keys, orders or customer data remotely."""
+"""Hosting diagnostics with an explicitly requested one-time mail setup check."""
 import os
 import tempfile
+import posixpath
+import shlex
 from pathlib import Path
 import paramiko
 
@@ -16,6 +18,11 @@ with tempfile.TemporaryDirectory() as temporary:
 /opt/php83/bin/php -r 'echo "sendmail_path: ".ini_get("sendmail_path").PHP_EOL;echo "mail available: ".(function_exists("mail")?"yes":"no").PHP_EOL;'
 for url in https://botanikart.ru/catalog.html https://botanikart.ru/catalogue/ https://botanikart.ru/api/payment-config.php https://botanikart.ru/catalogue/api.php?action=orders https://botanikart.ru/api/.private/flowwow-source.json; do curl --connect-timeout 4 --max-time 10 -sS -o /dev/null -w "$url HTTP %{http_code}; TLS %{ssl_verify_result}\\n" "$url"; done
 """
+        if os.environ.get('MAIL_TEST') == 'true':
+            public=posixpath.normpath(os.environ['TIMEWEB_PUBLIC_DIR'])
+            if not public.startswith('/') or not public.endswith('/public_html'):
+                raise ValueError('Invalid configured hosting directory')
+            command += '/opt/php83/bin/php ' + shlex.quote(posixpath.join(public,'api/.private/console.php')) + ' notifications-check\n'
         _,stdout,stderr=client.exec_command(command,timeout=90)
         print(stdout.read().decode());print(stderr.read().decode())
         if stdout.channel.recv_exit_status()!=0:raise RuntimeError('Hosting diagnostic did not complete')
