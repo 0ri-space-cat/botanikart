@@ -2,6 +2,11 @@ name: Check Timeweb connectivity and mail
 on:
   workflow_dispatch:
     inputs:
+      smoke_action:
+        description: Explicit marketplace verification action
+        type: choice
+        options: [none, inspect, start, check, cleanup]
+        default: none
       mail_test:
         description: Send the one-time merchant notification setup email
         type: boolean
@@ -15,6 +20,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Inspect existing hosting services
         env:
+          SMOKE_ACTION: ${{ inputs.smoke_action }}
           MAIL_TEST: ${{ inputs.mail_test }}
           TIMEWEB_PUBLIC_DIR: ${{ secrets.TIMEWEB_PUBLIC_DIR }}
           TIMEWEB_HOST: ${{ secrets.TIMEWEB_HOST }}

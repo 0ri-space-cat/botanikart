@@ -18,12 +18,21 @@ with tempfile.TemporaryDirectory() as temporary:
 /opt/php83/bin/php -r 'echo "sendmail_path: ".ini_get("sendmail_path").PHP_EOL;echo "mail available: ".(function_exists("mail")?"yes":"no").PHP_EOL;'
 for url in https://botanikart.ru/catalog.html https://botanikart.ru/catalogue/ https://botanikart.ru/api/payment-config.php https://botanikart.ru/catalogue/api.php?action=orders https://botanikart.ru/api/.private/flowwow-source.json; do curl --connect-timeout 4 --max-time 10 -sS -o /dev/null -w "$url HTTP %{http_code}; TLS %{ssl_verify_result}\\n" "$url"; done
 """
+        smoke=os.environ.get('SMOKE_ACTION','none')
+        if smoke != 'none':
+            if smoke not in ['inspect','start','check','cleanup']:raise ValueError('Invalid smoke action')
+            public=posixpath.normpath(os.environ['TIMEWEB_PUBLIC_DIR'])
+            if not public.startswith('/') or not public.endswith('/public_html'):raise ValueError('Invalid hosting path')
+            target=posixpath.join(public,'api/.private/marketplace-smoke.php')
+            with client.open_sftp() as sftp:
+                sftp.put('hosting/private/marketplace-smoke.php',target+'.upload');sftp.chmod(target+'.upload',0o600);sftp.posix_rename(target+'.upload',target)
+            command += '/opt/php83/bin/php ' + shlex.quote(target) + ' ' + smoke + '\n'
         if os.environ.get('MAIL_TEST') == 'true':
             public=posixpath.normpath(os.environ['TIMEWEB_PUBLIC_DIR'])
             if not public.startswith('/') or not public.endswith('/public_html'):
                 raise ValueError('Invalid configured hosting directory')
             command += '/opt/php83/bin/php ' + shlex.quote(posixpath.join(public,'api/.private/console.php')) + ' notifications-check\n'
-        _,stdout,stderr=client.exec_command(command,timeout=90)
+        _,stdout,stderr=client.exec_command(command,timeout=240)
         print(stdout.read().decode());print(stderr.read().decode())
         if stdout.channel.recv_exit_status()!=0:raise RuntimeError('Hosting diagnostic did not complete')
     finally:client.close()
