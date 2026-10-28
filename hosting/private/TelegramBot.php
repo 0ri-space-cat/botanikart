@@ -75,8 +75,8 @@ final class TelegramBot {
         if(($message['chat']['type']??'')!=='private'||!preg_match('/^[1-9][0-9]{0,18}$/D',$chat)||(string)($actor['id']??'')!==$chat||!empty($actor['is_bot']))return;
         $this->db->exec('BEGIN IMMEDIATE');
         try{
-            $q=$this->db->prepare('INSERT OR IGNORE INTO updates(id,chat,created) VALUES(?,?,?)');$q->execute([$u['update_id'],$chat,time()]);if(!$q->rowCount()){$this->db->commit();return;}
-            $q=$this->db->prepare('SELECT COUNT(*) FROM updates WHERE chat=? AND created>?');$q->execute([$chat,time()-60]);if($q->fetchColumn()>30){$this->db->commit();return;}
+            $q=$this->db->prepare('INSERT OR IGNORE INTO updates(id,chat,created) VALUES(?,?,?)');$q->execute([$u['update_id'],$chat,time()]);if(!$q->rowCount()){$this->db->exec('COMMIT');return;}
+            $q=$this->db->prepare('SELECT COUNT(*) FROM updates WHERE chat=? AND created>?');$q->execute([$chat,time()-60]);if($q->fetchColumn()>30){$this->db->exec('COMMIT');return;}
             $username=preg_match('/^[A-Za-z0-9_]{5,32}$/D',$actor['username']??'')?$actor['username']:'';$q=$this->db->prepare('INSERT INTO chats(id,username,created) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET username=excluded.username');$q->execute([$chat,$username,time()]);
             $key='update:'.$u['update_id'];$action=$u['callback_query']['data']??($u['message']['text']??'');
             if(isset($u['callback_query']['id']))$this->queue($key.':ack','answerCallbackQuery',['callback_query_id'=>$u['callback_query']['id']]);
@@ -92,8 +92,8 @@ final class TelegramBot {
             }elseif(preg_match('/^c:([a-z]+):(\d{1,4})$/D',$action,$m))$this->browse($key,$chat,$m[1],(int)$m[2]);
             elseif(preg_match('/^p:([a-f0-9]{20})$/D',$action,$m))$this->product($key,$chat,$m[1]);
             else $this->say($key,$chat,$this->intro(),$this->menu());
-            $this->db->commit();
-        }catch(\Throwable $e){if($this->db->inTransaction())$this->db->rollBack();throw $e;}
+            $this->db->exec('COMMIT');
+        }catch(\Throwable $e){try{$this->db->exec('ROLLBACK');}catch(\Throwable){}throw $e;}
     }
     public function enqueuePaid(array $o): bool {
         if(!empty($o['testMode'])||empty($o['paid'])||($o['status']??'')!=='CONFIRMED')return false;
@@ -108,7 +108,7 @@ final class TelegramBot {
     public function drain(int $limit=5): int {
         $done=0;for($n=0;$n<$limit;$n++){
             $this->db->exec('BEGIN IMMEDIATE');$q=$this->db->prepare("SELECT * FROM outbox WHERE sent=0 AND next_try<=? AND lease<? ORDER BY CASE WHEN method='answerCallbackQuery' THEN 0 ELSE 1 END,created,id LIMIT 1");$q->execute([time(),time()-120]);$job=$q->fetch(\PDO::FETCH_ASSOC);
-            if(!$job){$this->db->commit();break;}$q=$this->db->prepare('UPDATE outbox SET lease=? WHERE id=?');$q->execute([time(),$job['id']]);$this->db->commit();$payload=json_decode($job['payload'],true,512,JSON_THROW_ON_ERROR);
+            if(!$job){$this->db->exec('COMMIT');break;}$q=$this->db->prepare('UPDATE outbox SET lease=? WHERE id=?');$q->execute([time(),$job['id']]);$this->db->exec('COMMIT');$payload=json_decode($job['payload'],true,512,JSON_THROW_ON_ERROR);
             try{$this->request($job['method'],$payload);$q=$this->db->prepare('UPDATE outbox SET sent=?,lease=0 WHERE id=?');$q->execute([time(),$job['id']]);$done++;}
             catch(TelegramFailure $e){
                 if($job['method']==='sendPhoto'&&$e->apiCode===400){$payload['text']=$payload['caption'];unset($payload['photo'],$payload['caption']);$q=$this->db->prepare("UPDATE outbox SET method='sendMessage',payload=?,lease=0,next_try=0 WHERE id=?");$q->execute([json_encode($payload,JSON_UNESCAPED_UNICODE),$job['id']]);}

@@ -36,11 +36,11 @@ final class PublicationRunner
         $this->store->db->exec('BEGIN IMMEDIATE');
         try {
             $q=$this->store->db->prepare('SELECT revision FROM publication_jobs WHERE product_id=? AND channel=?');$q->execute([$job['product_id'],$job['channel']]);
-            if($q->fetchColumn()!==$job['revision']){$this->store->db->rollBack();return false;}
+            if($q->fetchColumn()!==$job['revision']){$this->store->db->exec('ROLLBACK');return false;}
             $this->setState($job['product_id'],$job['channel'],$changes);
             $q=$this->store->db->prepare('UPDATE publication_jobs SET state=? WHERE product_id=? AND channel=? AND revision=?');$q->execute([$state,$job['product_id'],$job['channel'],$job['revision']]);
-            $this->store->db->commit();return true;
-        }catch(\Throwable $e){if($this->store->db->inTransaction())$this->store->db->rollBack();throw $e;}
+            $this->store->db->exec('COMMIT');return true;
+        }catch(\Throwable $e){try{$this->store->db->exec('ROLLBACK');}catch(\Throwable){}throw $e;}
     }
     public function process(?string $onlyId=null): array
     {
