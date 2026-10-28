@@ -6,3 +6,13 @@
 .product.source-avito>img{object-fit:contain;background:#edf1f1}
 
 .assortment-toggle{display:flex;gap:10px;align-items:flex-start;padding:15px;background:#edf3e5;border-radius:12px}.assortment-toggle input{margin:2px 0 0;accent-color:#345e41}.assortment-toggle small{display:block;margin-top:5px;font-size:11px;color:var(--muted);font-weight:400;line-height:1.5}
+
+/* Marketplace logos identify origin independently of product category. */
+.flowwow{--badge:#fce8e5;--badge-ink:#ad473c}.avito{--badge:#e9f4fc;--badge-ink:#245c87}.manual{--badge:#e6f0dc;--badge-ink:#486934}
+.source-badge{gap:6px;align-items:center;line-height:1.25;padding:5px 9px 5px 5px}
+.source-icon{display:block;width:23px;height:23px;object-fit:contain;border-radius:6px;flex-shrink:0}
+.source-tabs button[data-source=flowwow]{background:#fceeea;color:#ad473c}
+.source-tabs button[data-source=avito]{background:#edf6fc;color:#245c87}
+.source-tabs button[data-source=manual]{background:#eaf2e1;color:#486934}
+.source-tabs button.active{border-color:currentColor;box-shadow:0 0 0 1px currentColor}
+@media(max-width:700px){.source-badge .source-icon{width:20px;height:20px}.source-tabs .source-icon{width:22px;height:22px}}

@@ -7,7 +7,7 @@ nav.querySelectorAll('a').forEach(a=>a.addEventListener('click',closeMenu));
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeMenu()});
 const escapeHTML=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=n=>new Intl.NumberFormat('ru-RU').format(n)+' ₽';
-const categoryNames={florarium:'Флорариум',composition:'Живая композиция',potted:'Растение в горшке',plant:'Растение для посадки',material:'Материалы и декор'};
+const categoryNames={florarium:'Флорариум',composition:'Живая композиция',potted:'Комнатное растение',plant:'Растение для флорариума',material:'Материалы и декор'};
 const productGroup=p=>p.catalogGroup||({succulent:'plant',ficus:'plant'}[p.category]||p.category);
 const groupOrder={florarium:0,composition:1,potted:2,plant:3,material:4};
 const shortTitle=p=>p.title.replace(/^Флорариум с крышкой /,'').replace(/^Флорариум-экосистема /,'').replace(/^Флорариум закрытый /,'').replace(/^Флорариум /,'').replace(/^Композиция с автополивом /,'').replace(/^Композиция /,'').replace(' (фиттонии 4 вида, папоротник)','').replace(/ в (?:белом|зелёном|зеленом|чёрном|черном|прозрачном|нежно-розовом|нежно-фиолетовом|пепельно-сером|тёмно-синем|керамическом|светло-бежевом|белом керамическом|зеленом керамическом).*(?:кашпо|горшке)$/,'');

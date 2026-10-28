@@ -174,6 +174,36 @@ final class CatalogStore
         } finally { flock($lock,LOCK_UN); fclose($lock); }
     }
 
+    /** Apply a reviewed category-only correction once; never replace stock, content or visibility. */
+    public function reviseImportedCategories(string $revision, array $assignments, bool $apply): int
+    {
+        if (!preg_match('/^[a-z0-9-]{1,80}$/D', $revision) || count($assignments)>200) throw new \InvalidArgumentException('invalid_revision');
+        $this->backup();
+        $this->db->exec('BEGIN IMMEDIATE');
+        try {
+            $key='category_revision:'.$revision;
+            $get=$this->db->prepare('SELECT value FROM metadata WHERE name=?');$get->execute([$key]);
+            if ($get->fetchColumn()!==false) { $this->db->exec('ROLLBACK'); return 0; }
+            $map=[];
+            foreach ($assignments as $a) {
+                if (!in_array($a['from']??'', ['plant','potted'], true) || !in_array($a['to']??'', ['plant','potted'], true)) throw new \InvalidArgumentException('invalid_revision');
+                $map[($a['avitoItemId']??'').'/'.($a['avitoVariant']??'')]=$a;
+            }
+            $count=0;
+            $update=$this->db->prepare('UPDATE products SET document=?,version=version+1,updated_at=? WHERE id=?');
+            foreach ($this->all(true) as $p) {
+                if ($p['source']!=='avito') continue;
+                $a=$map[($p['avitoItemId']??'').'/'.($p['avitoVariant']??'')]??null;
+                if (!$a || ($p['catalogGroup']??'')!==$a['from']) continue;
+                unset($p['hidden'],$p['sourceMissing'],$p['version'],$p['updatedAt']);
+                $p['category']=$p['catalogGroup']=$a['to'];
+                $update->execute([json_encode($p,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),gmdate('c'),$p['id']]);$count++;
+            }
+            $set=$this->db->prepare('INSERT INTO metadata(name,value) VALUES(?,?)');$set->execute([$key,gmdate('c')]);
+            $this->db->exec($apply?'COMMIT':'ROLLBACK');return $count;
+        } catch (\Throwable $error) { $this->db->exec('ROLLBACK');throw $error; }
+    }
+
     /** Import a trusted, reviewed batch once; repeat deployments never overwrite an owner's edits. */
     public function importBatch(array $items, bool $apply = false): array
     {

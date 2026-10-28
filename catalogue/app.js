@@ -1,7 +1,8 @@
 'use strict';
 const $=s=>document.querySelector(s);
 const names={flowwow:'Flowwow',avito:'Авито',manual:'Своё'};
-const categories={florarium:'Флорариум',composition:'Живая композиция',potted:'Растение в горшке',plant:'Растение для посадки',material:'Материалы и декор'};
+const sourceLabel=key=>{const k=Object.hasOwn(names,key)?key:'manual';return `<img class="source-icon" src="icons/${k}.${k==='manual'?'svg':'png'}" alt="" aria-hidden="true">${names[k]}`};
+const categories={florarium:'Флорариум',composition:'Живая композиция',potted:'Комнатное растение',plant:'Растение для флорариума',material:'Материалы и декор'};
 const productGroup=p=>p.catalogGroup||({succulent:'plant',ficus:'plant'}[p.category]||p.category)||'plant';
 const statuses={ready:'В наличии',preorder:'Под заказ',sold:'Нет в наличии'};
 const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -25,7 +26,7 @@ function render(){
  const query=$('#search').value.toLocaleLowerCase('ru-RU').replace(/ё/g,'е').trim();const visibility=$('#visibility').value;const category=$('#category').value;
  const items=products.filter(p=>(category==='all'||productGroup(p)===category)&&(source==='all'||p.source===source)&&(!query||(p.title+' '+p.description).toLocaleLowerCase('ru-RU').replace(/ё/g,'е').includes(query))&&(visibility==='all'||visibility==='hidden'&&(p.hidden||p.sourceMissing)||visibility==='visible'&&!p.hidden&&!p.sourceMissing||visibility==='ready'&&p.available||visibility==='sold'&&p.status==='sold'));
  $('#total').textContent=products.length;$('#empty').hidden=items.length!==0;
- $('#products').innerHTML=items.map(p=>`<button class="product ${p.source==='avito'?'source-avito':''} ${p.hidden||p.sourceMissing?'is-hidden':''}" data-id="${escape(p.id)}"><img src="${escape(imageURL(p.images?.[0]||'assets/logo-mark-roots.png'))}" alt="" loading="lazy">${p.hidden||p.sourceMissing?'<span class="hidden-badge">Скрыт</span>':''}<div class="product-body"><span class="source-badge ${escape(p.source)}">${escape(names[p.source]||'Своё')}</span><h2>${escape(p.title)}</h2><span class="product-category">${escape(categories[productGroup(p)]||'Растение')}</span><span class="product-price">${money(p.price)}</span><span class="product-status">${escape(statuses[p.status]||(p.available?'В наличии':'Под заказ'))}</span></div></button>`).join('');
+ $('#products').innerHTML=items.map(p=>`<button class="product ${p.source==='avito'?'source-avito':''} ${p.hidden||p.sourceMissing?'is-hidden':''}" data-id="${escape(p.id)}"><img src="${escape(imageURL(p.images?.[0]||'assets/logo-mark-roots.png'))}" alt="" loading="lazy">${p.hidden||p.sourceMissing?'<span class="hidden-badge">Скрыт</span>':''}<div class="product-body"><span class="source-badge ${escape(p.source)}">${sourceLabel(p.source)}</span><h2>${escape(p.title)}</h2><span class="product-category">${escape(categories[productGroup(p)]||'Растение')}</span><span class="product-price">${money(p.price)}</span><span class="product-status">${escape(statuses[p.status]||(p.available?'В наличии':'Под заказ'))}</span></div></button>`).join('');
 }
 function renderPhotos(){
  $('#photo-count').textContent=images.length+' / 20';
@@ -35,7 +36,7 @@ function openEditor(id){
  editing=products.find(p=>p.id===id)||null;const p=editing||{title:'',price:'',description:'',source:'manual',catalogGroup:$('#category').value==='all'?'plant':$('#category').value,status:'ready',url:'',images:[],hidden:false};
  const form=$('#edit-form');form.reset();for(const key of ['title','price','description','source','catalogGroup','status','url'])form.elements[key].value=p[key]??'';
  form.elements.catalogGroup.value=productGroup(p);$('#editor-category').textContent=categories[productGroup(p)]||'Растение';form.elements.inquiry.checked=p.purchaseMode==='inquiry';form.elements.visible.checked=!p.hidden;form.elements.source.disabled=Boolean(editing);$('#product-fields').disabled=p.source==='flowwow';
- $('#editor-heading').textContent=editing?'Карточка товара':'Новый товар';$('#editor-source').className='source-badge '+p.source;$('#editor-source').textContent=names[p.source];
+ $('#editor-heading').textContent=editing?'Карточка товара':'Новый товар';$('#editor-source').className='source-badge '+p.source;$('#editor-source').innerHTML=sourceLabel(p.source);
  $('#flowwow-note').hidden=p.source!=='flowwow';$('#missing-note').hidden=!p.sourceMissing;images=[...(p.images||[])];renderPhotos();message($('#edit-message'));dirty=false;
  $('#source-url-label').textContent=p.source==='flowwow'?'Ссылка на Flowwow':'Ссылка на объявление Авито';$('#editor').showModal();$('#editor').scrollTop=0;document.body.style.overflow='hidden';
 }

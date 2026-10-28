@@ -23,12 +23,12 @@ def classify(product, override=None):
         return "material"
     if re.search(r"\bмох\s+стабилизирован\w*|\bстабилизирован\w*\s+мох", title):
         return "material"
+    if re.search(r"\bдля\s+(?:флорариум\w*|террариум\w*|палюдариум\w*)\b", title):
+        return "plant"
     if re.search(r"\b(?:флорариум\w*|террариум\w*|палюдариум\w*)\b", title):
         return "florarium"
     if re.search(r"\b(?:композици\w*|мини[ -]?сад\w*)\b", title):
         return "composition"
-    if re.search(r"\b(?:черен\w*|деленк\w*|срез\w*|отвод\w*|без горшка|тех\.?\s*горш\w*|техническ\w*\s+горш\w*|транспортировочн\w*\s+горш\w*)\b", title):
-        return "plant"
     if re.search(r"\b(?:кашпо\w*|горш\w*)\b", title):
         # Empty pots and a plant in a pot must not share the same group.
         if re.search(r"^(?:кашпо|горшок|горшки)\b", title) and not re.search(r"\b(?:с\s+(?:жив\w*\s+)?|растени\w*)", title):
@@ -40,7 +40,10 @@ def classify(product, override=None):
     source_category = normalize(product.get("sourceCategory"))
     if re.search(r"грунт|субстрат|расходн|материал|дренаж|декор", source_category):
         return "material"
-    return "plant"
+    # Purpose is independent of the sales pot: tiny ground-cover plants are useful in glass gardens.
+    if re.search(r"мох|селагинелл|солейроли|гидрокотил|пеллиони|фиттони|биофитум|пилея|фикус\s+(?:пумила|дуболистн)", title):
+        return "plant"
+    return "potted"
 
 
 def enrich(product, overrides=None):

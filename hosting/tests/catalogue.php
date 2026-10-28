@@ -59,6 +59,13 @@ try {
     check($again['created']===0 && $again['alreadyPresent']===2,'Batch was not idempotent');
     $edited=array_values(array_filter($store->all(true),fn($p)=>($p['avitoVariant']??'')==='one-litre'))[0];
     check($edited['price']===250 && $edited['hidden'],'Repeat import overwrote the owner edits');
+    $assignment=[['avitoItemId'=>'8303205392','avitoVariant'=>'','from'=>'plant','to'=>'potted']];
+    check($store->reviseImportedCategories('test-use', $assignment, false)===1,'Category dry run missed existing card');
+    check($store->reviseImportedCategories('test-use', $assignment, true)===1,'Category correction was not applied');
+    $recategorized=array_values(array_filter($store->all(true),fn($p)=>$p['id']===$manualId))[0];
+    check($recategorized['catalogGroup']==='potted' && $recategorized['price']===700 && !$recategorized['hidden'],'Category correction changed price or visibility');
+    $recategorized['catalogGroup']='plant';$store->save($recategorized);
+    check($store->reviseImportedCategories('test-use', $assignment, true)===0,'Revision reapplied over an owner category edit');
     echo "Catalogue checks passed: hidden flags, Flowwow authority, local records, edit conflicts, photos, backups and payment price/visibility.\n";
 } finally {
     $files=new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root,FilesystemIterator::SKIP_DOTS),RecursiveIteratorIterator::CHILD_FIRST);
