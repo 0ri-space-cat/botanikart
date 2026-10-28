@@ -52,6 +52,7 @@ jobs:
       - name: Publish to Timeweb when enabled
         if: vars.TIMEWEB_DEPLOY_ENABLED == 'true'
         env:
+          MARKETPLACES_CREDENTIALS: ${{ secrets.MARKETPLACES_CREDENTIALS }}
           TIMEWEB_HOST: ${{ secrets.TIMEWEB_HOST }}
           TIMEWEB_USER: ${{ secrets.TIMEWEB_USER }}
           TIMEWEB_PUBLIC_DIR: ${{ secrets.TIMEWEB_PUBLIC_DIR }}

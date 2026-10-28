@@ -96,6 +96,22 @@ def main():
                 if stdout.channel.recv_exit_status() != 0:
                     raise RuntimeError('Reviewed catalogue import failed; its database transaction was rolled back')
                 print(result.strip())
+        credentials = os.environ.get("MARKETPLACES_CREDENTIALS")
+        if credentials:
+            # Never place credentials in command arguments, files or logs on the runner.
+            json.loads(credentials)
+            command = '/opt/php83/bin/php ' + shlex.quote(posixpath.join(private, 'configure-marketplaces.php'))
+            stdin, stdout, stderr = client.exec_command(command, timeout=30)
+            stdin.write(credentials)
+            stdin.flush()
+            stdin.channel.shutdown_write()
+            result = stdout.read().decode('utf-8')
+            if stdout.channel.recv_exit_status() != 0:
+                raise RuntimeError('Marketplace private configuration failed')
+            state = json.loads(result)
+            if state.get('configured') is not True:
+                raise RuntimeError('Marketplace setup was not confirmed')
+            print('Marketplace credentials configured privately; renewal date:', state.get('renewalDate'))
         print("Timeweb release uploaded. Private configuration and orders were preserved.")
     finally:
         client.close()
