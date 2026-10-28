@@ -12,6 +12,7 @@ assertFeed($dom->getElementsByTagName('Price')->item(0)->textContent==='450','Ov
 assertFeed($dom->getElementsByTagName('Description')->item(0)->textContent===str_replace('\\n',"\n",$p['description']),'Description damaged');
 assertFeed($dom->getElementsByTagName('AdStatus')->item(0)->textContent==='Free','Paid promotion enabled');
 assertFeed($dom->getElementsByTagName('ListingFee')->item(0)->textContent==='Package','Balance fallback enabled');
+$cdn=$p;$cdn['images']=['https://content2.flowwow-images.com/data/flowers/example.jpg'];assertFeed(!$feed->check($cdn,'https://botanikart.ru')['warnings'],'Official source photo rejected');
 $external=$p;$external['id']='old-import';$external['channels']['avito']['management']='external';
 assertFeed($feed->render([$external,$p],'https://botanikart.ru')===$xml,'Legacy ad exported again');
 $p['price']=900;$p['channels']['avito']['price']=null;$changed=$feed->render([$p],'https://botanikart.ru');assertFeed(str_contains($changed,'<Price>900</Price>'),'Live price not used');

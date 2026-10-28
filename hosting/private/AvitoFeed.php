@@ -37,7 +37,8 @@ final class AvitoFeed
         $images=[];
         foreach ($product['images'] as $path) {
             $url=str_starts_with($path,'https://')?$path:rtrim($site,'/').'/'.ltrim($path,'/');
-            if (parse_url($url,PHP_URL_HOST)!==parse_url($site,PHP_URL_HOST) || !filter_var($url,FILTER_VALIDATE_URL)) $warnings[]='Фото для Авито должно находиться на нашем сайте.';
+            $host=(string)parse_url($url,PHP_URL_HOST);
+            if (!filter_var($url,FILTER_VALIDATE_URL)||parse_url($url,PHP_URL_SCHEME)!=='https'||($host!==parse_url($site,PHP_URL_HOST)&&!preg_match('/(^|\.)flowwow-images\.com$/i',$host))) $warnings[]='Используйте фото нашего сайта или исходного товара Flowwow.';
             else $images[]=$url;
         }
         $images=array_slice($images,0,10);
