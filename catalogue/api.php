@@ -36,7 +36,7 @@ try {
     $action = $_GET['action'] ?? 'session';
     $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
     if ($method !== 'GET' && $method !== 'POST') respond(['error'=>'method_not_allowed'],405);
-    if ($method === 'GET' && !in_array($action,['session','products'],true)) respond(['error'=>'method_not_allowed'],405);
+    if ($method === 'GET' && !in_array($action,['session','products','connections','publication-preview'],true)) respond(['error'=>'method_not_allowed'],405);
     if ($method === 'POST') {
         $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
         $expected = ($secure ? 'https://' : 'http://') . ($_SERVER['HTTP_HOST'] ?? '');
@@ -53,7 +53,7 @@ try {
         $raw = file_get_contents('php://input', false, null, 0, 100001);
         if ($raw === false || strlen($raw) > 100000) respond(['error'=>'request_too_large'],413);
         $input = json_decode($raw, true, 32, JSON_THROW_ON_ERROR);
-        if (!is_array($input) || array_is_list($input)) respond(['error'=>'invalid_request'],400);
+        if (!is_array($input) || (array_is_list($input) && ($input!==[] || !str_starts_with(ltrim($raw),'{')))) respond(['error'=>'invalid_request'],400);
     }
     if ($action === 'login' && $method === 'POST') {
         $address = hash('sha256', ($_SERVER['REMOTE_ADDR'] ?? '') . $auth['revision']);
@@ -88,7 +88,14 @@ try {
         setcookie(session_name(),'', ['expires'=>time()-3600,'path'=>'/catalogue/','secure'=>$secure,'httponly'=>true,'samesite'=>'Strict']);
         respond(['ok'=>true]);
     }
-    if ($action === 'products' && $method === 'GET') respond(['products'=>$store->all(true)]);
+    require_once $private . '/MarketplaceService.php';
+    $marketplaces=new \BotanikArt\MarketplaceService($store,$private);
+    if ($action==='check-connections' && $method==='POST') respond(['connections'=>$marketplaces->checkConnections()]);
+    if ($action==='connections' && $method==='GET') respond(['connections'=>$marketplaces->connections()]);
+    if ($action==='publication-preview' && $method==='GET') respond($marketplaces->preview((string)($_GET['id']??''),(string)($_GET['channel']??'')));
+    if ($action==='renewal-date' && $method==='POST') { $marketplaces->saveRenewalDate($input['date']??null);respond(['connections'=>$marketplaces->connections()]); }
+    if ($action==='reminder-seen' && $method==='POST') { $marketplaces->acknowledgeReminder($input['id']??null);respond(['ok'=>true]); }
+    if ($action === 'products' && $method === 'GET') respond(['products'=>array_map(fn($p)=>$marketplaces->productStatus($p),$store->all(true)),'connections'=>$marketplaces->connections()]);
     if ($action === 'save' && $method === 'POST') respond(['id'=>$store->save($input)]);
     if ($action === 'upload' && $method === 'POST') {
         $file = $_FILES['image'] ?? null;

@@ -19,7 +19,10 @@ final class CatalogStore
         $this->db->exec('DROP INDEX IF EXISTS avito_reference');
         $this->db->exec('CREATE TABLE IF NOT EXISTS metadata (name TEXT PRIMARY KEY, value TEXT NOT NULL)');
         $this->db->exec('CREATE TABLE IF NOT EXISTS login_attempts (address TEXT PRIMARY KEY, attempts INTEGER NOT NULL, started INTEGER NOT NULL)');
+        $this->db->exec('CREATE TABLE IF NOT EXISTS product_channels (product_id TEXT NOT NULL, channel TEXT NOT NULL, document TEXT NOT NULL, PRIMARY KEY(product_id,channel))');
+        $this->db->exec('CREATE TABLE IF NOT EXISTS publication_jobs (product_id TEXT NOT NULL, channel TEXT NOT NULL, revision TEXT NOT NULL, state TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY(product_id,channel))');
         $this->refresh();
+        $this->seedChannels();
     }
 
     private function refresh(): void
@@ -45,6 +48,7 @@ final class CatalogStore
                 $source = $product['source'] ?? 'flowwow';
                 $product['source'] = $source;
                 $upsert->execute([$id, $source, json_encode($product, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), gmdate('c')]);
+                if ($upsert->rowCount()>0) $this->queuePublications($id);
             }
             $missing = $this->db->prepare('UPDATE products SET missing=1, version=version+1, updated_at=? WHERE id=? AND missing=0');
             foreach ($this->db->query("SELECT id FROM products WHERE source='flowwow'") as $row) {
@@ -65,6 +69,7 @@ final class CatalogStore
             if (!$administrative && ($row['hidden'] || $row['missing'])) continue;
             $product = json_decode($row['document'], true, 512, JSON_THROW_ON_ERROR);
             if ($administrative) {
+                $product['channels'] = $this->channels($product['id']);
                 $product['hidden'] = (bool) $row['hidden'];
                 $product['sourceMissing'] = (bool) $row['missing'];
                 $product['version'] = (int) $row['version'];
@@ -86,6 +91,23 @@ final class CatalogStore
     }
 
     public function save(array $input): string
+    {
+        $this->backup();
+        $this->db->exec('SAVEPOINT product_save');
+        try {
+            $id=$this->saveProduct($input);
+            $this->seedChannels($id);
+            if (array_key_exists('channels',$input)) $this->saveChannels($id,$input['channels']);
+            $this->queuePublications($id);
+            $this->db->exec('RELEASE SAVEPOINT product_save');
+            return $id;
+        } catch (\Throwable $error) {
+            $this->db->exec('ROLLBACK TO SAVEPOINT product_save');
+            $this->db->exec('RELEASE SAVEPOINT product_save');throw $error;
+        }
+    }
+
+    private function saveProduct(array $input): string
     {
         $this->backup();
         $id = $input['id'] ?? '';
@@ -157,6 +179,63 @@ final class CatalogStore
         return $id;
     }
 
+    private function seedChannels(?string $id=null): void
+    {
+        $rows=$this->db->prepare('SELECT id,source,document FROM products p WHERE (? IS NULL OR p.id=?) AND (NOT EXISTS(SELECT 1 FROM product_channels c WHERE c.product_id=p.id AND c.channel=\'avito\') OR NOT EXISTS(SELECT 1 FROM product_channels c WHERE c.product_id=p.id AND c.channel=\'flowwow\'))');$rows->execute([$id,$id]);
+        $insert=$this->db->prepare('INSERT OR IGNORE INTO product_channels(product_id,channel,document) VALUES(?,?,?)');
+        foreach ($rows as $row) {
+            $p=json_decode($row['document'],true,512,JSON_THROW_ON_ERROR);
+            foreach (['avito','flowwow'] as $channel) {
+                $external=$row['source']===$channel;
+                $remoteId=$external ? (string)($channel==='avito'?($p['avitoItemId']??''):($p['flowwowProductId']??'')) : '';
+                $insert->execute([$row['id'],$channel,json_encode(['enabled'=>$external,'management'=>$external?'external':'site',
+                    'externalId'=>$remoteId,'url'=>$external?($p['url']??''):'','price'=>null,'title'=>'','description'=>'',
+                    'state'=>$external?'external':'off','error'=>''],JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR)]);
+            }
+        }
+    }
+
+    public function channels(string $id): array
+    {
+        $query=$this->db->prepare('SELECT channel,document FROM product_channels WHERE product_id=?');$query->execute([$id]);$result=[];
+        foreach ($query as $row) $result[$row['channel']]=json_decode($row['document'],true,512,JSON_THROW_ON_ERROR);
+        return $result;
+    }
+
+    private function saveChannels(string $id, mixed $channels): void
+    {
+        if (!is_array($channels) || array_is_list($channels) || array_diff(array_keys($channels),['avito','flowwow'])) throw new \InvalidArgumentException('invalid_channels');
+        $current=$this->channels($id);
+        $update=$this->db->prepare('UPDATE product_channels SET document=? WHERE product_id=? AND channel=?');
+        foreach ($channels as $channel=>$input) {
+            if (!is_array($input) || array_diff(array_keys($input),['enabled','price','title','description','management','externalId','url','state','error','message']) || !is_bool($input['enabled']??null)) throw new \InvalidArgumentException('invalid_channels');
+            $p=$current[$channel];
+            if ($p['management']==='external') {
+                if (!$input['enabled']) throw new \InvalidArgumentException('external_channel');
+                continue;
+            }
+            $price=$input['price']??null;$title=trim((string)($input['title']??''));$description=trim((string)($input['description']??''));
+            if (($price!==null && (!is_numeric($price)||!is_finite((float)$price)||(float)$price<=0||(float)$price>10000000)) || mb_strlen($title)>250 || mb_strlen($description)>30000) throw new \InvalidArgumentException('invalid_channels');
+            $p['enabled']=$input['enabled'];$p['price']=$price===null?null:round((float)$price,2);$p['title']=$title;$p['description']=$description;
+            $p['state']=$p['enabled']?'waiting_connection':($p['externalId']!==''?'pending_removal':'off');$p['error']='';
+            $update->execute([json_encode($p,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),$id,$channel]);
+        }
+    }
+
+    private function queuePublications(string $id): void
+    {
+        $get=$this->db->prepare('SELECT document FROM products WHERE id=?');$get->execute([$id]);$raw=$get->fetchColumn();
+        $put=$this->db->prepare('INSERT INTO publication_jobs(product_id,channel,revision,state,updated_at) VALUES(?,?,?,?,?) ON CONFLICT(product_id,channel) DO UPDATE SET revision=excluded.revision,state=excluded.state,updated_at=excluded.updated_at');
+        $delete=$this->db->prepare('DELETE FROM publication_jobs WHERE product_id=? AND channel=?');
+        foreach ($this->channels($id) as $channel=>$settings) {
+            if ($settings['management']!=='site') continue;
+            if (!$settings['enabled'] && $settings['externalId']==='') { $delete->execute([$id,$channel]);continue; }
+            // Queue only intent. A configured connector must validate it before any external write.
+            $revision=hash('sha256',$raw.json_encode($settings));
+            $put->execute([$id,$channel,$revision,'waiting_connection',gmdate('c')]);
+        }
+    }
+
     private function backup(): void
     {
         $backup = $this->directory . '/backup-' . gmdate('Y-m-d') . '.sqlite';
@@ -195,7 +274,7 @@ final class CatalogStore
                 if ($p['source']!=='avito') continue;
                 $a=$map[($p['avitoItemId']??'').'/'.($p['avitoVariant']??'')]??null;
                 if (!$a || ($p['catalogGroup']??'')!==$a['from']) continue;
-                unset($p['hidden'],$p['sourceMissing'],$p['version'],$p['updatedAt']);
+                unset($p['hidden'],$p['sourceMissing'],$p['version'],$p['updatedAt'],$p['channels']);
                 $p['category']=$p['catalogGroup']=$a['to'];
                 $update->execute([json_encode($p,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),gmdate('c'),$p['id']]);$count++;
             }

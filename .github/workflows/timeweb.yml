@@ -44,6 +44,7 @@ jobs:
           find api hosting catalogue -name '*.php' -exec php -l {} \;
           php hosting/tests/payments.php
           php hosting/tests/catalogue.php
+          php hosting/tests/publications.php
           python3 hosting/tests/check_api.py
           python3 hosting/tests/check_catalogue_api.py
       - name: Build public site

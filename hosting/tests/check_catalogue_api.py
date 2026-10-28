@@ -21,6 +21,7 @@ with tempfile.TemporaryDirectory(prefix="botanikart-catalogue-http-") as tempora
     private = public / "api/.private"
     private.mkdir(mode=0o700)
     shutil.copy2(ROOT / "hosting/private/CatalogStore.php", private / "CatalogStore.php")
+    shutil.copy2(ROOT / "hosting/private/MarketplaceService.php", private / "MarketplaceService.php")
     password_hash = subprocess.check_output([PHP, "-r", "echo password_hash('fixture-admin-password',PASSWORD_DEFAULT);"]).decode()
     auth = private / "catalogue-auth.php"
     auth.write_text("<?php return ['username'=>'fixture','password_hash'=>'" + password_hash + "','revision'=>'first-test'];")
@@ -67,6 +68,10 @@ with tempfile.TemporaryDirectory(prefix="botanikart-catalogue-http-") as tempora
         assert any(cookie.name=="BOTANIKART_CATALOGUE" and cookie.expires is not None for cookie in cookies)
         status, data = call("products")
         assert status == 200 and data["products"]
+        assert call("connections")[0]==200
+        assert call("check-connections",{},login["csrf"])[0]==200
+        assert call("renewal-date",{"date":"2026-02-30"},login["csrf"])[0]==400
+        assert call("renewal-date",{"date":"2026-11-28"},login["csrf"])[0]==200
         product = data["products"][0]
         assert call("save", {"id":product["id"],"version":product["version"],"hidden":True}, login["csrf"])[0] == 200
         status, public_catalog = call("", path="/api/catalog.php")
@@ -94,6 +99,11 @@ with tempfile.TemporaryDirectory(prefix="botanikart-catalogue-http-") as tempora
         changed = next(p for p in published["products"] if p["id"]==created["id"])
         assert changed["price"]==700 and not changed["available"] and changed["description"]==manual["description"]
         assert call("", path="/api/.private/catalogue/catalogue.sqlite")[0] == 403
+        assert call("logout",{},login["csrf"])[0]==200
+        anonymous=call("session")[1]
+        assert not anonymous["authenticated"]
+        assert call("connections")[0]==401
+        assert call("login",credentials,anonymous["csrf"])[0]==200
         auth.write_text(auth.read_text().replace("first-test","second-test"))
         assert call("products")[0] == 401, "Password revision did not invalidate the session"
         print("Catalogue HTTP checks passed: sessions, CSRF, origin, hidden product, conflicts, photo upload, local product creation/editing, Avito deduplication, private storage and session invalidation.")
