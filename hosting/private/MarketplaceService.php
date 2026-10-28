@@ -120,7 +120,15 @@ final class MarketplaceService
         if (!$c['enabled']) $warnings[]='Площадка не выбрана.';
         if (!$this->connections()[$channel]['configured']) $warnings[]='Доступ к площадке ещё не подключён.';
         if ($p['sourceMissing']) $warnings[]='Товар больше не приходит из исходного каталога.';
-        if ($channel==='avito') $warnings[]='Перед отправкой требуется подтвердить шаблон категории и настройки автозагрузки.';
+        if ($channel==='avito') {
+            require_once __DIR__.'/AvitoFeed.php';
+            $file=dirname($this->directory,2).'/catalogue/avito-schema.json';
+            if (is_file($file)) {
+                $feed=new AvitoFeed(json_decode(file_get_contents($file),true,512,JSON_THROW_ON_ERROR));
+                $warnings=array_merge($warnings,$feed->check($p,$site)['warnings']);
+            } else $warnings[]='Шаблоны Авито ещё не загружены.';
+            $warnings[]='Авито забирает файл по расписанию после подключения ссылки в кабинете.';
+        }
         else {
             if (mb_strlen($payload['description'])>5000) $warnings[]='Описание Flowwow должно быть не длиннее 5 000 символов.';
             $warnings[]='Перед отправкой нужно выбрать подкатегорию Flowwow и заполнить её обязательные характеристики.';

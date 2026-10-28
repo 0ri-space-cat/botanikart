@@ -208,7 +208,7 @@ final class CatalogStore
         $current=$this->channels($id);
         $update=$this->db->prepare('UPDATE product_channels SET document=? WHERE product_id=? AND channel=?');
         foreach ($channels as $channel=>$input) {
-            if (!is_array($input) || array_diff(array_keys($input),['enabled','price','title','description','management','externalId','url','state','error','message']) || !is_bool($input['enabled']??null)) throw new \InvalidArgumentException('invalid_channels');
+            if (!is_array($input) || array_diff(array_keys($input),['enabled','price','title','description','management','externalId','url','state','error','message','category','attributes']) || !is_bool($input['enabled']??null)) throw new \InvalidArgumentException('invalid_channels');
             $p=$current[$channel];
             if ($p['management']==='external') {
                 if (!$input['enabled']) throw new \InvalidArgumentException('external_channel');
@@ -216,6 +216,12 @@ final class CatalogStore
             }
             $price=$input['price']??null;$title=trim((string)($input['title']??''));$description=trim((string)($input['description']??''));
             if (($price!==null && (!is_numeric($price)||!is_finite((float)$price)||(float)$price<=0||(float)$price>10000000)) || mb_strlen($title)>250 || mb_strlen($description)>30000) throw new \InvalidArgumentException('invalid_channels');
+            if ($channel==='avito') {
+                $category=$input['category']??($p['category']??'');$attributes=$input['attributes']??($p['attributes']??[]);
+                if (!is_string($category)||!preg_match('/^[a-z0-9_]{0,100}$/D',$category)||!is_array($attributes)||count($attributes)>30) throw new \InvalidArgumentException('invalid_channels');
+                foreach ($attributes as $key=>$value) if (!is_string($key)||!preg_match('/^[A-Za-z][A-Za-z0-9]*$/D',$key)||!is_string($value)||mb_strlen($value)>250) throw new \InvalidArgumentException('invalid_channels');
+                $p['category']=$category;$p['attributes']=$attributes;
+            }
             $p['enabled']=$input['enabled'];$p['price']=$price===null?null:round((float)$price,2);$p['title']=$title;$p['description']=$description;
             $p['state']=$p['enabled']?'waiting_connection':($p['externalId']!==''?'pending_removal':'off');$p['error']='';
             $update->execute([json_encode($p,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),$id,$channel]);

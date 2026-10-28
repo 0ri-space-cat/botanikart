@@ -45,6 +45,7 @@ jobs:
           php hosting/tests/payments.php
           php hosting/tests/catalogue.php
           php hosting/tests/publications.php
+          php hosting/tests/avito-feed.php
           python3 hosting/tests/check_api.py
           python3 hosting/tests/check_catalogue_api.py
       - name: Build public site
