@@ -12,7 +12,7 @@ try{
  }
  if(!preg_match('/^[0-9]{5,20}:[A-Za-z0-9_-]{25,100}$/D',$token))throw new RuntimeException('Формат токена не подходит. Запустите ввод снова.');
  $cfg=['token'=>$token,'site_url'=>'https://botanikart.ru','webhook_secret'=>$old['webhook_secret']??bin2hex(random_bytes(32)),'context_secret'=>$old['context_secret']??bin2hex(random_bytes(32)),'owner_username'=>$old['owner_username']??'Ekaterina_Freed','created_at'=>$old['created_at']??time()];
- $bot=new \BotanikArt\TelegramBot($cfg,__DIR__);$me=$bot->request('getMe');$cfg['username']=$me['username'];
+ $bot=new \BotanikArt\TelegramBot($cfg,__DIR__);$me=(($argv[1]??'')==='--resume'&&!empty($old['username']))?['username'=>$old['username']]:$bot->request('getMe');$cfg['username']=$me['username'];
  if(!empty($old['username'])&&$old['username']!==$cfg['username'])throw new RuntimeException('Введён токен другого бота. Для замены нужен отдельный перенос настроек.');
  $tmp=$file.'.tmp';file_put_contents($tmp,"<?php\nreturn ".var_export($cfg,true).";\n");chmod($tmp,0600);rename($tmp,$file);
  $bot=new \BotanikArt\TelegramBot($cfg,__DIR__);

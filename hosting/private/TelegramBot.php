@@ -19,7 +19,7 @@ final class TelegramBot {
         if($this->transport)return ($this->transport)($method,$payload);
         if(!preg_match('/^[A-Za-z]+$/D',$method))throw new \InvalidArgumentException('Invalid Telegram method');
         $h=curl_init('https://api.telegram.org/bot'.$this->config['token'].'/'.$method);
-        curl_setopt_array($h,[CURLOPT_POST=>true,CURLOPT_POSTFIELDS=>json_encode($payload,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),CURLOPT_HTTPHEADER=>['Content-Type: application/json'],CURLOPT_RETURNTRANSFER=>true,CURLOPT_CONNECTTIMEOUT=>4,CURLOPT_TIMEOUT=>10,CURLOPT_FOLLOWLOCATION=>false,CURLOPT_SSL_VERIFYPEER=>true,CURLOPT_SSL_VERIFYHOST=>2]);
+        curl_setopt_array($h,[CURLOPT_POST=>true,CURLOPT_POSTFIELDS=>json_encode($payload,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),CURLOPT_HTTPHEADER=>['Content-Type: application/json'],CURLOPT_RETURNTRANSFER=>true,CURLOPT_IPRESOLVE=>CURL_IPRESOLVE_V4,CURLOPT_CONNECTTIMEOUT=>4,CURLOPT_TIMEOUT=>10,CURLOPT_FOLLOWLOCATION=>false,CURLOPT_SSL_VERIFYPEER=>true,CURLOPT_SSL_VERIFYHOST=>2]);
         $raw=curl_exec($h);$status=(int)curl_getinfo($h,CURLINFO_RESPONSE_CODE);curl_close($h);$data=is_string($raw)?json_decode($raw,true):null;
         if($status!==200||!($data['ok']??false))throw new TelegramFailure((int)($data['error_code']??$status),max(1,min(3600,(int)($data['parameters']['retry_after']??60))));
         return $data['result']??true;
