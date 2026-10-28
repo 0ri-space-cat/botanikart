@@ -8,6 +8,7 @@ final class TelegramFailure extends \RuntimeException {
 }
 final class TelegramBot {
     public \PDO $db;
+    private mixed $http=null;
     public function __construct(private array $config,private string $private,private mixed $transport=null){
         $dir=$private.'/telegram';if(!is_dir($dir))mkdir($dir,0700,true);
         $this->db=new \PDO('sqlite:'.$dir.'/bot.sqlite',null,null,[\PDO::ATTR_ERRMODE=>\PDO::ERRMODE_EXCEPTION]);@chmod($dir.'/bot.sqlite',0600);
@@ -18,9 +19,15 @@ final class TelegramBot {
     public function request(string $method,array $payload=[]): mixed {
         if($this->transport)return ($this->transport)($method,$payload);
         if(!preg_match('/^[A-Za-z]+$/D',$method))throw new \InvalidArgumentException('Invalid Telegram method');
-        $h=curl_init('https://api.telegram.org/bot'.$this->config['token'].'/'.$method);
+        $h=$this->http??=curl_init();
+        curl_setopt($h,CURLOPT_URL,'https://api.telegram.org/bot'.$this->config['token'].'/'.$method);
         curl_setopt_array($h,[CURLOPT_POST=>true,CURLOPT_POSTFIELDS=>json_encode($payload,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),CURLOPT_HTTPHEADER=>['Content-Type: application/json'],CURLOPT_RETURNTRANSFER=>true,CURLOPT_IPRESOLVE=>CURL_IPRESOLVE_V4,CURLOPT_CONNECTTIMEOUT=>4,CURLOPT_TIMEOUT=>10,CURLOPT_FOLLOWLOCATION=>false,CURLOPT_SSL_VERIFYPEER=>true,CURLOPT_SSL_VERIFYHOST=>2]);
-        $raw=curl_exec($h);$status=(int)curl_getinfo($h,CURLINFO_RESPONSE_CODE);curl_close($h);$data=is_string($raw)?json_decode($raw,true):null;
+        // Retry only failures before a request could reach Telegram. Reuse the TLS connection for callbacks/cards.
+        for($attempt=0;$attempt<3;$attempt++){
+            $raw=curl_exec($h);$status=(int)curl_getinfo($h,CURLINFO_RESPONSE_CODE);
+            if($raw!==false||$status!==0||curl_getinfo($h,CURLINFO_PRETRANSFER_TIME)>0||!in_array(curl_errno($h),[6,7,28,35],true))break;
+        }
+        $data=is_string($raw)?json_decode($raw,true):null;
         if($status!==200||!($data['ok']??false))throw new TelegramFailure((int)($data['error_code']??$status),max(1,min(3600,(int)($data['parameters']['retry_after']??60))));
         return $data['result']??true;
     }
