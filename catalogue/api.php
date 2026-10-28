@@ -36,7 +36,7 @@ try {
     $action = $_GET['action'] ?? 'session';
     $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
     if ($method !== 'GET' && $method !== 'POST') respond(['error'=>'method_not_allowed'],405);
-    if ($method === 'GET' && !in_array($action,['session','products','connections','publication-preview'],true)) respond(['error'=>'method_not_allowed'],405);
+    if ($method === 'GET' && !in_array($action,['session','products','connections','publication-preview','flowwow-editor','orders'],true)) respond(['error'=>'method_not_allowed'],405);
     if ($method === 'POST') {
         $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
         $expected = ($secure ? 'https://' : 'http://') . ($_SERVER['HTTP_HOST'] ?? '');
@@ -88,9 +88,30 @@ try {
         setcookie(session_name(),'', ['expires'=>time()-3600,'path'=>'/catalogue/','secure'=>$secure,'httponly'=>true,'samesite'=>'Strict']);
         respond(['ok'=>true]);
     }
+    if ($action==='orders' || $action==='complete-order') {
+        require_once $private.'/PaymentService.php';
+        if(!is_file($private.'/config.php')) respond(['orders'=>[]]);
+        $paymentConfig=require $private.'/config.php';
+        $orders=new \BotanikArt\MerchantOrders($paymentConfig);
+        if($action==='complete-order' && $method==='POST') {
+            if(!is_string($input['id']??null)||!is_bool($input['completed']??null))respond(['error'=>'invalid_request'],400);
+            $orders->complete($input['id'],$input['completed']);
+        }
+        respond(['orders'=>$orders->all()]);
+    }
     require_once $private . '/MarketplaceService.php';
     $marketplaces=new \BotanikArt\MarketplaceService($store,$private);
-    if ($action==='check-connections' && $method==='POST') respond(['connections'=>$marketplaces->checkConnections()]);
+    require_once $private.'/PublicationRunner.php';
+    $runner=new \BotanikArt\PublicationRunner($store,$private);
+    if ($action==='flowwow-editor' && $method==='GET') {
+        $id=(string)($_GET['id']??'');$all=$store->all(true);$found=array_values(array_filter($all,fn($p)=>$p['id']===$id));
+        $p=$found[0]??['channels'=>['flowwow'=>['externalId'=>'']]];
+        $category=isset($_GET['category'])&&ctype_digit((string)$_GET['category'])?(int)$_GET['category']:null;
+        try { respond($runner->flowwow()->editor($p,$category)); } catch (\RuntimeException $e) {respond(['error'=>'marketplace_error','message'=>$e->getMessage()],422);}
+    }
+    if ($action==='sync-product' && $method==='POST') {session_write_close();set_time_limit(90);respond($runner->process((string)($input['id']??'')));}
+    if ($action==='archive' && $method==='POST') {$store->archive((string)($input['id']??''),(int)($input['version']??0),($input['restore']??false)===true,($input['hideFlowwow']??false)===true);respond(['ok'=>true]);}
+    if ($action==='check-connections' && $method==='POST') {session_write_close();set_time_limit(90);$connections=$marketplaces->checkConnections();if(($connections['avito']['health']['state']??'')==='ok'){try{$runner->reports();}catch(\Throwable){}}respond(['connections'=>$connections]);}
     if ($action==='connections' && $method==='GET') respond(['connections'=>$marketplaces->connections()]);
     if ($action==='publication-preview' && $method==='GET') respond($marketplaces->preview((string)($_GET['id']??''),(string)($_GET['channel']??'')));
     if ($action==='renewal-date' && $method==='POST') { $marketplaces->saveRenewalDate($input['date']??null);respond(['connections'=>$marketplaces->connections()]); }

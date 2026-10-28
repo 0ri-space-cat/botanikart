@@ -507,5 +507,106 @@
         "conditions": []
       }
     ]
+  },
+  "grunty_i_substraty": {
+    "label": "Грунты и субстраты",
+    "fields": [
+      {
+        "tag": "Category",
+        "label": "Категория",
+        "values": [
+          "Растения"
+        ],
+        "multiple": false,
+        "conditions": []
+      },
+      {
+        "tag": "AdType",
+        "label": "Вид объявления",
+        "values": [
+          "Товар приобретен на продажу",
+          "Товар от производителя"
+        ],
+        "multiple": false,
+        "conditions": []
+      },
+      {
+        "tag": "GoodsType",
+        "label": "Вид товара",
+        "values": [
+          "Товары для ухода за растениями"
+        ],
+        "multiple": false,
+        "conditions": []
+      },
+      {
+        "tag": "ProductPlantsType",
+        "label": "Тип товара для растений",
+        "values": [
+          "Грунты и субстраты"
+        ],
+        "multiple": false,
+        "conditions": []
+      },
+      {
+        "tag": "ProductType",
+        "label": "Тип товара",
+        "values": [
+          "Грунт",
+          "Субстрат",
+          "Дренаж",
+          "Мульча"
+        ],
+        "multiple": false,
+        "conditions": []
+      },
+      {
+        "tag": "PurposeFor",
+        "label": "Предназначен для",
+        "values": [
+          "Сад и огород",
+          "Комнатные растения",
+          "Кактусы и суккуленты",
+          "Хвойные растения",
+          "Луковичные растения",
+          "Рассада",
+          "Орхидеи",
+          "Газон",
+          "Любого типа растений"
+        ],
+        "multiple": true,
+        "conditions": []
+      },
+      {
+        "tag": "Vendor",
+        "label": "Производитель",
+        "values": [],
+        "multiple": false,
+        "conditions": []
+      },
+      {
+        "tag": "SoilType",
+        "label": "Тип грунта",
+        "values": [
+          "Торфяной",
+          "Песчаный",
+          "Глинистый",
+          "Илистый",
+          "Биогрунт",
+          "Гранулят",
+          "Минеральный"
+        ],
+        "multiple": true,
+        "conditions": [
+          {
+            "clause": "value",
+            "source_field_tag": "ProductType",
+            "values": [
+              "Грунт"
+            ]
+          }
+        ]
+      }
+    ]
   }
 }

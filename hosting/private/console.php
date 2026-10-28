@@ -23,6 +23,14 @@ try {
         if (curl_exec($curl) === false) throw new RuntimeException('Bank TLS connection failed, cURL code ' . curl_errno($curl));
         echo 'PHP, private storage and bank TLS: OK' . PHP_EOL;
         echo json_encode($service->health(), JSON_PRETTY_PRINT) . PHP_EOL;
+    } elseif ($command === 'notifications-check') {
+        $marker=__DIR__.'/orders/notifications-setup.php';
+        if(is_file($marker)){echo "Notifications setup already checked.\n";exit;}
+        $ok=@mail('fridrikova@mail.ru','=?UTF-8?B?'.base64_encode('БотаникАрт — уведомления о заказах').'?=',"Это проверочное письмо настройки сайта БотаникАрт, а не покупка.\n\nУведомления об оплаченных заказах будут приходить на эту почту.\nЗаказы: https://botanikart.ru/catalogue/#orders\n",['Content-Type'=>'text/plain; charset=UTF-8','MIME-Version'=>'1.0']);
+        echo 'Setup email accepted by hosting: '.($ok?'yes':'no').PHP_EOL;
+        if($ok){if(!is_dir(dirname($marker)))mkdir(dirname($marker),0700,true);file_put_contents($marker,"<?php exit; ?>\n".date('c'));chmod($marker,0600);}
+        $curl=curl_init('https://api.telegram.org/');curl_setopt_array($curl,[CURLOPT_RETURNTRANSFER=>true,CURLOPT_NOBODY=>true,CURLOPT_CONNECTTIMEOUT=>4,CURLOPT_TIMEOUT=>8]);
+        curl_exec($curl);echo 'Telegram API HTTP: '.curl_getinfo($curl,CURLINFO_RESPONSE_CODE).'; TLS verification: '.curl_getinfo($curl,CURLINFO_SSL_VERIFYRESULT).PHP_EOL;curl_close($curl);
     } elseif ($command === 'reconcile') {
         echo 'Orders checked: ' . $service->reconcile() . PHP_EOL;
     } elseif ($command === 'restock' && !empty($argv[2])) {

@@ -110,6 +110,16 @@ def main():
 
     products = pages()
     names = category_names()
+    cache_path = os.environ.get("FLOWWOW_SOURCE_CACHE", "")
+    if cache_path:
+        tree = request(f"/apiseller/categories/tree?shopId={SHOP_ID}", {})
+        schemas = {}
+        for sub_id in sorted({int(p['subCategoryId']) for p in products if p.get('type') == 1 and p.get('subCategoryId')}):
+            try:
+                schemas[str(sub_id)] = request(f"/apiseller/categories/subCategoryProperties?shopId={SHOP_ID}&subCategoryId={sub_id}&productType=1", {})
+            except (HTTPError, URLError, TimeoutError):
+                print(f"Flowwow field cache unavailable for category {sub_id}; on-demand loading remains available.")
+        Path(cache_path).write_text(json.dumps({'items': products, 'tree': tree, 'schemas': schemas}, ensure_ascii=False), encoding='utf-8')
     data_path = ROOT / "data/catalog.json"
     catalog = json.loads(data_path.read_text(encoding="utf-8"))
     existing = {key(p.get("url")): p for p in catalog["products"] if p.get("url") and p.get("source", "flowwow") == "flowwow"}
@@ -155,6 +165,7 @@ def main():
             "description": normalize_description(item.get("description") or entry.get("description") or "Композиция ручной работы от студии БотаникАрт."),
             "checkedAt": datetime.now(ZoneInfo("Europe/Moscow")).date().isoformat(),
             "flowwowProductId": item.get("productId"),
+            "flowwowOfferId": str(item.get("offerId") or "") if str(item.get("offerId") or "").startswith("ba-") else None,
             "source": "flowwow",
         })
         api_images = item.get("images") or []

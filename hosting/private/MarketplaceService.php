@@ -28,8 +28,8 @@ final class MarketplaceService
             $cfg=$this->config[$channel]??[];
             $hasCredentials=$channel==='avito'?(!empty($cfg['client_id'])&&!empty($cfg['client_secret'])):(!empty($cfg['token'])&&!empty($cfg['shop_id']));
             $health=$this->meta('health:'.$channel,['state'=>'unknown','checkedAt'=>null]);
-            $result[$channel]=['configured'=>$hasCredentials,'outboundEnabled'=>false,'health'=>$health,
-                'message'=>$hasCredentials?'Доступ сохранён. Отправка ещё не активирована.':'Отправка: ожидает подключения'];
+            $result[$channel]=['configured'=>$hasCredentials,'outboundEnabled'=>$hasCredentials,'health'=>$health,
+                'message'=>$hasCredentials?'Ключи настроены. Результат отправки показан в карточках товаров.':'Отправка: ожидает подключения'];
         }
         $date=$this->meta('avito:renewalDate','');$reminder=null;
         if ($date!=='') {
@@ -99,46 +99,44 @@ final class MarketplaceService
     public function productStatus(array $p): array
     {
         foreach ($p['channels'] as $channel=>&$c) {
+            if ($channel==='avito' && !empty($c['externalId'])) {
+                $legacyFile=__DIR__.'/avito-legacy.json';$legacy=is_file($legacyFile)?json_decode(file_get_contents($legacyFile),true):[];
+                $base=$legacy[(string)$c['externalId']]??null;
+                if ($base) {
+                    $c['category']=($c['category']??'')?:$base['category'];$c['attributes']=array_merge($base['attributes'],$c['attributes']??[]);
+                    $c['listingTitle']=$base['title'];$c['listingDescription']=$base['description'];$c['listingPrice']=$base['price'];
+                    $q=$this->store->db->prepare("SELECT COUNT(*) FROM products WHERE json_extract(document,'$.avitoItemId')=?");$q->execute([(string)$c['externalId']]);$c['sharedCount']=(int)$q->fetchColumn();
+                }
+            }
+            if (!empty($c['error'])) { $c['message']=$c['error'];continue; }
+            if (in_array($c['state']??'', ['published','hidden','manual_removal'],true)) { $c['message']=['published'=>'Изменения подтверждены площадкой','hidden'=>'Скрыто на площадке','manual_removal'=>'Отправка выключена. Снимите объявление на Авито вручную.'][$c['state']];continue; }
+
             if ($c['management']==='external') { $c['message']='Существующее объявление. Управляется на площадке.';continue; }
             if (!$c['enabled'] && $c['externalId']==='') { $c['state']='off';$c['message']='Не выбрана';continue; }
-            $c['state']='waiting_connection';
-            $c['message']=$c['enabled']?'Выбрана. Отправка начнётся после подключения и проверки.':'Ожидает снятия с площадки после подключения.';
+            $c['message']=match($c['state']??'off') {'queued'=>'Сохранено. Ожидает отправки.','awaiting_report'=>'Файл готов. Авито обработает его по расписанию.','off'=>'Отправка выключена.',default=>$c['enabled']?'Откройте настройки и сохраните карточку для отправки.':'Отправка выключена.'};
         }
         unset($c);return $p;
     }
     public function preview(string $id,string $channel): array
     {
-        if (!in_array($channel,['avito','flowwow'],true)) throw new \InvalidArgumentException('invalid_channel');
-        $found=array_values(array_filter($this->store->all(true),fn($p)=>$p['id']===$id));
-        if (!$found) throw new \OutOfBoundsException('product_missing');
-        $p=$found[0];$c=$p['channels'][$channel];
-        $site=rtrim($this->config['site_url']??'https://botanikart.ru','/');
-        $images=array_map(fn($url)=>str_starts_with($url,'https://')?$url:$site.'/'.ltrim($url,'/'),$p['images']);
-        $payload=['id'=>$p['id'],'title'=>$c['title']?:$p['title'],'description'=>$c['description']?:$p['description'],'price'=>$c['price']??$p['price'],'images'=>$images,'status'=>$p['status']];
-        $warnings=[];
-        if ($c['management']==='external') $warnings[]='Это существующее объявление: оно не будет создано заново.';
-        if (!$c['enabled']) $warnings[]='Площадка не выбрана.';
-        if (!$this->connections()[$channel]['configured']) $warnings[]='Доступ к площадке ещё не подключён.';
-        if ($p['sourceMissing']) $warnings[]='Товар больше не приходит из исходного каталога.';
-        if ($channel==='avito') {
-            require_once __DIR__.'/AvitoFeed.php';
-            $file=dirname($this->directory,2).'/catalogue/avito-schema.json';
-            if (is_file($file)) {
+        if(!in_array($channel,['avito','flowwow'],true))throw new \InvalidArgumentException('invalid_channel');
+        $found=array_values(array_filter($this->store->all(true),fn($p)=>$p['id']===$id));if(!$found)throw new \OutOfBoundsException('product_missing');
+        $p=$found[0];$c=$p['channels'][$channel];$site=rtrim($this->config['site_url']??'https://botanikart.ru','/');$warnings=[];
+        $payload=['id'=>$p['id'],'title'=>$c['title']?:$p['title'],'description'=>$c['description']?:$p['description'],'price'=>$c['price']??$p['price'],'images'=>$p['images']];
+        if(!$c['enabled'])$warnings[]='Площадка выключена.';
+        if(!$this->connections()[$channel]['configured'])$warnings[]='Доступ к площадке не настроен.';
+        if($channel==='avito'){
+            require_once __DIR__.'/AvitoFeed.php';$file=dirname($this->directory,2).'/catalogue/avito-schema.json';
+            if(is_file($file)){
                 $feed=new AvitoFeed(json_decode(file_get_contents($file),true,512,JSON_THROW_ON_ERROR));
-                $warnings=array_merge($warnings,$feed->check($p,$site)['warnings']);
-            } else $warnings[]='Шаблоны Авито ещё не загружены.';
-            $warnings[]='Авито забирает файл по расписанию после подключения ссылки в кабинете.';
+                try{$xml=$feed->render([$p],$site);$doc=new \DOMDocument();$doc->loadXML($xml);$payload['title']=$doc->getElementsByTagName('Title')->item(0)->textContent;$payload['price']=(float)$doc->getElementsByTagName('Price')->item(0)->textContent;}
+                catch(\Throwable){$warnings=array_merge($warnings,$feed->check($this->productStatus($p),$site)['warnings']);if(!$warnings)$warnings[]='Проверьте настройки общего объявления Авито.';}
+            }else $warnings[]='Шаблоны Авито не загружены.';
+        }else{
+            require_once __DIR__.'/FlowwowPublisher.php';$fw=new FlowwowPublisher($this->config['flowwow']??[],$this->directory);
+            try{$source=$fw->cachedProduct($p);if(!$source&&!empty($c['externalId']))$source=$fw->findProduct($c['externalId']);$category=(int)($source['subCategoryId']??$c['category']??0);$fw->payload($p,$source,$fw->schema($category),$site);}catch(\Throwable $e){$warnings[]=$e->getMessage();}
         }
-        else {
-            if (mb_strlen($payload['description'])>5000) $warnings[]='Описание Flowwow должно быть не длиннее 5 000 символов.';
-            $warnings[]='Перед отправкой нужно выбрать подкатегорию Flowwow и заполнить её обязательные характеристики.';
-            foreach ($p['images'] as $path) {
-                if (!str_starts_with($path,'assets/uploads/catalogue/')) continue;
-                $size=@getimagesize(dirname($this->directory,2).'/'.$path);
-                if ($size && min($size[0],$size[1])<1200) { $warnings[]='Для Flowwow нужны фотографии не меньше 1200 × 1200 пикселей.';break; }
-            }
-        }
-        return ['channel'=>$channel,'ready'=>false,'action'=>$c['management']==='external'?'existing':($c['externalId']!==''?'update':'create'),'product'=>$payload,'warnings'=>$warnings];
+        return ['channel'=>$channel,'ready'=>!$warnings,'action'=>$c['externalId']!==''?'update':'create','product'=>$payload,'warnings'=>$warnings];
     }
     /** Valid Avito structure for the connected category template; not exposed or activated yet. */
     public static function avitoXml(array $products,array $categoryFields): string

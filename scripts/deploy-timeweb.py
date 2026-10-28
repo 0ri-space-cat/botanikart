@@ -78,6 +78,16 @@ def main():
             # Upload backend first, then data/assets, and entry pages last.
             upload(sftp, Path(__file__).resolve().parents[1] / "hosting/private", private, private=True)
             upload(sftp, public, target)
+            cache_path = os.environ.get('FLOWWOW_SOURCE_CACHE', '')
+            if cache_path and Path(cache_path).is_file():
+                cache = json.loads(Path(cache_path).read_text())
+                if not cache.get('items') or not isinstance(cache.get('schemas'), dict):
+                    raise RuntimeError('Incomplete Flowwow source cache')
+                upload_file = posixpath.join(private, 'flowwow-source.json')
+                pending = upload_file + '.upload-' + uuid.uuid4().hex
+                sftp.put(cache_path, pending)
+                sftp.chmod(pending, 0o600)
+                sftp.posix_rename(pending, upload_file)
             for manifest_path in sorted((Path(__file__).resolve().parents[1] / 'imports').glob('*/catalog.json')):
                 manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
                 batch = manifest.get('batch', '')
@@ -112,6 +122,17 @@ def main():
             if state.get('configured') is not True:
                 raise RuntimeError('Marketplace setup was not confirmed')
             print('Marketplace credentials configured privately; renewal date:', state.get('renewalDate'))
+        _, stdout, stderr = client.exec_command('/opt/php83/bin/php ' + shlex.quote(posixpath.join(private, 'sync-publications.php')), timeout=180)
+        result = stdout.read().decode('utf-8')
+        if stdout.channel.recv_exit_status() != 0:
+            print('Publication queue maintenance did not complete; website release remains deployed.')
+        else:
+            print('Publication queue:', result.strip())
+        _, stdout, stderr = client.exec_command('/opt/php83/bin/php ' + shlex.quote(posixpath.join(private, 'console.php')) + ' notifications-check', timeout=30)
+        diagnostic = stdout.read().decode('utf-8')
+        print(diagnostic.strip())
+        if stdout.channel.recv_exit_status() != 0:
+            print('Notification setup check needs attention; no payment configuration was changed.')
         print("Timeweb release uploaded. Private configuration and orders were preserved.")
     finally:
         client.close()

@@ -5,7 +5,8 @@ namespace BotanikArt;
 /** Read-only export: never calls a marketplace API or writes product identities. */
 final class AvitoFeed
 {
-    public function __construct(private array $schema) {}
+    private array $legacy=[];
+    public function __construct(private array $schema) { $file=__DIR__.'/avito-legacy.json';if(is_file($file))$this->legacy=json_decode(file_get_contents($file),true,512,JSON_THROW_ON_ERROR); }
     public static function applicable(array $field,array $attributes): bool
     {
         if (empty($field['conditions'])) return true;
@@ -25,7 +26,8 @@ final class AvitoFeed
         foreach ($definition['fields']??[] as $field) {
             if (!self::applicable($field,$attributes)) continue;
             $value=count($field['values'])===1?$field['values'][0]:($attributes[$field['tag']]??'');
-            if ($value==='' || ($field['values'] && !in_array($value,$field['values'],true))) $warnings[]='Заполните поле «'.$field['label'].'» для Авито.';
+            if (!empty($field['multiple']) && is_string($value)) $value=array_values(array_filter(array_map('trim',explode('|',$value))));
+            if ($value==='' || $value===[] || ($field['values'] && (is_array($value)?array_diff($value,$field['values']):!in_array($value,$field['values'],true)))) $warnings[]='Заполните поле «'.$field['label'].'» для Авито.';
             else $fields[$field['tag']]=$value;
         }
         if (preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F]/u',$title.$description)) $warnings[]='В тексте есть служебные символы. Удалите их.';
@@ -44,20 +46,39 @@ final class AvitoFeed
         $images=array_slice($images,0,10);
         if (!$images) $warnings[]='Добавьте фотографию.';
         $fields['Availability']=($product['status']??'')==='ready'?'В наличии':'Под заказ';
-        return ['warnings'=>array_values(array_unique($warnings)), 'fields'=>$fields,'product'=>['id'=>'ba-'.$product['id'],'title'=>$title,'description'=>$description,'price'=>$price,'images'=>$images]];
+        return ['warnings'=>array_values(array_unique($warnings)), 'fields'=>$fields,'product'=>['id'=>$product['exportId']??('ba-'.$product['id']),'title'=>$title,'description'=>$description,'price'=>$price,'images'=>$images]];
     }
     public function render(array $products,string $site): string
     {
         $escape=fn($v)=>htmlspecialchars((string)$v,ENT_QUOTES|ENT_XML1,'UTF-8');
-        $ads=[];
+        $ads=[];$groups=[];
         foreach ($products as $product) {
+            $c=$product['channels']['avito']??[];
+            if (($c['management']??'')!=='site'||empty($c['enabled'])||!empty($product['deleted']))continue;
+            $group=!empty($c['externalId'])?'avito:'.$c['externalId']:'local:'.$product['id'];$groups[$group][]=$product;
+        }
+        foreach ($groups as $variants) {
+            $product=$variants[0];$channel=$product['channels']['avito'];$base=$this->legacy[(string)($channel['externalId']??'')]??null;
+            if ($base) {
+                $product['exportId']=$base['id'];if(($base['variants']??1)>1){$product['title']=$base['title'];$product['description']=$base['description'];$product['price']=$base['price'];}
+                $product['images']=array_slice(array_values(array_unique(array_merge(...array_column($variants,'images')))),0,10);
+                $product['channels']['avito']['category']=($channel['category']??'')?:$base['category'];
+                $product['channels']['avito']['attributes']=array_merge($base['attributes'],$channel['attributes']??[]);
+            }
+
             $channel=$product['channels']['avito']??[];
             if (($channel['management']??'')!=='site' || empty($channel['enabled'])) continue;
             $checked=$this->check($product,$site);
             // Never silently omit a broken selected product: Avito could interpret omission as withdrawal.
             if ($checked['warnings']) throw new \RuntimeException('invalid_feed_products');
             $p=$checked['product'];$ad='<Ad><Id>'.$escape($p['id']).'</Id>';
-            foreach ($checked['fields'] as $key=>$value) $ad.='<'.$key.'>'.$escape($value).'</'.$key.'>';
+            if (!empty($channel['externalId']))$ad.='<AvitoId>'.$escape($channel['externalId']).'</AvitoId>';
+            foreach ($checked['fields'] as $key=>$value) {
+                $ad.='<'.$key.'>';
+                if(is_array($value))foreach($value as $v)$ad.='<Option>'.$escape($v).'</Option>';
+                else $ad.=$escape($value);
+                $ad.='</'.$key.'>';
+            }
             $ad.='<Title>'.$escape($p['title']).'</Title><Description><![CDATA['.str_replace(']]>',']]]]><![CDATA[>',$p['description']).']]></Description><Price>'.$escape($p['price']).'</Price><Images>';
             foreach ($p['images'] as $url) $ad.='<Image url="'.$escape($url).'"/>';
             $ads[]=$ad.'</Images></Ad>';

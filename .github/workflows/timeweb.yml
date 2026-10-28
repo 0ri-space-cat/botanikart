@@ -25,6 +25,7 @@ jobs:
         id: sync
         continue-on-error: true
         env:
+          FLOWWOW_SOURCE_CACHE: ${{ runner.temp }}/flowwow-source.json
           FLOWWOW_API_KEY: ${{ secrets.FLOWWOW_API_KEY }}
         run: python3 scripts/sync-flowwow.py
       - name: Check catalog classification
@@ -43,9 +44,12 @@ jobs:
         run: |
           find api hosting catalogue -name '*.php' -exec php -l {} \;
           php hosting/tests/payments.php
+          php hosting/tests/orders.php
+          node hosting/tests/payment-result.cjs
           php hosting/tests/catalogue.php
           php hosting/tests/publications.php
           php hosting/tests/avito-feed.php
+          php hosting/tests/publication-editing.php
           python3 hosting/tests/check_api.py
           python3 hosting/tests/check_catalogue_api.py
       - name: Build public site
@@ -53,6 +57,7 @@ jobs:
       - name: Publish to Timeweb when enabled
         if: vars.TIMEWEB_DEPLOY_ENABLED == 'true'
         env:
+          FLOWWOW_SOURCE_CACHE: ${{ runner.temp }}/flowwow-source.json
           MARKETPLACES_CREDENTIALS: ${{ secrets.MARKETPLACES_CREDENTIALS }}
           TIMEWEB_HOST: ${{ secrets.TIMEWEB_HOST }}
           TIMEWEB_USER: ${{ secrets.TIMEWEB_USER }}

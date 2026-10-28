@@ -21,7 +21,8 @@ with tempfile.TemporaryDirectory(prefix="botanikart-catalogue-http-") as tempora
     private = public / "api/.private"
     private.mkdir(mode=0o700)
     shutil.copy2(ROOT / "hosting/private/CatalogStore.php", private / "CatalogStore.php")
-    shutil.copy2(ROOT / "hosting/private/MarketplaceService.php", private / "MarketplaceService.php")
+    for name in ['PaymentService.php','MarketplaceService.php','PublicationRunner.php','FlowwowPublisher.php','AvitoFeed.php','avito-legacy.json','flowwow-fields.json']:
+        shutil.copy2(ROOT / 'hosting/private' / name, private / name)
     password_hash = subprocess.check_output([PHP, "-r", "echo password_hash('fixture-admin-password',PASSWORD_DEFAULT);"]).decode()
     auth = private / "catalogue-auth.php"
     auth.write_text("<?php return ['username'=>'fixture','password_hash'=>'" + password_hash + "','revision'=>'first-test'];")
@@ -59,6 +60,8 @@ with tempfile.TemporaryDirectory(prefix="botanikart-catalogue-http-") as tempora
             except urllib.error.URLError: time.sleep(.1)
         assert status == 200 and not session["authenticated"]
         assert call("products")[0] == 401
+        assert call("orders")[0] == 401
+        assert call("complete-order",{},session["csrf"])[0] == 401
         credentials = {"username":"fixture", "password":"fixture-admin-password"}
         assert call("login", credentials)[0] == 403
         assert call("login", credentials, session["csrf"], "https://evil.example")[0] == 403
@@ -69,6 +72,17 @@ with tempfile.TemporaryDirectory(prefix="botanikart-catalogue-http-") as tempora
         status, data = call("products")
         assert status == 200 and data["products"]
         assert call("connections")[0]==200
+        (private/'config.php').write_text("<?php return ['data_dir'=>__DIR__.'/orders'];")
+        order={'orderId':'ba-'+24*'a','productId':'fixture','title':'Растение','amount':25000,'paid':True,'sold':True,'testMode':False,'createdAt':1,'status':'CONFIRMED','email':'buyer@example.com','phone':'','reference':'must-not-leak'}
+        (private/'orders/live').mkdir(parents=True)
+        (private/'orders/live/orders.php').write_text('<?php exit; ?>\n'+json.dumps({'orders':{order['orderId']:order},'reservations':{'fixture':order['orderId']}}))
+        status, result=call('orders')
+        assert status==200 and len(result['orders'])==1 and 'reference' not in result['orders'][0]
+        assert call('complete-order',{'id':order['orderId'],'completed':True})[0]==403
+        assert call('complete-order',{'id':order['orderId'],'completed':True},login['csrf'],'https://evil.example')[0]==403
+        assert call('complete-order',{'id':order['orderId'],'completed':True},login['csrf'])[1]['orders'][0]['fulfillment']=='completed'
+        assert call('complete-order',{'id':order['orderId'],'completed':False},login['csrf'])[1]['orders'][0]['fulfillment']=='open'
+        assert call('complete-order',{'id':order['orderId'],'completed':'yes'},login['csrf'])[0]==400
         assert call("check-connections",{},login["csrf"])[0]==200
         assert call("renewal-date",{"date":"2026-02-30"},login["csrf"])[0]==400
         assert call("renewal-date",{"date":"2026-11-28"},login["csrf"])[0]==200
@@ -105,6 +119,8 @@ with tempfile.TemporaryDirectory(prefix="botanikart-catalogue-http-") as tempora
         assert call("connections")[0]==401
         assert call("login",credentials,anonymous["csrf"])[0]==200
         auth.write_text(auth.read_text().replace("first-test","second-test"))
+        assert call("products")[0] == 401
+        assert call("orders")[0] == 401
         assert call("products")[0] == 401, "Password revision did not invalidate the session"
         print("Catalogue HTTP checks passed: sessions, CSRF, origin, hidden product, conflicts, photo upload, local product creation/editing, Avito deduplication, private storage and session invalidation.")
     finally:

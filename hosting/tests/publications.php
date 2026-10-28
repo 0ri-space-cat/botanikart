@@ -30,7 +30,7 @@ try {
  $flow['price']=5500;file_put_contents($snapshot,json_encode(['products'=>[$flow]]));$s=new CatalogStore($root.'/api/.private/catalogue',$snapshot);
  check($s->channels('flowwow-1')['avito']['enabled']&&$s->channels('flowwow-1')['avito']['price']===5100,'Flowwow refresh reset destination settings');
  $old=$s->all(true)[0];$old['channels']['flowwow']['enabled']=false;
- try{$s->save($old);throw new RuntimeException('Externally managed ad could be removed');}catch(InvalidArgumentException){}
+ $s->save($old);check(!$s->channels($old['id'])['flowwow']['enabled'],'Linked Flowwow channel could not be switched off');
  $m=new MarketplaceService($s,$root.'/api/.private');$preview=$m->preview($id,'flowwow');check(!$preview['ready']&&$preview['product']['price']===6000,'Preview pretended to publish or lost override');
  $m->saveRenewalDate('2026-11-28');$week=$m->connections(new DateTimeImmutable('2026-11-21 12:00:00',new DateTimeZone('Europe/Moscow')))['avito']['reminder'];
  check($week['days']===7&&!$week['seen'],'One-week reminder missing');

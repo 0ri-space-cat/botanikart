@@ -57,9 +57,29 @@ for(const modal of [dialog,lightbox])modal.addEventListener('click',e=>{if(e.tar
 dialog.addEventListener('close',()=>{document.body.classList.remove('modal-open');previousFocus?.focus()});
 lightbox.querySelector('.close-lightbox').addEventListener('click',()=>lightbox.close());
 const grid=document.querySelector('[data-catalog]');
-if(grid){let category='all';const search=document.querySelector('.catalog-search input');const sort=document.querySelector('.catalog-controls select');const stock=document.querySelector('[data-stock]');const filters=[...document.querySelectorAll('[data-category]')];
- function render(){const query=search.value.toLocaleLowerCase('ru-RU').replace(/ё/g,'е').trim();let items=data.products.filter(p=>(category==='all'||productGroup(p)===category)&&(!stock.checked||p.available)&&(!query||(p.title+' '+p.description).toLocaleLowerCase('ru-RU').replace(/ё/g,'е').includes(query)));items.sort(sort.value==='price-asc'?(a,b)=>a.price-b.price:sort.value==='price-desc'?(a,b)=>b.price-a.price:(a,b)=>(groupOrder[productGroup(a)]??9)-(groupOrder[productGroup(b)]??9)||Number(b.available)-Number(a.available)||a.title.localeCompare(b.title,'ru'));grid.innerHTML=items.map(productCard).join('');document.querySelector('[data-results]').textContent=`Показано ${items.length} из ${data.products.length}`;document.querySelector('.empty-catalog').hidden=items.length!==0;grid.hidden=items.length===0;filters.forEach(b=>{b.classList.toggle('active',b.dataset.category===category);b.setAttribute('aria-pressed',String(b.dataset.category===category))})}
- filters.forEach(b=>b.addEventListener('click',()=>{category=b.dataset.category;render()}));search.addEventListener('input',render);sort.addEventListener('change',render);stock.addEventListener('change',render);document.querySelector('[data-reset]').addEventListener('click',()=>{category='all';search.value='';stock.checked=false;sort.value='default';render()});render();
+if(grid){
+ let section='all',plantCategory='all';
+ const sections={florarium:['florarium','composition'],plants:['potted','plant'],material:['material']};
+ const search=document.querySelector('.catalog-search input'),sort=document.querySelector('.catalog-controls select'),stock=document.querySelector('[data-stock]');
+ const sectionButtons=[...document.querySelectorAll('[data-section]')],plantButtons=[...document.querySelectorAll('[data-plant-category]')];
+ const url=new URL(location.href),initial=url.searchParams.get('section'),initialCategory=url.searchParams.get('category');
+ if(Object.hasOwn(sections,initial))section=initial;
+ if(['potted','plant'].includes(initialCategory)){section='plants';plantCategory=initialCategory;}
+ function render(updateURL=false){
+  const query=search.value.toLocaleLowerCase('ru-RU').replace(/ё/g,'е').trim();
+  let items=data.products.filter(p=>(section==='all'||sections[section].includes(productGroup(p)))&&(section!=='plants'||plantCategory==='all'||productGroup(p)===plantCategory)&&(!stock.checked||p.available)&&(!query||(p.title+' '+p.description).toLocaleLowerCase('ru-RU').replace(/ё/g,'е').includes(query)));
+  items.sort(sort.value==='price-asc'?(a,b)=>a.price-b.price:sort.value==='price-desc'?(a,b)=>b.price-a.price:(a,b)=>(groupOrder[productGroup(a)]??9)-(groupOrder[productGroup(b)]??9)||Number(b.available)-Number(a.available)||a.title.localeCompare(b.title,'ru'));
+  grid.innerHTML=items.map(productCard).join('');document.querySelector('[data-results]').textContent=`Показано ${items.length} из ${data.products.length}`;document.querySelector('.empty-catalog').hidden=items.length!==0;grid.hidden=items.length===0;
+  sectionButtons.forEach(button=>{const active=button.dataset.section===section;button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active))});
+  document.querySelector('.plant-subcategories').hidden=section!=='plants';
+  plantButtons.forEach(button=>{const active=button.dataset.plantCategory===plantCategory;button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active))});
+  for(const [key,groups] of Object.entries(sections))document.querySelector(`[data-section-count="${key}"]`).textContent=data.products.filter(p=>groups.includes(productGroup(p))).length;
+  if(updateURL){const next=new URL(location.href);next.searchParams.delete('section');next.searchParams.delete('category');if(section!=='all')next.searchParams.set('section',section);if(section==='plants'&&plantCategory!=='all')next.searchParams.set('category',plantCategory);history.replaceState(null,'',next.pathname+next.search+next.hash)}
+ }
+ sectionButtons.forEach(button=>button.addEventListener('click',()=>{section=button.dataset.section;plantCategory='all';render(true)}));
+ plantButtons.forEach(button=>button.addEventListener('click',()=>{plantCategory=button.dataset.plantCategory;render(true)}));
+ search.addEventListener('input',()=>render());sort.addEventListener('change',()=>render());stock.addEventListener('change',()=>render());
+ document.querySelector('[data-reset]').addEventListener('click',()=>{section='all';plantCategory='all';search.value='';stock.checked=false;sort.value='default';render(true)});render();
 }
 
 const purchaseDialog=document.querySelector('.purchase-dialog');

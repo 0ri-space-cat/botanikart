@@ -201,7 +201,7 @@ final class PaymentService
         $reference = $this->reference($orderId);
         $site = rtrim($this->config['site_url'], '/');
         $success = $site . '/order-success.html?reference=' . rawurlencode($reference);
-        $failure = $site . '/order-error.html?order=' . $orderId;
+        $failure = $site . '/order-error.html?reference=' . rawurlencode($reference);
         if (strlen($success) > 250 || strlen($failure) > 250) throw new ApiError('payment_not_configured', 503);
         $blocking = $this->store->transaction(fn(array &$s) => $s['reservations'][$id] ?? null);
         if ($blocking && $blocking !== $orderId) $this->refresh($blocking, true);
@@ -267,6 +267,8 @@ final class PaymentService
             if ($o['amount'] !== $amount || (isset($o['paymentId']) && $o['paymentId'] !== $paymentId)) throw new ApiError('order_mismatch', 409);
             if ($status === 'CONFIRMED') {
                 $o['paid'] = true; $o['sold'] = true; $o['status'] = $status;
+                $o['paidAt'] ??= time();
+                if (!($o['testMode'] ?? true)) $o['merchantMailPendingAt'] ??= time();
             } elseif (in_array($status, ['REFUNDED', 'PARTIAL_REFUNDED'], true)) {
                 $o['paid'] = $status === 'PARTIAL_REFUNDED'; $o['sold'] = true; $o['status'] = $status;
             } elseif (!$o['sold']) {
@@ -275,6 +277,10 @@ final class PaymentService
             }
             $o['updatedAt'] = time();
         });
+        if (!$this->isTest()) {
+            try { (new MerchantOrders($this->config))->sendPending(1); }
+            catch (\Throwable) { error_log('BotanikArt: merchant email queued for retry'); }
+        }
     }
 
     public function refresh(string $orderId, bool $cancelExpired = false): array
@@ -338,5 +344,65 @@ final class PaymentService
             if ($id && !$s['orders'][$id]['sold']) throw new ApiError('active_payment_exists', 409);
             unset($s['reservations'][$productId]);
         });
+    }
+}
+
+/** Owner-only fulfillment and durable, retryable purchase notifications. */
+final class MerchantOrders
+{
+    private readonly OrderStore $store;
+    public function __construct(private readonly array $config, private readonly mixed $mailer = null)
+    {
+        $this->store = new OrderStore($config['data_dir'].'/live');
+    }
+    public function all(): array
+    {
+        $orders=$this->store->transaction(function(array &$s):array {
+            $result=[];
+            foreach($s['orders'] as $o){
+                if(($o['testMode']??true)||!($o['sold']??false)||!in_array($o['status']??'', ['CONFIRMED','REFUNDED','PARTIAL_REFUNDED'],true))continue;
+                $row=array_intersect_key($o,array_flip(['orderId','productId','title','email','phone','status','createdAt','paidAt','completedAt','fulfillment','updatedAt']));
+                $row['amount']=($o['amount']??0)/100;$row['fulfillment']=$o['fulfillment']??'open';
+                $row['emailState']=isset($o['merchantMailSentAt'])?'accepted':(isset($o['merchantMailPendingAt'])?'pending':'');
+                $result[]=$row;
+            }
+            return $result;
+        });
+        usort($orders,fn($a,$b)=>($b['paidAt']??$b['createdAt'])<=>($a['paidAt']??$a['createdAt']));
+        return $orders;
+    }
+    public function complete(string $id, bool $completed): void
+    {
+        $this->store->transaction(function(array &$s)use($id,$completed):void {
+            if(!isset($s['orders'][$id])||($s['orders'][$id]['testMode']??true)||!($s['orders'][$id]['sold']??false))throw new \OutOfBoundsException('Order missing');
+            $o=&$s['orders'][$id];$o['fulfillment']=$completed?'completed':'open';$o['completedAt']=$completed?time():null;
+        });
+    }
+    public function sendPending(int $limit=5): int
+    {
+        $sent=0;
+        for($i=0;$i<$limit;$i++){
+            $lease=bin2hex(random_bytes(12));
+            $order=$this->store->transaction(function(array &$s)use($lease){
+                foreach($s['orders'] as &$o){
+                    if(($o['testMode']??true)||!($o['paid']??false)||!isset($o['merchantMailPendingAt'])||isset($o['merchantMailSentAt'])||($o['merchantMailRetryAt']??0)>time()||($o['merchantMailLeaseAt']??0)>time()-300)continue;
+                    $o['merchantMailLeaseAt']=time();$o['merchantMailLease']=$lease;return $o;
+                }
+                return null;
+            });
+            if(!$order)break;
+            $id=$order['orderId'];$subject='БотаникАрт — оплачен заказ '.$id;
+            $body="Оплачен новый заказ\n\n".$order['title']."\nСумма: ".number_format($order['amount']/100,2,',',' ')." ₽\nЗаказ: ".$id."\nТелефон: ".($order['phone']?:'не указан')."\nПочта: ".$order['email']."\n\nОткрыть заказы: https://botanikart.ru/catalogue/#orders\nПосле передачи покупки отметьте заказ выполненным.\n";
+            $recipient=$this->config['merchant_email']??'fridrikova@mail.ru';
+            $headers=['Content-Type'=>'text/plain; charset=UTF-8','MIME-Version'=>'1.0','Message-ID'=>'<'.$id.'@botanikart.ru>'];
+            try{$ok=$this->mailer?($this->mailer)($recipient,$subject,$body,$headers):@mail($recipient,'=?UTF-8?B?'.base64_encode($subject).'?=',$body,$headers);}catch(\Throwable){$ok=false;}
+            $this->store->transaction(function(array &$s)use($id,$lease,$ok):void {
+                $o=&$s['orders'][$id];if(($o['merchantMailLease']??'')!==$lease)return;
+                unset($o['merchantMailLease'],$o['merchantMailLeaseAt']);
+                if($ok)$o['merchantMailSentAt']=time();else{$o['merchantMailRetryAt']=time()+300;$o['merchantMailAttempts']=($o['merchantMailAttempts']??0)+1;}
+            });
+            if($ok)$sent++;
+        }
+        return $sent;
     }
 }
