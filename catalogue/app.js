@@ -220,7 +220,7 @@ let orders=[],orderFilter='open',orderLoaded=false;
 async function loadOrders(announce=false){
  if(!authenticated)return;
  const previous=new Set(orders.map(o=>o.orderId));
- const result=await api('orders');orders=result.orders||[];
+ const result=await api('orders');orders=result.orders||[];$('#orders-mail-warning').hidden=result.notificationReady===true;
  const count=orders.filter(o=>o.fulfillment!=='completed'&&o.status!=='REFUNDED').length;
  $('#orders-count').textContent=count;$('#orders-count').hidden=!count;
  if(announce&&orderLoaded&&orders.some(o=>!previous.has(o.orderId)))toast('Новый оплаченный заказ');

@@ -97,7 +97,8 @@ try {
             if(!is_string($input['id']??null)||!is_bool($input['completed']??null))respond(['error'=>'invalid_request'],400);
             $orders->complete($input['id'],$input['completed']);
         }
-        respond(['orders'=>$orders->all()]);
+        $orderList=$orders->all();
+        respond(['orders'=>$orderList,'notificationReady'=>is_file($paymentConfig['data_dir'].'/notifications-setup.php')||count(array_filter($orderList,fn($o)=>$o['emailState']==='accepted'))>0]);
     }
     require_once $private . '/MarketplaceService.php';
     $marketplaces=new \BotanikArt\MarketplaceService($store,$private);

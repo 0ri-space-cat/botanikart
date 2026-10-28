@@ -78,6 +78,7 @@ with tempfile.TemporaryDirectory(prefix="botanikart-catalogue-http-") as tempora
         (private/'orders/live/orders.php').write_text('<?php exit; ?>\n'+json.dumps({'orders':{order['orderId']:order},'reservations':{'fixture':order['orderId']}}))
         status, result=call('orders')
         assert status==200 and len(result['orders'])==1 and 'reference' not in result['orders'][0]
+        assert result['notificationReady'] is False
         assert call('complete-order',{'id':order['orderId'],'completed':True})[0]==403
         assert call('complete-order',{'id':order['orderId'],'completed':True},login['csrf'],'https://evil.example')[0]==403
         assert call('complete-order',{'id':order['orderId'],'completed':True},login['csrf'])[1]['orders'][0]['fulfillment']=='completed'
