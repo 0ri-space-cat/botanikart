@@ -340,3 +340,28 @@
 #editor .consist-row{grid-template-columns:minmax(0,1fr) minmax(0,105px) 30px;align-items:center}
 #editor .flowwow-property .measure-input{display:block}
 #editor .flowwow-property .measure-input>input[type=number]{width:100%}
+
+/* Small, glanceable publication tracker — persistently rebuilt from server-side status. */
+#publication-save-result{background:#fff;border:1px solid #e2e9df;border-radius:17px;padding:13px 15px;box-shadow:0 5px 15px #244c3807}
+#publication-save-result .publication-tracker-item{padding:9px 0}
+#publication-save-result .publication-tracker-item+.publication-tracker-item{border-top:1px solid #edf0e9;margin-top:10px;padding-top:16px}
+#publication-save-result .publication-tracker-item h3{display:flex;align-items:center;gap:7px;font-size:13px;line-height:1.4;margin:0;color:#3a7850;font-weight:650}
+#publication-save-result .publication-tracker-item h3>span{display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#e1f1e0;font-size:13px}
+#publication-save-result .publication-tracker-title{font-size:12px;line-height:1.5;font-weight:550;color:#335c43;margin:4px 0 10px;overflow-wrap:anywhere}
+#publication-save-result .publication-tracker-channels{display:grid;gap:7px}
+.publication-result{padding:10px 12px;border-radius:12px;border:1px solid transparent;margin:0;font-size:12px}
+.publication-result strong{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:650;line-height:1.4}
+.publication-status-icon{display:grid;place-items:center;flex:0 0 19px;width:19px;height:19px;border-radius:50%;font-size:13px;font-weight:700}
+.publication-status-success{background:#eff8eb!important;border-color:#d7e9d2!important;color:#3c7c4b!important}
+.publication-status-success strong{color:#3c7c4b}
+.publication-status-success .publication-status-icon{background:#d5ead2;color:#27723a}
+.publication-status-pending{background:#fff9e8!important;border-color:#f0e2ae!important;color:#987127!important}
+.publication-status-pending strong{color:#8b671f}
+.publication-status-pending .publication-status-icon{background:#ffedb8;color:#a47a22}
+.publication-status-error{background:#fff0ed!important;border-color:#f2d2cc!important;color:#ad4f44!important}
+.publication-status-error strong{color:#ae5147}
+.publication-status-error .publication-status-icon{background:#f9d9d4;color:#ae443a}
+.publication-technical summary{font-size:11px;color:#8b4a41}
+.publication-technical p{font-size:11px;line-height:1.5;color:#90483d}
+#editor-publication-results .publication-result{margin-bottom:7px}
+@media(max-width:520px){#publication-save-result{padding:11px 12px}.publication-result{padding:9px 10px}.publication-result strong{font-size:11.5px}}
