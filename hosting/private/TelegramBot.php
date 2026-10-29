@@ -49,9 +49,9 @@ final class TelegramBot {
     private function esc(string $s): string {return htmlspecialchars($s,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8');}
     private function price($n): string {return number_format((float)$n,0,',',' ').' ₽';}
     private function button(string $label,string $action,bool $url=false,string $style=''): array {$b=['text'=>$label,$url?'url':'callback_data'=>$action];if($style)$b['style']=$style;return $b;}
-    private function contact(): array {return $this->button('💬 Написать нам','https://t.me/Ekaterina_Freed',true,'primary');}
+    private function contact(string $style='primary'): array {return $this->button('💬 Написать нам','https://t.me/Ekaterina_Freed',true,$style);}
     private function catalog(): array {$s=new CatalogStore($this->private.'/catalogue',dirname($this->private,2).'/data/catalog.json');return $s->publicCatalog()['products'];}
-    private function menu(): array {return [[$this->button('🌿 Флорариумы','c:florarium:0',false,'success')],[$this->button('🪴 Растения','c:plants:0',false,'success'),$this->button('🪵 Материалы','c:material:0',false,'primary')],[$this->button('🌐 Наш сайт',$this->config['site_url'],true),$this->contact()]];}
+    private function menu(): array {return [[$this->button('🌿 Флорариумы','c:florarium:0',false,'success')],[$this->button('🪴 Растения','c:plants:0',false,'success'),$this->button('🪵 Материалы','c:material:0',false,'success')],[$this->button('🌐 Наш сайт',$this->config['site_url'],true),$this->contact('')]];}
     private function imageUrl(string $image): string {return str_starts_with($image,'https://')?$image:$this->config['site_url'].'/'.ltrim($image,'/');}
     private function photo(string $key,string $chat,string $image,string $caption,array $rows=[]): void {
         if(!$image){$this->say($key,$chat,$caption,$rows);return;}
