@@ -44,21 +44,41 @@ function fwMeasureControl(f,v,id){
  const unit=selected?`<input type="hidden" data-fw-measure="${escape(f.field)}" value="${escape(selected.id)}">`:'';
  return `<div class="measure-input">${input}${unit}</div>`;
 }
+const publicationPending=c=>Boolean(c.enabled)&&['queued','awaiting_report','awaiting_confirmation','waiting_connection','publishing'].includes(c.state);
 function publicationResults(p,host){
- const rows=['avito','flowwow'].map(key=>({key,c:channelData(p)[key]||{}})).filter(({c})=>c.enabled||c.error);
+ const channels=channelData(p);
+ const rows=['avito','flowwow'].map(key=>({key,c:channels[key]||{}})).filter(({c})=>c.enabled||c.error);
  host.hidden=!rows.length;
  host.innerHTML=rows.map(({key,c})=>{
   const failed=Boolean(c.error)||c.state==='error';
-  const status=failed?'Ошибка публикации':c.state==='published'?'Опубликовано':c.state==='hidden'?'Скрыто':c.state==='awaiting_report'?'Ожидаем отчёт Авито':c.state==='awaiting_confirmation'?'Проверяем подтверждение Flowwow':c.state==='queued'?'В очереди':c.state==='manual_removal'?'Требуется снять вручную':c.management==='external'?'Управляется площадкой':'Ожидает подтверждения';
-  const raw=String(c.error||c.message||'');
-  const match=/«([^»]+)»/.exec(raw);const named=match&&fwLabels[match[1]];
-  const readable=named?raw.replace('«'+match[1]+'»','«'+named+'»'):raw;
-  const technical=named&&readable!==raw?`<details class="publication-technical"><summary>Исходное сообщение площадки</summary><p>${escape(raw)}</p></details>`:'';
-  const retry=c.state==='error'&&c.enabled&&c.management==='site'?`<button type="button" class="publication-action" data-retry-channel="${key}" data-product-id="${escape(p.id)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.4 6M20 4v7h-7"/></svg><span data-retry-label>Повторить попытку</span></button>`:'';
-  const edit=`<button type="button" class="publication-action" data-open-channel="${key}" data-product-id="${escape(p.id)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5 4 4M4 20l4.5-.9L19.4 8.2a2.1 2.1 0 0 0-3-3L5.5 16.1 4 20Z"/></svg><span>Редактировать публикацию</span></button>`;
-  return `<div class="publication-result ${failed?'has-error':''}"><strong>${escape(names[key])} — ${escape(status)}</strong><p>${escape(readable)}</p>${technical}<div class="publication-result-actions">${retry}${edit}</div></div>`;
+  const pending=publicationPending(c);
+  const status=failed?'Ошибка публикации':pending?'Публикуется':c.state==='published'?'Опубликовано':c.state==='hidden'?'Скрыто':'Ожидает публикации';
+  const tone=failed?'error':c.state==='published'?'success':'pending';
+  const glyph=failed?'×':c.state==='published'?'✓':'◷';
+  const details=failed&&c.error?`<details class="publication-technical"><summary>Подробнее об ошибке</summary><p>${escape(c.error)}</p></details>`:'';
+  const retry=failed&&c.enabled&&c.management==='site'?`<button type="button" class="publication-action" data-retry-channel="${key}" data-product-id="${escape(p.id)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.4 6M20 4v7h-7"/></svg><span data-retry-label>Повторить попытку</span></button>`:'';
+  const edit=failed?`<button type="button" class="publication-action" data-open-channel="${key}" data-product-id="${escape(p.id)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5 4 4M4 20l4.5-.9L19.4 8.2a2.1 2.1 0 0 0-3-3L5.5 16.1 4 20Z"/></svg><span>Редактировать публикацию</span></button>`:'';
+  return `<div class="publication-result publication-status-${tone}"><strong><span class="publication-status-icon" aria-hidden="true">${glyph}</span>${escape(names[key])} — ${escape(status)}</strong>${details}${failed?`<div class="publication-result-actions">${retry}${edit}</div>`:''}</div>`;
  }).join('');
 }
+function renderPublicationTracker(){
+ const host=$('#publication-save-result');
+ if(!host)return;
+ const active=products.filter(p=>!p.deleted&&['avito','flowwow'].some(key=>publicationPending(channelData(p)[key]||{})));
+ const currentId=host.dataset.productId;
+ const current=products.find(p=>p.id===currentId);
+ const list=[...(current?[current]:[]),...active.filter(p=>p.id!==currentId)];
+ if(!list.length&&!current){host.hidden=true;host.innerHTML='';return}
+ host.hidden=false;
+ host.innerHTML=list.map(p=>{
+  const fresh=p.id===currentId;
+  const pending=['avito','flowwow'].some(key=>publicationPending(channelData(p)[key]||{}));
+  return `<section class="publication-tracker-item"><h3><span aria-hidden="true">${fresh?'✓':pending?'◷':'✓'}</span> ${fresh?'Товар добавлен на сайт':'Публикация товара'}</h3><p class="publication-tracker-title">${escape(p.title)}</p><div class="publication-tracker-channels" data-tracker-product="${escape(p.id)}"></div></section>`;
+ }).join('');
+ for(const p of list){const box=[...host.querySelectorAll('[data-tracker-product]')].find(el=>el.dataset.trackerProduct===p.id);if(box)publicationResults(p,box)}
+ if(current&&!['avito','flowwow'].some(key=>publicationPending(channelData(current)[key]||{})))delete host.dataset.productId;
+}
+
 let connections={},reminderId='',reminderOpen=false,authenticated=false;
 let csrf='',products=[],source='all',editing=null,images=[],dirty=false,uploading=false;
 const errors={active_payment_exists:'По этому товару уже оформляется другая покупка.',sale_confirmation_required:'Сначала подтвердите продажу.',invalid_channels:'Проверьте настройки площадок и цены.',external_channel:'Существующее объявление пока управляется на своей площадке.',invalid_date:'Укажите корректную дату продления.',duplicate_source:'Товар с этой ссылкой Авито уже есть в каталоге. Найдите и отредактируйте его.',setup_required:'Вход ещё не настроен.',invalid_credentials:'Проверьте логин и пароль.',too_many_attempts:'Слишком много попыток. Попробуйте через 15 минут.',service_unavailable:'Не удалось связаться с каталогом. Попробуйте ещё раз.',invalid_product:'Проверьте название, цену и фотографии.',edit_conflict:'Товар уже изменился. Закройте карточку, обновите список и откройте её снова.',upload_failed:'Не удалось загрузить фото. Выберите JPEG, PNG или WebP.',invalid_image:'Этот формат фотографии не поддерживается. Сохраните её как JPEG или PNG.',image_too_large:'Фото слишком большое. Выберите изображение поменьше.',request_too_large:'Слишком много данных. Уменьшите описание.',https_required:'Откройте каталог по защищённому адресу https://.'};
@@ -72,7 +92,7 @@ async function api(action,body,params={}){
  if(result.csrf)csrf=result.csrf;return result;
 }
 function showLogin(){authenticated=false;$('#session-loading').hidden=true;$('#catalog-view').hidden=true;$('#orders-view').hidden=true;$('#login-view').hidden=false;$('#logout').hidden=true;$('#editor').close();products=[]}
-async function load(){await schemaReady;const result=await api('products');products=result.products;connections=result.connections||{};renderConnections();render()}
+async function load(){await schemaReady;const result=await api('products');products=result.products;connections=result.connections||{};renderConnections();render();renderPublicationTracker()}
 async function showCatalog(){authenticated=true;window.scrollTo(0,0);$('#session-loading').hidden=true;$('#login-view').hidden=true;$('#catalog-view').hidden=false;$('#logout').hidden=false;await load();checkConnections();loadOrders().catch(()=>{});if(location.hash.startsWith('#orders'))openOrders()}
 function render(){
  const query=$('#search').value.toLocaleLowerCase('ru-RU').replace(/ё/g,'е').trim();const visibility=$('#visibility').value;const category=$('#category').value;
@@ -127,7 +147,7 @@ $('#edit-form').addEventListener('submit',async e=>{
  if(true){for(const key of ['title','description','catalogGroup','status','url'])payload[key]=form.elements[key].value;payload.source=editing?.source||'manual';payload.purchaseMode=form.elements.purchase_mode.value;payload.price=Number(form.elements.price.value);payload.images=images;if(!images.length){message($('#edit-message'),'Добавьте хотя бы одну фотографию.',true);return}}
  payload.channels={};for(const key of ['avito','flowwow'])payload.channels[key]=form.elements['publish_'+key].checked?{configure:channelTouched[key],enabled:true,price:form.elements['price_'+key].value===''?null:Number(form.elements['price_'+key].value),title:form.elements['title_'+key].value,description:form.elements['description_'+key].value}:{configure:channelTouched[key],enabled:false,price:channelData(editing||{})[key].price??null,title:channelData(editing||{})[key].title||'',description:channelData(editing||{})[key].description||''};payload.channels.avito.category=payload.channels.avito.enabled?form.elements.avito_category.value:(channelData(editing||{}).avito.category||'');payload.channels.avito.attributes=payload.channels.avito.enabled?readAvitoAttributes():(channelData(editing||{}).avito.attributes||{});payload.channels.flowwow.category=$('#flowwow-category')?.value||channelData(editing||{}).flowwow.category||'';payload.channels.flowwow.properties=payload.channels.flowwow.enabled?readFlowwowProperties():(channelData(editing||{}).flowwow.properties||{});
  $('#save').disabled=true;message($('#edit-message'),'Сохраняем…');let savedId=null;
- try{const saved=await api('save',payload);savedId=saved.id;dirty=false;$('#editor').close();await load();const sync=await api('sync-product',{id:saved.id});await load();const product=products.find(p=>p.id===saved.id);const host=$('#publication-save-result');host.hidden=false;host.innerHTML='<strong>Карточка сохранена в БотаникАрт.</strong><div id="publication-save-channels"></div>';if(product)publicationResults(product,$('#publication-save-channels'));else host.textContent='Карточка сохранена. Статус площадок недоступен.';if(sync.busy)toast('Публикация выполняется. Статусы обновятся позже.')}catch(error){if(savedId){const host=$('#publication-save-result');host.hidden=false;host.innerHTML=`<strong>Товар сохранён в БотаникАрт.</strong><p>Не удалось получить подтверждение площадок: ${escape(error.message)}. Проверьте статусы позже.</p>`;}else message($('#edit-message'),error.message,true)}finally{$('#save').disabled=false}
+ try{const saved=await api('save',payload);savedId=saved.id;dirty=false;$('#editor').close();$('#publication-save-result').dataset.productId=saved.id;await load();const sync=await api('sync-product',{id:saved.id});await load();if(sync.busy)toast('Публикация выполняется. Статусы обновятся автоматически.')}catch(error){if(savedId){$('#publication-save-result').dataset.productId=savedId;try{await load()}catch{};toast('Товар сохранён. Статус публикации обновится автоматически.')}else message($('#edit-message'),error.message,true)}finally{$('#save').disabled=false}
 });
 window.addEventListener('beforeunload',e=>{if(dirty&&$('#editor').open){e.preventDefault();e.returnValue=''}});
 async function initialize(){try{const session=await api('session');message($('#login-message'));$('#login-form [type=submit]').disabled=false;if(session.authenticated)await showCatalog();else showLogin()}catch(error){showLogin();message($('#login-message'),error.message,true)}}
@@ -174,6 +194,8 @@ for(const key of ['avito','flowwow'])$('#edit-form').elements['publish_'+key].ad
 });
 document.querySelectorAll('[data-preview]').forEach(b=>b.addEventListener('click',async()=>{if(!editing)return;const output=$('#publication-preview');output.hidden=false;if(dirty){output.textContent='Сначала сохраните изменения, затем проверьте данные в карточке.';return}b.disabled=true;try{const result=await api('publication-preview',undefined,{id:editing.id,channel:b.dataset.preview});output.innerHTML=`<strong>${escape(result.product.title)} · ${money(result.product.price)}</strong><p>Фотографий: ${result.product.images.length}</p><ul>${result.warnings.map(w=>`<li>${escape(w)}</li>`).join('')}</ul>`}catch(error){output.textContent=error.message}finally{b.disabled=false}}));
 setInterval(()=>{if(authenticated&&!document.hidden)checkConnections()},300000);
+setInterval(()=>{if(authenticated&&!document.hidden)load().catch(()=>{})},12000);
+document.addEventListener('visibilitychange',()=>{if(authenticated&&!document.hidden)load().catch(()=>{})});
 
 initialize();
 
