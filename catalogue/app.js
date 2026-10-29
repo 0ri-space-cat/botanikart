@@ -143,8 +143,16 @@ function channelData(p){return p.channels||Object.fromEntries(['avito','flowwow'
 function selectedChannels(p){return ['avito','flowwow'].filter(k=>channelData(p)[k]?.enabled)}
 function matchesChannel(p,key){const selected=selectedChannels(p);return key==='all'||(key==='site'?!selected.length&&!p.hidden&&!p.sourceMissing:selected.includes(key))}
 function productBadges(p){const keys=selectedChannels(p);if(!keys.length)return !p.hidden&&!p.sourceMissing?`<span class="source-badge manual">${sourceLabel('manual')}</span>`:'<span class="unpublished-badge">Не опубликован</span>';return keys.map(k=>`<span class="source-badge ${k}" title="${escape(channelData(p)[k]?.message||'Выбранная площадка')}">${sourceLabel(k)}${channelData(p)[k]?.state==='error'?'<span class="pending-mark error" aria-label="Ошибка площадки">!</span>':(['queued','awaiting_report','awaiting_confirmation','waiting_connection'].includes(channelData(p)[k]?.state)?'<span class="pending-mark" aria-label="Ожидает обработки">…</span>':'')}</span>`).join('')}
+function updateChannelQuickStatus(key,c,on=c.enabled){
+ const badge=document.querySelector(`[data-channel-quick-status="${key}"]`);
+ if(!badge)return;
+ const pending=['queued','awaiting_report','awaiting_confirmation','waiting_connection'].includes(c.state);
+ const problem=on&&(c.state==='error'||Boolean(c.error));
+ badge.textContent=!on?'Не выбрано':problem?'Ошибка':pending?'В обработке':c.state==='published'?'Опубликовано':c.management==='external'?'На площадке':'Выбрано';
+ badge.dataset.state=!on?'off':problem?'error':pending?'pending':c.state==='published'?'published':'selected';
+}
 function renderPublicationSettings(p){
- const form=$('#edit-form');publicationResults(p,$('#editor-publication-results'));for(const key of ['avito','flowwow']){const c=channelData(p)[key];form.elements['publish_'+key].checked=Boolean(c.enabled);form.elements['publish_'+key].disabled=Boolean(p.deleted);for(const f of ['price','title','description']){form.elements[f+'_'+key].value=c[f]??'';form.elements[f+'_'+key].disabled=Boolean(p.deleted)}$('#state-'+key).textContent=c.error?c.message||c.error:(['queued','awaiting_report'].includes(c.state)?'Отправляется…':c.state==='awaiting_confirmation'?c.message||'Ждём подтверждения Flowwow.':'');document.querySelector(`[data-channel-body="${key}"]`).hidden=!c.error;document.querySelector(`[data-channel-expand="${key}"]`).setAttribute('aria-expanded',String(Boolean(c.error)));document.querySelector(`[data-channel-card="${key}"]`).classList.toggle('is-enabled',Boolean(c.enabled));document.querySelector(`[data-preview="${key}"]`).disabled=!editing;}
+ const form=$('#edit-form');publicationResults(p,$('#editor-publication-results'));for(const key of ['avito','flowwow']){const c=channelData(p)[key];form.elements['publish_'+key].checked=Boolean(c.enabled);form.elements['publish_'+key].disabled=Boolean(p.deleted);for(const f of ['price','title','description']){form.elements[f+'_'+key].value=c[f]??'';form.elements[f+'_'+key].disabled=Boolean(p.deleted)}$('#state-'+key).textContent=c.error?c.message||c.error:(['queued','awaiting_report'].includes(c.state)?'Отправляется…':c.state==='awaiting_confirmation'?c.message||'Ждём подтверждения Flowwow.':'');document.querySelector(`[data-channel-body="${key}"]`).hidden=!c.error;document.querySelector(`[data-channel-expand="${key}"]`).setAttribute('aria-expanded',String(Boolean(c.error)));document.querySelector(`[data-channel-card="${key}"]`).classList.toggle('is-enabled',Boolean(c.enabled));updateChannelQuickStatus(key,c);document.querySelector(`[data-preview="${key}"]`).disabled=!editing;}
  const av=channelData(p).avito;$('#avito-shared').hidden=!(av.sharedCount>1);$('#avito-shared').textContent=`На Авито это одно общее объявление для ${av.sharedCount||1} товаров. Изменения Авито затронут все товары этого общего объявления.`;
  if(av.listingTitle){form.elements.title_avito.placeholder=av.listingTitle;form.elements.description_avito.placeholder=av.listingDescription;form.elements.price_avito.placeholder=money(av.listingPrice);}
  flowwowEditorSequence++;flowwowEditorData=null;flowwowDrafts={};if(channelData(p).flowwow.error)loadFlowwowEditor();for(const k of ['avito','flowwow'])setChannelControls(k);
@@ -166,6 +174,7 @@ $('#renewal-dismiss').addEventListener('click',dismissReminder);$('#renewal-dial
 for(const key of ['avito','flowwow'])$('#edit-form').elements['publish_'+key].addEventListener('change',()=>{
  channelTouched[key]=true;const form=$('#edit-form'),on=form.elements['publish_'+key].checked;
  document.querySelector(`[data-channel-body="${key}"]`).hidden=!on;document.querySelector(`[data-channel-expand="${key}"]`).setAttribute('aria-expanded',String(on));document.querySelector(`[data-channel-card="${key}"]`).classList.toggle('is-enabled',on);
+  updateChannelQuickStatus(key,channelData(editing||{})[key]||{},on);
  setChannelControls(key);updateEditorSaveSummary();if(key==='avito')$('#avito-fields').hidden=!on;
  if(key==='flowwow'&&on&&!flowwowEditorData)loadFlowwowEditor();
  $('#state-'+key).textContent=on?'':(key==='avito'?'Снимите объявление на Авито вручную.':'Будет скрыто на Flowwow.');
