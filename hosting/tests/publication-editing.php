@@ -39,6 +39,28 @@ try{
  verify($body['height']===['val'=>8,'measure'=>2]&&$body['brand']==='Сохранить бренд','Unedited properties lost');
  verify($body['price']==='480.00'&&$body['discount']==='0'&&$body['stock']===4,'Price/discount or stock corrupted');
  verify(!isset($body['minOrderCount'])&&!isset($body['productionTime']),'Invalid defaults injected');
+ // A successful write can take time to appear in Flowwow readback.
+ // Polling an accepted write must only read: never create/unhide a duplicate.
+ $checkedProduct=$raw;$pollCalls=[];
+ $pollTransport=function($method,$path,$payload)use(&$checkedProduct,&$pollCalls){$pollCalls[]=$path;
+  if(str_starts_with($path,'/apiseller/products?'))return ['items'=>[$checkedProduct]];
+  throw new RuntimeException('Confirmation tried to write to Flowwow');
+ };
+ $poller=new FlowwowPublisher(['token'=>'fixture','shop_id'=>1],$root.'/api/.private',$pollTransport);
+ $stillOld=$poller->confirmPublished($edit,'123');
+ verify($stillOld['state']==='awaiting_confirmation'&&str_contains($stillOld['message'],'название ещё не совпадает'),'Readback name mismatch not reported');
+ $checkedProduct['name']=$edit['title'];
+ $wrongPrice=$poller->confirmPublished($edit,'123');
+ verify($wrongPrice['state']==='awaiting_confirmation'&&str_contains($wrongPrice['message'],'цена ещё не совпадает'),'Readback price mismatch not reported');
+ $checkedProduct['price']='480';$checkedProduct['discount']=0;$checkedProduct['isActive']=false;
+ $inactive=$poller->confirmPublished($edit,'123');
+ verify($inactive['state']==='awaiting_confirmation'&&str_contains($inactive['message'],'модерации'),'Hidden item not explained');
+ $checkedProduct['isActive']=true;
+ verify($poller->confirmPublished($edit,'123')['state']==='published','Confirmed published readback not recognized');
+ verify(count($pollCalls)===4&&count(array_filter($pollCalls,fn($path)=>!str_starts_with($path,'/apiseller/products?')))===0,'Readback polling issued a write');
+ $emptyTransport=fn($method,$path,$payload)=>['items'=>[]];
+ $notFound=(new FlowwowPublisher(['token'=>'fixture','shop_id'=>1],$root.'/api/.private',$emptyTransport))->confirmPublished($edit,'123');
+ verify($notFound['state']==='awaiting_confirmation'&&str_contains($notFound['message'],'offerId'),'Missing Flowwow readback reason not reported');
  $edit['channels']['flowwow']['enabled']=false;$result=$fw->publish($edit,'https://botanikart.ru');verify($result['state']==='hidden'&&!$remote['isActive'],'Hide not confirmed');
  $edit['channels']['flowwow']['enabled']=true;$raw2=$raw;$raw2['type']=2;
  try{$fw->payload($edit,$raw2,$schema,'https://botanikart.ru');throw new LogicException('Unsupported type accepted');}catch(RuntimeException){}
