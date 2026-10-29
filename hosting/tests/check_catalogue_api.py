@@ -69,6 +69,22 @@ with tempfile.TemporaryDirectory(prefix="botanikart-catalogue-http-") as tempora
         assert status == 200 and login["authenticated"], login
         assert call("session")[1]["authenticated"]
         assert any(cookie.name=="BOTANIKART_CATALOGUE" and cookie.expires is not None for cookie in cookies)
+        active_cookie = next(cookie for cookie in cookies if cookie.name == "BOTANIKART_CATALOGUE")
+        assert active_cookie.expires > time.time() + 29*86400, "Login cookie is not persistent for 30 days"
+        assert active_cookie.path == "/catalogue/" and active_cookie.has_nonstandard_attr("HttpOnly")
+        # Simulate reopening the installed app after the browser has restarted:
+        # reuse the persisted cookie, without resending a username or password.
+        saved_jar = http.cookiejar.MozillaCookieJar(str(base / "catalogue-cookies.txt"))
+        saved_jar.set_cookie(active_cookie)
+        saved_jar.save()
+        restored_jar = http.cookiejar.MozillaCookieJar(str(base / "catalogue-cookies.txt"))
+        restored_jar.load()
+        reopened = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(restored_jar))
+        with reopened.open(origin + "/catalogue/api.php?action=session", timeout=5) as response:
+            resumed = json.load(response)
+        assert resumed["authenticated"] and resumed["csrf"] == login["csrf"], "Reopening lost the session"
+        resumed_cookie = next(cookie for cookie in restored_jar if cookie.name == "BOTANIKART_CATALOGUE")
+        assert resumed_cookie.expires > time.time() + 29*86400, "Returning visit did not renew the cookie"
         status, data = call("products")
         assert status == 200 and data["products"]
         assert call("connections")[0]==200
@@ -133,7 +149,7 @@ with tempfile.TemporaryDirectory(prefix="botanikart-catalogue-http-") as tempora
         assert call("products")[0] == 401
         assert call("orders")[0] == 401
         assert call("products")[0] == 401, "Password revision did not invalidate the session"
-        print("Catalogue HTTP checks passed: sessions, CSRF, origin, hidden product, conflicts, photo upload, local product creation/editing, Avito deduplication, private storage and session invalidation.")
+        print("Catalogue HTTP checks passed: persistent reopen and 30-day renewal, CSRF, origin, hidden product, conflicts, photo upload, local product creation/editing, Avito deduplication, private storage and session invalidation.")
     finally:
         server.terminate()
         server.wait(timeout=5)
