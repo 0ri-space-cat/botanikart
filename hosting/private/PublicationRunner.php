@@ -48,7 +48,7 @@ final class PublicationRunner
         if(!$lock||!flock($lock,LOCK_EX|LOCK_NB)){if($lock)fclose($lock);return ['busy'=>true];}
         $results=[];
         try {
-            $query="SELECT * FROM publication_jobs WHERE state IN ('queued','retry','awaiting_report','awaiting_confirmation')";$args=[];
+            $query="SELECT * FROM publication_jobs WHERE state IN ('queued','retry','awaiting_report','awaiting_confirmation','moderation')";$args=[];
             if($onlyId!==null){$query.=' AND product_id=?';$args[]=$onlyId;}
             if($onlyChannel!==null){$query.=' AND channel=?';$args[]=$onlyChannel;}
             $q=$this->store->db->prepare($query.' ORDER BY updated_at LIMIT 20');$q->execute($args);$jobs=$q->fetchAll(\PDO::FETCH_ASSOC);
@@ -57,7 +57,7 @@ final class PublicationRunner
                 try {
                     if($channel==='flowwow'){
                         $oldConfirmationError=$job['state']==='retry'&&str_contains((string)($p['channels']['flowwow']['error']??''),'не подтвердил изменения');
-                        $changes=($job['state']==='awaiting_confirmation'||$oldConfirmationError)
+                        $changes=(in_array($job['state'],['awaiting_confirmation','moderation'],true)||$oldConfirmationError)
                             ?$this->flowwow()->confirmPublished($p)
                             :$this->flowwow()->publish($p,$this->config['site_url']??'https://botanikart.ru');
                     }
@@ -81,7 +81,7 @@ final class PublicationRunner
                             $changes=['state'=>'awaiting_report','error'=>''];
                         }
                     }
-                    $state=$channel==='avito'&&($changes['state']??'')==='awaiting_report'?'awaiting_report':(($changes['state']??'')==='awaiting_confirmation'?'awaiting_confirmation':'confirmed');
+                    $state=$channel==='avito'&&($changes['state']??'')==='awaiting_report'?'awaiting_report':(in_array($changes['state']??'', ['awaiting_confirmation','moderation'],true)?($changes['state']):'confirmed');
                     if(!$this->recordResult($job,$changes+['error'=>''],$state))continue;
                     $results[]=['id'=>$p['id'],'channel'=>$channel,'state'=>$changes['state']];
                 }catch(\Throwable $error){
