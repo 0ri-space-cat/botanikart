@@ -55,7 +55,12 @@ final class PublicationRunner
             foreach($jobs as $job){
                 $products=$this->store->all(true);$found=array_values(array_filter($products,fn($p)=>$p['id']===$job['product_id']));if(!$found)continue;$p=$found[0];$channel=$job['channel'];$changes=[];
                 try {
-                    if($channel==='flowwow')$changes=$job['state']==='awaiting_confirmation'?$this->flowwow()->confirmPublished($p):$this->flowwow()->publish($p,$this->config['site_url']??'https://botanikart.ru');
+                    if($channel==='flowwow'){
+                        $oldConfirmationError=$job['state']==='retry'&&str_contains((string)($p['channels']['flowwow']['error']??''),'не подтвердил изменения');
+                        $changes=($job['state']==='awaiting_confirmation'||$oldConfirmationError)
+                            ?$this->flowwow()->confirmPublished($p)
+                            :$this->flowwow()->publish($p,$this->config['site_url']??'https://botanikart.ru');
+                    }
                     else {
                         $c=$p['channels']['avito'];
                         if(!$c['enabled']||!empty($p['deleted'])){
