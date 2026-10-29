@@ -92,7 +92,7 @@ final class FlowwowPublisher
         $properties=$c['properties']??[];
         $body=array_replace($body,array_intersect_key($properties,array_flip($allowed)));
         // Set the stable seller-side identifier before category-required validation.
-        $body['offerId']=$offerId ?: (string)($source['offerId']??$c['offerId']??('ba-'.$p['id']));
+        $body['offerId']=$offerId ?: ((string)($source['offerId']??'') ?: ((string)($c['offerId']??'') ?: 'ba-'.$p['id']));
         $body['productType']=1;
         $body['subCategoryId']=(int)($source['subCategoryId']??$c['category']??0);
         if($body['subCategoryId']<=0)throw new \RuntimeException('Flowwow: выберите категорию.');
