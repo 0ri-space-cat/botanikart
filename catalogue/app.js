@@ -11,7 +11,10 @@ const imageURL=path=>String(path).startsWith('https://')?path:'/'+String(path).r
 let avitoSchema={};const schemaReady=fetch('avito-schema.json?v=7').then(r=>{if(!r.ok)throw Error('schema');return r.json()}).then(s=>{avitoSchema=s}).catch(()=>{});
 let channelTouched={avito:false,flowwow:false};
 let flowwowEditorSequence=0,flowwowEditorData=null;let flowwowDrafts={},avitoDrafts={};
-const fwLabels={minOrderCount:'Минимальное количество для заказа',maxOrderCount:'Максимальное количество для заказа',stock:'Количество в наличии',productionTime:'Время изготовления',height:'Высота',width:'Ширина',quantityInPackage:'Количество в упаковке',approximateWeight:'Примерный вес',manufacturerName:'Производитель',manufacturerAddress:'Адрес производителя',importerName:'Импортёр',importerAddress:'Адрес импортёра',regionOfOrigin:'Регион происхождения',isPostDelivery:'Доставка почтой'};
+const fwLabels={minOrderCount:'Минимальное количество для заказа',maxOrderCount:'Максимальное количество для заказа',stock:'Количество в наличии',productionTime:'Время изготовления',height:'Высота',width:'Ширина',volume:'Объём',quantityInPackage:'Количество в упаковке',approximateWeight:'Примерный вес',manufacturerName:'Производитель',manufacturerAddress:'Адрес производителя',importerName:'Импортёр',importerAddress:'Адрес импортёра',regionOfOrigin:'Регион происхождения',isPostDelivery:'Доставка почтой',postWidth:'Ширина посылки',postHeight:'Высота посылки',postLength:'Длина посылки',postWeight:'Вес посылки',isAdultsOnly:'Товар для взрослых',material:'Материал',consist:'Составляющие товара',thematicSelections:'Тематические подборки',gender:'Для кого',textDimensions:'Размеры',kilocalories:'Калорийность',proteins:'Белки',fats:'Жиры',carbohydrates:'Углеводы',brand:'Бренд',composition:'Состав',author:'Автор',year:'Год',certificatePurpose:'Назначение сертификата',certificateType:'Тип сертификата',baloonType:'Тип воздушного шара'};
+const fwLabel=f=>fwLabels[f.field]||(/[а-яё]/i.test(f.name||'')?f.name:'Параметр Flowwow: '+String(f.name||f.field).replace(/([a-z])([A-Z])/g,'$1 $2'));
+const fwUnitOptions=f=>(Array.isArray(f.measure)?f.measure:[]).filter(m=>m&&typeof m==='object'&&m.id!==undefined&&m.id!==null).map(m=>({id:m.id,label:String(m.name||m.label||m.title||m.unitName||m.unit||'Единица (ID '+m.id+')')}));
+function fwDefaultUnit(f,v){if(v&&v.measure!==undefined&&v.measure!==null)return String(v.measure);if(editing)return '';const opts=fwUnitOptions(f);if(opts.length===1)return String(opts[0].id);const pattern=f.field==='productionTime'?/(^|\s)(час|ч\.|hour|hr)(\b|\s|$)/i:['height','width','postWidth','postHeight','postLength'].includes(f.field)?/(сантиметр|см\b|centimeter|cm\b)/i:null;if(!pattern)return '';return String(opts.find(o=>pattern.test(o.label))?.id??'')}
 function publicationResults(p,host){const rows=['avito','flowwow'].map(key=>({key,c:channelData(p)[key]||{}})).filter(x=>x.c.enabled||x.c.error);host.hidden=!rows.length;host.innerHTML=rows.map(({key,c})=>`<div class="publication-result ${c.error?'has-error':''}"><strong>${escape(names[key])} — ${c.error?'ошибка публикации':c.state==='published'?'опубликовано':c.state==='awaiting_report'?'ожидаем отчёт':c.state==='queued'?'ожидает отправки':'ожидает подтверждения'}</strong><p>${escape(c.error||c.message||'')}</p></div>`).join('')}
 let connections={},reminderId='',reminderOpen=false,authenticated=false;
 let csrf='',products=[],source='all',editing=null,images=[],dirty=false,uploading=false;
@@ -144,14 +147,14 @@ function renderFlowwowProperties(fields,properties){
  const container=$('#flowwow-properties');
  const skip=['name','price','description','images','offerId','productType','subCategoryId'];
  const visible=fields.filter(f=>!skip.includes(f.field));const draw=f=>{
-  const v=properties[f.field],id='fw-'+f.field,label=escape(fwLabels[f.field]||f.name)+(f.required?' <span class="platform-required">*</span>':'');
+  const v=properties[f.field],id='fw-'+f.field,label=escape(fwLabel(f))+(f.required?' <span class="platform-required">*</span>':'');
   let control='';const options=(f.values||[]).map(o=>`<option value="${escape(o.id)}" ${(Array.isArray(v)?v.some(x=>String(x)===String(o.id)):String(v??'')===String(o.id))?'selected':''}>${escape(o.name)}</option>`).join('');
   if(f.type==='select'||f.type==='multiselect')control=`<select id="${id}" data-fw="${escape(f.field)}" ${f.type==='multiselect'?'multiple':''}><option value="">Не выбрано</option>${options}</select>`;
   else if(f.type==='bool')control=`<input id="${id}" data-fw="${escape(f.field)}" type="checkbox" ${v?'checked':''}>`;
-  else if(f.type==='measure')control=`<div class="measure-input"><input id="${id}" data-fw="${escape(f.field)}" type="number" step="any" value="${escape(v?.val??'')}"><select data-fw-measure="${escape(f.field)}"><option value="">Единица</option>${(f.measure||[]).map(m=>`<option value="${escape(m.id)}" ${String(v?.measure??'')===String(m.id)?'selected':''}>${escape(m.name)}</option>`).join('')}</select></div>`;
+  else if(f.type==='measure'){const unit=fwDefaultUnit(f,v),units=fwUnitOptions(f);control=`<div class="measure-input"><input id="${id}" data-fw="${escape(f.field)}" type="number" inputmode="decimal" step="any" ${f.minValue!==undefined?'min="'+escape(f.minValue)+'"':''} ${f.maxValue!==undefined?'max="'+escape(f.maxValue)+'"':''} placeholder="${['width','height'].includes(f.field)?'Например, 15':'Введите число'}" value="${escape(v?.val??'')}"><select aria-label="Единица измерения: ${escape(fwLabel(f))}" data-fw-measure="${escape(f.field)}"><option value="">Выберите единицу</option>${units.map(m=>`<option value="${escape(m.id)}" ${unit===String(m.id)?'selected':''}>${escape(m.label)}</option>`).join('')}</select></div>${units.length?'':'<small class="field-hint">В схеме Flowwow нет единиц измерения для этого поля.</small>'}`;}
   else if(f.type==='consist')control=`<div class="consist" data-fw-consist="${escape(f.field)}">${(v||[]).map(row=>consistRow(f,row)).join('')}</div><button type="button" class="subtle" data-add-consist="${escape(f.field)}">＋ Добавить составляющую</button>`;
   else if(f.type==='multitext')control=`<textarea id="${id}" data-fw="${escape(f.field)}" rows="3" placeholder="Каждый пункт с новой строки">${escape((v||[]).join('\n'))}</textarea>`;
-  else control=`<input id="${id}" data-fw="${escape(f.field)}" type="${f.type==='decimal'?'number':'text'}" ${f.type==='decimal'?'step="any"':''} placeholder="${escape(f.type==='decimal'?'Например, 1':'Укажите при необходимости')}" value="${escape(v??(!editing&&['stock','minOrderCount'].includes(f.field)&&(!f.minValue||Number(f.minValue)<=1)&&(!f.maxValue||Number(f.maxValue)>=1)?1:''))}">`;
+  else {const defaultOne=!editing&&(['minOrderCount'].includes(f.field)||f.field==='stock'&&$('#edit-form').elements.status.value==='ready')&&(!f.minValue||Number(f.minValue)<=1)&&(!f.maxValue||Number(f.maxValue)>=1);control=`<input id="${id}" data-fw="${escape(f.field)}" type="${f.type==='decimal'?'number':'text'}" ${f.type==='decimal'?'step="any" inputmode="decimal"':''} ${f.minValue!==undefined?'min="'+escape(f.minValue)+'"':''} ${f.maxValue!==undefined?'max="'+escape(f.maxValue)+'"':''} placeholder="${escape(f.type==='decimal'?'Введите число':'Укажите при необходимости')}" ${defaultOne&&v===undefined?'data-fw-default="1"':''} value="${escape(v??(defaultOne?1:''))}">`;}
   const hint=f.dependsOn?.length?'<small class="field-hint">Заполните это поле или альтернативное — оба одновременно не нужны.</small>':'';
   return `<div class="flowwow-property"><label for="${id}">${label}</label>${control}${hint}</div>`;
  };const essential=visible.filter(f=>f.required||['stock','productionTime'].includes(f.field));const extra=visible.filter(f=>!essential.includes(f));container.innerHTML=essential.map(draw).join('')+(extra.length?`<details class="marketplace-extra"><summary>Дополнительные параметры Flowwow (${extra.length})</summary>${extra.map(draw).join('')}</details>`:'');
@@ -168,27 +171,27 @@ async function loadFlowwowEditor(category){
   flowwowEditorData=data;
   const saved=channelData(editing||{}).flowwow;const selected=category||saved.category||data.category||'';
   box.innerHTML=`${data.unsupported?'<p class="source-note">Этот специальный тип товара Flowwow не разрешает изменять через API. Данные сайта можно редактировать отдельно.</p>':''}<label>Категория Flowwow<select id="flowwow-category" ${data.immutableCategory?'data-fixed="true"':''} ${data.immutableCategory||editing?.deleted?'disabled':''}><option value="">Выберите категорию</option>${data.categories.map(c=>`<option value="${escape(c.id)}" ${String(c.id)===String(selected)?'selected':''}>${escape(c.name)}</option>`).join('')}</select></label><div id="flowwow-properties"></div><p class="field-hint">Звёздочкой отмечены поля, которые нужны только для Flowwow.</p>`;
-  const properties={...data.properties,...(saved.properties||{}),...(flowwowDrafts[selected]||{})};flowwowEditorData.properties=properties;renderFlowwowProperties(data.fields,properties);
+  const properties={...data.properties,...(String(saved.category||'')===String(selected)?saved.properties||{}:{}),...(flowwowDrafts[selected]||{})};flowwowEditorData.properties=properties;renderFlowwowProperties(data.fields,properties);
   $('#flowwow-category').addEventListener('change',e=>{flowwowDrafts[selected]=readFlowwowProperties();loadFlowwowEditor(e.target.value)});
  }catch(error){if(sequence===flowwowEditorSequence)box.innerHTML=`<p class="form-message error">${escape(error.message)}</p><button type="button" id="retry-flowwow-fields" class="subtle">Повторить загрузку</button>`;$('#retry-flowwow-fields')?.addEventListener('click',()=>loadFlowwowEditor(category));}
 }
 function readFlowwowProperties(){
  if(!flowwowEditorData||!$('#flowwow-properties'))return channelData(editing||{}).flowwow.properties||{};
- const result={};
+ const result={...(flowwowEditorData.properties||{})};
  for(const f of flowwowEditorData.fields){
   const el=document.querySelector(`[data-fw="${f.field}"]`);
   if(f.type==='consist'){
    const rows=[...document.querySelectorAll(`[data-fw-consist="${f.field}"] .consist-row`)];
-   result[f.field]=rows.map(r=>({name:r.querySelector('[data-consist-name]').value,quantity:Number(r.querySelector('[data-consist-count]').value),measure:Number(r.querySelector('[data-consist-measure]').value)}));
+   result[f.field]=rows.filter(r=>r.querySelector('[data-consist-name]').value.trim()).map(r=>({name:r.querySelector('[data-consist-name]').value.trim(),quantity:Number(r.querySelector('[data-consist-count]').value),measure:fwUnitOptions(f).find(m=>String(m.id)===r.querySelector('[data-consist-measure]').value)?.id??null}));
    continue;
   }
   if(!el)continue;
-  if(f.type==='bool'){result[f.field]=el.checked;continue}
+  if(f.type==='bool'){if(el.checked||f.required||result[f.field]!==undefined)result[f.field]=el.checked;else delete result[f.field];continue}
   if(f.type==='multiselect'){result[f.field]=[...el.selectedOptions].filter(o=>o.value!=='').map(o=>f.values.find(v=>String(v.id)===o.value)?.id);continue}
   if(f.type==='multitext'){result[f.field]=el.value.split('\n').map(s=>s.trim()).filter(Boolean);continue}
-  if(el.value===''){result[f.field]=null;continue;}
+  if(el.value===''){if(result[f.field]!==undefined)result[f.field]=null;else delete result[f.field];continue;}
   if(f.type==='select')result[f.field]=f.values.find(v=>String(v.id)===el.value)?.id;
-  else if(f.type==='measure')result[f.field]={val:Number(el.value),measure:Number(document.querySelector(`[data-fw-measure="${f.field}"]`).value)};
+  else if(f.type==='measure')result[f.field]={val:Number(el.value),measure:fwUnitOptions(f).find(m=>String(m.id)===document.querySelector(`[data-fw-measure="${f.field}"]`).value)?.id??null};
   else if(f.type==='decimal')result[f.field]=Number(el.value);
   else result[f.field]=el.value;
  }
