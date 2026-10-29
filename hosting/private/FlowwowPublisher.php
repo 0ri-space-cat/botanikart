@@ -157,6 +157,9 @@ final class FlowwowPublisher
             // Legacy remote goods need an offer mapping, but only after local payload validation.
         }
         if(!$c['enabled']||$p['status']==='sold'){
+            if($source && empty($source['offerId'])){
+                $this->ensureSuccess($this->request('/apiseller/products/offersMappings',['offers'=>[['offerId'=>$offer,'productId'=>(int)$remoteId]]]));
+            }
             $this->ensureSuccess($this->request('/apiseller/products/hide',['offers'=>[['offerId'=>$offer]]]));
             $check=$this->findProduct($offer,true);
             if(!$check||!empty($check['isActive']))throw new \RuntimeException('Flowwow: скрытие пока не подтверждено.');
@@ -164,11 +167,11 @@ final class FlowwowPublisher
         }
         $category=(int)($source['subCategoryId']??$c['category']??0);$schema=$this->schema($category);
         $body=$this->payload($p,$source,$schema,$site,$offer);
+        if($source && !empty($source['isArchived']))throw new \RuntimeException('Flowwow: товар находится в архиве. Сначала восстановите его в Flowwow.');
         if($source && empty($source['offerId'])){
             $mapping=$this->request('/apiseller/products/offersMappings',['offers'=>[['offerId'=>$offer,'productId'=>(int)$remoteId]]]);
             $this->ensureSuccess($mapping);
         }
-        if($source && !empty($source['isArchived']))throw new \RuntimeException('Flowwow: товар находится в архиве. Сначала восстановите его в Flowwow.');
         $result=$this->request($source?'/apiseller/products/update':'/apiseller/products/create',['products'=>[$body]]);$this->ensureSuccess($result);
         $this->ensureSuccess($this->request('/apiseller/products/unhide',['offers'=>[['offerId'=>$offer]]]));
         $check=$this->findProduct($offer,true);
