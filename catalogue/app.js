@@ -62,13 +62,13 @@ $('#photos').addEventListener('click',e=>{const remove=e.target.closest('[data-r
 $('#reload').addEventListener('click',async()=>{try{message($('#list-message'));await load();toast('Каталог обновлён')}catch(error){message($('#list-message'),error.message,true)}});
 async function preparePhoto(file){
  let bitmap;try{bitmap=await createImageBitmap(file,{imageOrientation:'from-image'})}catch{throw Error(errors.invalid_image)}
- const scale=Math.min(1,1800/Math.max(bitmap.width,bitmap.height));const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(bitmap.width*scale));canvas.height=Math.max(1,Math.round(bitmap.height*scale));const ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(bitmap,0,0,canvas.width,canvas.height);bitmap.close();
- const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',.9));if(!blob)throw Error(errors.invalid_image);return blob;
+ let scale=Math.min(1,2400/Math.max(bitmap.width,bitmap.height));if(Math.min(bitmap.width,bitmap.height)>=1200)scale=Math.min(1,Math.max(scale,1200/Math.min(bitmap.width,bitmap.height)));if(bitmap.width*bitmap.height*scale*scale>12000000)scale=Math.min(1,2400/Math.max(bitmap.width,bitmap.height));const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(bitmap.width*scale));canvas.height=Math.max(1,Math.round(bitmap.height*scale));const ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(bitmap,0,0,canvas.width,canvas.height);bitmap.close();
+ const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',.94));if(!blob)throw Error(errors.invalid_image);return blob;
 }
 $('#photo-input').addEventListener('change',async e=>{
  const files=[...e.target.files];if(images.length+files.length>20){message($('#edit-message'),'В карточке может быть до 20 фотографий.',true);e.target.value='';return}
  uploading=true;$('#save').disabled=true;$('#photo-input').disabled=true;
- try{for(let i=0;i<files.length;i++){message($('#edit-message'),`Загружаем фото ${i+1} из ${files.length}…`);const form=new FormData();form.append('image',await preparePhoto(files[i]),'photo.jpg');const result=await api('upload',form);images.push(result.path);dirty=true;renderPhotos()}message($('#edit-message'))}catch(error){message($('#edit-message'),error.message,true)}finally{uploading=false;$('#save').disabled=false;$('#photo-input').disabled=false;e.target.value=''}
+ try{let padded=false;for(let i=0;i<files.length;i++){message($('#edit-message'),`Загружаем фото ${i+1} из ${files.length}…`);const form=new FormData();form.append('image',await preparePhoto(files[i]),'photo.jpg');const result=await api('upload',form);images.push(result.path);padded=padded||result.padded;dirty=true;renderPhotos()}message($('#edit-message'),padded?'Фото подготовлены для Flowwow: добавлены светлые поля без обрезки.':'')}catch(error){message($('#edit-message'),error.message,true)}finally{uploading=false;$('#save').disabled=false;$('#photo-input').disabled=false;e.target.value=''}
 });
 $('#edit-form').addEventListener('submit',async e=>{
  e.preventDefault();if(uploading)return;const form=e.target;const payload={id:editing?.id||'',version:editing?.version||0,hidden:!form.elements.visible.checked};

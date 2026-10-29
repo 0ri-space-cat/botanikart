@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 namespace BotanikArt;
+require_once __DIR__.'/CatalogPhoto.php';
 
 final class FlowwowPublisher
 {
@@ -92,12 +93,11 @@ final class FlowwowPublisher
         $price=(float)($c['price']??$p['price']);
         $oldNet=$source?round((float)$source['price']*(1-(float)($source['discount']??0)/100),2):null;
         if($oldNet===null||abs($oldNet-$price)>0.001){$body['price']=number_format($price,2,'.','');$body['discount']='0';}
-        $body['images']=array_map(fn($s)=>str_starts_with($s,'https://')?$s:rtrim($site,'/').'/'.ltrim($s,'/'),$p['images']);
-        if (!$source) foreach($p['images'] as $path) {
-            if(str_starts_with($path,'https://'))continue;
-            $size=@getimagesize(dirname($this->directory,2).'/'.$path);
-            if(!$size||min($size[0],$size[1])<1200)throw new \RuntimeException('Flowwow: для новой карточки нужны фото не меньше 1200 × 1200 пикселей. Загрузите оригинал большего размера.');
-        }
+        $root=dirname($this->directory,2);
+        $body['images']=array_map(function($path)use($site,$root){
+            if(str_starts_with($path,'https://'))return $path;
+            return rtrim($site,'/').'/'.CatalogPhoto::forFlowwow($root,$path);
+        },$p['images']);
         if(mb_strlen($body['description'])>5000)throw new \RuntimeException('Flowwow: описание не должно превышать 5000 символов.');
         if(isset($properties['stock'])&&$properties['stock']!=='')unset($body['productionTime']);
         if(isset($properties['productionTime'])&&$properties['productionTime']!==null)unset($body['stock']);

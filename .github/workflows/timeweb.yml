@@ -46,6 +46,7 @@ jobs:
           php hosting/tests/payments.php
           php hosting/tests/orders.php
           php hosting/tests/telegram.php
+          php hosting/tests/photos.php
           node hosting/tests/payment-result.cjs
           php hosting/tests/catalogue.php
           php hosting/tests/publications.php

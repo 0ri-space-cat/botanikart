@@ -127,16 +127,12 @@ try {
         if (!$dimensions || $dimensions[0]*$dimensions[1] > 30000000 || !in_array($dimensions[2], [IMAGETYPE_JPEG,IMAGETYPE_PNG,IMAGETYPE_WEBP],true)) respond(['error'=>'invalid_image'],400);
         $image = @imagecreatefromstring(file_get_contents($file['tmp_name']));
         if (!$image) respond(['error'=>'invalid_image'],400);
-        $scale = min(1,2000/max($dimensions[0],$dimensions[1]));
-        $output = imagecreatetruecolor(max(1,(int)round($dimensions[0]*$scale)),max(1,(int)round($dimensions[1]*$scale)));
-        imagefill($output,0,0,imagecolorallocate($output,255,255,255));
-        imagecopyresampled($output,$image,0,0,0,0,imagesx($output),imagesy($output),imagesx($image),imagesy($image));
         $directory = dirname(__DIR__) . '/assets/uploads/catalogue';
         if (!is_dir($directory)) mkdir($directory,0755,true);
         $path = 'assets/uploads/catalogue/' . bin2hex(random_bytes(16)) . '.jpg';
-        if (!imagejpeg($output,dirname(__DIR__).'/'.$path,88)) throw new \RuntimeException('Image save failed');
-        unset($image, $output);
-        respond(['path'=>$path]);
+        require_once $private.'/CatalogPhoto.php';
+        $prepared=\BotanikArt\CatalogPhoto::write($image,dirname(__DIR__).'/'.$path);
+        respond(['path'=>$path,'width'=>$prepared['width'],'height'=>$prepared['height'],'padded'=>$prepared['padded']]);
     }
     respond(['error'=>'unknown_action'],404);
 } catch (\UnexpectedValueException) { respond(['error'=>'edit_conflict'],409);
