@@ -143,6 +143,37 @@ final class FlowwowPublisher
             throw new \RuntimeException('Flowwow: '.$this->safeError(is_string($details)?$details:'товар не принят'));
         }
     }
+    /** Check a previously accepted write without repeating create/update/unhide. */
+    public function confirmPublished(array $p,?string $knownRemoteId=null): array
+    {
+        $c=$p['channels']['flowwow'];
+        $offer=(string)($c['offerId']??'') ?: 'ba-'.$p['id'];
+        $remoteId=$knownRemoteId ?: ((string)($c['externalId']??''));
+        $await=function(string $reason)use($offer,&$remoteId):array{
+            return ['state'=>'awaiting_confirmation','offerId'=>$offer,'externalId'=>$remoteId,
+                'message'=>'Flowwow принял отправку, но проверка пока не завершилась: '.$reason.' Повторно создавать товар не нужно — проверим автоматически.'];
+        };
+        try{
+            $check=$this->findProduct($offer,true);
+            if(!$check&&$remoteId!=='')$check=$this->findProduct($remoteId);
+        }catch(\Throwable $e){
+            return $await('контрольный запрос не удался ('.$this->safeError($e->getMessage()).')');
+        }
+        if(!$check)return $await('товар с offerId «'.$offer.'» пока не находится в ответе API');
+        $remoteId=(string)($check['productId']??$remoteId);
+        $expectedName=(string)($c['title']?:$p['title']);
+        if(!array_key_exists('name',$check))return $await('API пока не вернул название товара');
+        if(trim((string)$check['name'])!==trim($expectedName)){
+            return $await('название ещё не совпадает: на Flowwow «'.$this->safeError((string)$check['name']).'», в каталоге «'.$this->safeError($expectedName).'»');
+        }
+        if(!array_key_exists('price',$check))return $await('API пока не вернул цену');
+        $net=round((float)$check['price']*(1-(float)($check['discount']??0)/100),2);
+        $expected=(float)($c['price']??$p['price']);
+        if(abs($net-$expected)>0.009)return $await('цена ещё не совпадает: на Flowwow '.number_format($net,2,'.','').' ₽, в каталоге '.number_format($expected,2,'.','').' ₽');
+        if(!array_key_exists('isActive',$check))return $await('API пока не вернул признак активности товара');
+        if(!$check['isActive'])return $await('товар найден, но пока скрыт или ожидает модерации; проверьте его статус в кабинете Flowwow');
+        return ['state'=>'published','externalId'=>$remoteId,'offerId'=>$offer,'url'=>$check['url']??'','message'=>'Опубликовано'];
+    }
     public function publish(array $p,string $site): array
     {
         $c=$p['channels']['flowwow'];$remoteId=(string)($c['externalId']??'');$offer=(string)($c['offerId']??'') ?: 'ba-'.$p['id'];
@@ -174,10 +205,8 @@ final class FlowwowPublisher
         }
         $result=$this->request($source?'/apiseller/products/update':'/apiseller/products/create',['products'=>[$body]]);$this->ensureSuccess($result);
         $this->ensureSuccess($this->request('/apiseller/products/unhide',['offers'=>[['offerId'=>$offer]]]));
-        $check=$this->findProduct($offer,true);
-        if(!$check || empty($check['isActive'])||$check['name']!==$body['name'])throw new \RuntimeException('Flowwow ещё не подтвердил изменения. Попробуйте позже.');
-        $net=round((float)$check['price']*(1-(float)($check['discount']??0)/100),2);
-        if(abs($net-(float)($c['price']??$p['price']))>0.009)throw new \RuntimeException('Flowwow: цена ещё не подтвердилась.');
-        return ['state'=>'published','externalId'=>(string)$check['productId'],'offerId'=>$offer,'url'=>$check['url']??''];
+        $knownId=$remoteId ?: (string)($result['data'][0]['productId']??$result['items'][0]['productId']??'');
+        $forCheck=$p;$forCheck['channels']['flowwow']['offerId']=$offer;
+        return $this->confirmPublished($forCheck,$knownId);
     }
 }
