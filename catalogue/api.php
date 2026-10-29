@@ -145,7 +145,7 @@ try {
         $c=$store->channels($id)['flowwow']??[];
         $q=$store->db->prepare("SELECT state FROM publication_jobs WHERE product_id=? AND channel='flowwow'");
         $q->execute([$id]);
-        if(empty($c['enabled'])||($c['state']??'')!=='awaiting_confirmation'||$q->fetchColumn()!=='awaiting_confirmation')
+        if(empty($c['enabled'])||!in_array(($c['state']??''),['awaiting_confirmation','moderation'],true)||!in_array($q->fetchColumn(),['awaiting_confirmation','moderation'],true))
             respond(['skipped'=>true]);
         session_write_close();set_time_limit(45);respond($runner->process($id,'flowwow'));
     }
