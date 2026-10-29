@@ -34,8 +34,9 @@ function publicationResults(p,host){
   const match=/«([^»]+)»/.exec(raw);const named=match&&fwLabels[match[1]];
   const readable=named?raw.replace('«'+match[1]+'»','«'+named+'»'):raw;
   const technical=named&&readable!==raw?`<details class="publication-technical"><summary>Исходное сообщение площадки</summary><p>${escape(raw)}</p></details>`:'';
-  const retry=c.state==='error'&&c.enabled&&c.management==='site'?`<button type="button" class="subtle" data-retry-channel="${key}" data-product-id="${escape(p.id)}">Повторить публикацию</button>`:'';
-  return `<div class="publication-result ${failed?'has-error':''}"><strong>${escape(names[key])} — ${escape(status)}</strong><p>${escape(readable)}</p>${technical}<div class="publication-result-actions"><button type="button" class="subtle" data-open-channel="${key}" data-product-id="${escape(p.id)}">Открыть настройки ${escape(names[key])}</button>${retry}</div></div>`;
+  const retry=c.state==='error'&&c.enabled&&c.management==='site'?`<button type="button" class="publication-action" data-retry-channel="${key}" data-product-id="${escape(p.id)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.4 6M20 4v7h-7"/></svg><span data-retry-label>Повторить попытку</span></button>`:'';
+  const edit=`<button type="button" class="publication-action" data-open-channel="${key}" data-product-id="${escape(p.id)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5 4 4M4 20l4.5-.9L19.4 8.2a2.1 2.1 0 0 0-3-3L5.5 16.1 4 20Z"/></svg><span>Редактировать публикацию</span></button>`;
+  return `<div class="publication-result ${failed?'has-error':''}"><strong>${escape(names[key])} — ${escape(status)}</strong><p>${escape(readable)}</p>${technical}<div class="publication-result-actions">${retry}${edit}</div></div>`;
  }).join('');
 }
 let connections={},reminderId='',reminderOpen=false,authenticated=false;
@@ -185,13 +186,13 @@ document.addEventListener('click',async e=>{
  const retry=e.target.closest('[data-retry-channel]');if(!retry)return;
  if($('#editor').open&&dirty){message($('#edit-message'),'Сначала сохраните изменения в карточке, затем повторите публикацию.',true);return}
  const id=retry.dataset.productId,key=retry.dataset.retryChannel;
- retry.disabled=true;retry.textContent='Отправляем…';
+ retry.disabled=true;const retryLabel=retry.querySelector('[data-retry-label]');if(retryLabel)retryLabel.textContent='Проверяем…';
  try{const result=await api('retry-publication',{id,channel:key});await load();const updated=products.find(p=>p.id===id);
   if(updated){if($('#publication-save-result').hidden){$('#publication-save-result').hidden=false;$('#publication-save-result').innerHTML='<strong>Результат повторной отправки</strong><div id="publication-save-channels"></div>';}publicationResults(updated,$('#publication-save-channels'));
    if($('#editor').open&&editing?.id===id){editing=updated;publicationResults(updated,$('#editor-publication-results'));$('#state-'+key).textContent=updated.channels?.[key]?.message||'';}
   }
   if(result.busy)toast('Публикация уже обрабатывается. Обновите статусы позже.');
- }catch(err){if($('#editor').open)message($('#edit-message'),err.message,true);else toast(err.message)}finally{retry.disabled=false;retry.textContent='Повторить публикацию'}
+ }catch(err){if($('#editor').open)message($('#edit-message'),err.message,true);else toast(err.message)}finally{retry.disabled=false;if(retryLabel)retryLabel.textContent='Повторить попытку'}
 });
 
 function flowwowValue(field){return flowwowEditorData?.properties?.[field.field]??channelData(editing||{}).flowwow.properties?.[field.field]}
