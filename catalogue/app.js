@@ -238,7 +238,15 @@ function renderFlowwowProperties(fields,properties){
  container.querySelectorAll('[data-add-consist]').forEach(b=>b.addEventListener('click',()=>{const f=fields.find(f=>f.field===b.dataset.addConsist);container.querySelector(`[data-fw-consist="${f.field}"]`).insertAdjacentHTML('beforeend',consistRow(f,{}));dirty=true;channelTouched.flowwow=true}));
  setChannelControls('flowwow');
 }
-function consistRow(f,row){return `<div class="consist-row"><input data-consist-name placeholder="Название" value="${escape(row.name||'')}"><input data-consist-count type="number" min="0.01" step="any" placeholder="Количество" value="${escape(row.quantity??'')}"><select data-consist-measure aria-label="Единица составляющей"><option value="">Выберите единицу</option>${fwUnitOptions(f).map(m=>`<option value="${escape(m.id)}" ${String(m.id)===String(row.measure)?'selected':''}>${escape(m.label)}</option>`).join('')}</select><button type="button" data-remove-consist aria-label="Убрать составляющую">×</button></div>`}
+function consistRow(f,row){
+ const units=fwUnitOptions(f),single=units.length===1;
+ const saved=units.find(u=>String(u.id)===String(row.measure));
+ const unknown=units.length>1&&units.some(u=>!u.label);
+ const control=single?`<input type="hidden" data-consist-measure value="${escape(units[0].id)}">${units[0].label?`<span class="fw-unit-suffix">${escape(units[0].label)}</span>`:''}`:
+  unknown&&saved?`<input type="hidden" data-consist-measure value="${escape(saved.id)}"><small class="field-hint">Единица сохранена</small>`:
+  `<select data-consist-measure aria-label="Единица составляющей" ${unknown?'disabled':''}><option value="">${unknown?'Flowwow не указал названия':'Выберите единицу'}</option>${unknown?'':units.map(m=>`<option value="${escape(m.id)}" ${String(m.id)===String(row.measure)?'selected':''}>${escape(m.label)}</option>`).join('')}</select>`;
+ return `<div class="consist-row"><input data-consist-name placeholder="Название" value="${escape(row.name||'')}"><input data-consist-count type="number" min="0.01" step="any" placeholder="Количество" value="${escape(row.quantity??'')}">${control}<button type="button" data-remove-consist aria-label="Убрать составляющую">×</button></div>`;
+}
 async function loadFlowwowEditor(category){
  const sequence=++flowwowEditorSequence,id=editing?.id||'';const box=$('#flowwow-fields');box.innerHTML='<p class="field-hint">Загружаем настройки Flowwow…</p>';
  try{
