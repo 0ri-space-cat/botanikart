@@ -46,3 +46,14 @@
 
 /* Marketplace result visibility and optional fields */
 .marketplace-extra{margin:14px 0;border:1px solid var(--line);border-radius:14px;background:#fff;padding:12px}.marketplace-extra summary{cursor:pointer;font-weight:600;font-size:13px}.marketplace-extra[open] summary{margin-bottom:12px}.publication-save-result,.editor-publication-results{margin:14px 0;padding:15px;border:1px solid var(--line);border-radius:16px;background:#fff}.publication-result{padding:10px 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}.publication-result:last-child{border-bottom:0}.publication-result strong{display:block;font-size:13px}.publication-result p{font-size:12px;line-height:1.5;margin:5px 0}.publication-result.has-error{border-left:4px solid #b54b35;padding-left:12px}.product-publication-error{display:block;background:#fff1eb;color:#8b3426;padding:6px 8px;margin:8px 0;border-radius:8px;font-size:11px;line-height:1.4;overflow-wrap:anywhere}
+
+.publication-result-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:9px}
+.publication-result-actions .subtle{min-height:36px;text-align:left;white-space:normal}
+.publication-technical{margin:9px 0;font-size:12px;overflow-wrap:anywhere}
+.publication-technical summary{cursor:pointer;color:var(--muted)}
+.publication-technical p{word-break:break-word}
+.publication-save-result{margin:18px 0;border-width:2px;scroll-margin-top:20px}
+.editor-publication-results{scroll-margin-top:16px}
+.marketplace-extra>summary{padding:3px 0}
+.marketplace-extra .field-hint{margin-top:3px}
+@media(max-width:520px){.publication-result-actions{flex-direction:column;align-items:stretch}.publication-result-actions .subtle{width:100%;text-align:center}.publication-save-result,.editor-publication-results{padding:12px}}
