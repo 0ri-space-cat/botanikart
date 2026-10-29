@@ -18,7 +18,9 @@ const fwUnitOptions=f=>(Array.isArray(f.measure)?f.measure:[]).map(m=>{
  if(id===undefined||id===null||id==='')return null;
  const candidates=m&&typeof m==='object'?[m.name,m.label,m.title,m.value,m.displayName,m.fullName,m.shortName,m.unitName,m.measureName,m.measure?.name,m.unit?.name,m.unit,m.symbol,m.code,m.abbreviation]:[];
  const raw=candidates.find(x=>typeof x==='string'&&x.trim()&&!/^\\d+$/.test(x.trim())&&!/^единица(?: измерения)?$/i.test(x.trim()));
- const fallback={'productionTime':'единица времени','height':'единица длины','width':'единица длины','volume':'единица объёма','approximateWeight':'единица веса','postWeight':'единица веса','postHeight':'единица длины','postWidth':'единица длины','postLength':'единица длины'}[f.field]||'единица измерения';
+ const singleUnit=Array.isArray(f.measure)&&f.measure.length===1;
+ const familiar=singleUnit?({'height':'см','width':'см','postHeight':'см','postWidth':'см','postLength':'см','approximateWeight':'г','postWeight':'г'}[f.field]):null;
+ const fallback=familiar||({'productionTime':'единица времени','height':'единица длины','width':'единица длины','volume':'единица объёма','approximateWeight':'единица веса','postWeight':'единица веса','postHeight':'единица длины','postWidth':'единица длины','postLength':'единица длины'}[f.field]||'единица измерения');
  return {id,label:raw?raw.trim():fallback,unlabelled:!raw};
 }).filter(Boolean);
 function fwDefaultUnit(f,v){if(v&&v.measure!==undefined&&v.measure!==null)return String(v.measure);if(editing)return '';const opts=fwUnitOptions(f);if(opts.length===1)return String(opts[0].id);const pattern=f.field==='productionTime'?/(час|\bч\b|hour|\bhr\b)/i:['height','width','postWidth','postHeight','postLength'].includes(f.field)?/(сантиметр|см\b|centimeter|cm\b)/i:null;if(!pattern)return '';return String(opts.find(o=>pattern.test(o.label))?.id??'')}
