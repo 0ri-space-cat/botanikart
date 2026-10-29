@@ -42,13 +42,16 @@ final class PublicationRunner
             $this->store->db->exec('COMMIT');return true;
         }catch(\Throwable $e){try{$this->store->db->exec('ROLLBACK');}catch(\Throwable){}throw $e;}
     }
-    public function process(?string $onlyId=null): array
+    public function process(?string $onlyId=null,?string $onlyChannel=null): array
     {
         $lock=fopen($this->directory.'/catalogue/publications.lock','c');
         if(!$lock||!flock($lock,LOCK_EX|LOCK_NB)){if($lock)fclose($lock);return ['busy'=>true];}
         $results=[];
         try {
-            $q=$this->store->db->prepare("SELECT * FROM publication_jobs WHERE state IN ('queued','retry','awaiting_report')".($onlyId!==null?' AND product_id=?':'').' ORDER BY updated_at LIMIT 20');$q->execute($onlyId!==null?[$onlyId]:[]);$jobs=$q->fetchAll(\PDO::FETCH_ASSOC);
+            $query="SELECT * FROM publication_jobs WHERE state IN ('queued','retry','awaiting_report')";$args=[];
+            if($onlyId!==null){$query.=' AND product_id=?';$args[]=$onlyId;}
+            if($onlyChannel!==null){$query.=' AND channel=?';$args[]=$onlyChannel;}
+            $q=$this->store->db->prepare($query.' ORDER BY updated_at LIMIT 20');$q->execute($args);$jobs=$q->fetchAll(\PDO::FETCH_ASSOC);
             foreach($jobs as $job){
                 $products=$this->store->all(true);$found=array_values(array_filter($products,fn($p)=>$p['id']===$job['product_id']));if(!$found)continue;$p=$found[0];$channel=$job['channel'];$changes=[];
                 try {
