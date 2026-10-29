@@ -146,7 +146,7 @@ function renderAvitoFields(c={}){
  // applicable field. Keep empty fields visible and fold only values already provided.
  const controlling=new Set(['AdType','GoodsType','Category',...fields.flatMap(f=>(f.conditions||[]).map(c=>c.source_field_tag))]);
  const hasValue=f=>Array.isArray(attrs[f.tag])?attrs[f.tag].length>0:String(attrs[f.tag]??'').trim()!=='';
- const additional=fields.filter(f=>hasValue(f)&&!controlling.has(f.tag));
+ const additional=fields.filter(f=>f.required===false||hasValue(f)&&!controlling.has(f.tag));
  const primary=fields.filter(f=>!additional.includes(f));
  $('#avito-attributes').innerHTML=primary.map(draw).join('')+(additional.length?`<details class="marketplace-extra"><summary>Уже заполненные характеристики Авито (${additional.length})</summary><p class="field-hint">Значения сохранены и будут отправлены вместе с товаром.</p>${additional.map(draw).join('')}</details>`:'');
  };
