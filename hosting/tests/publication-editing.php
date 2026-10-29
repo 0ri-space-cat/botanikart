@@ -28,7 +28,7 @@ try{
  $identitySchema=array_merge($schema,[['field'=>'offerId','name'=>'ID товара в информационной системе продавца','type'=>'text','required'=>true]]);
  $identity=$fw->payload($edit,$raw,$identitySchema,'https://botanikart.ru','existing-offer');
  verify($identity['offerId']==='existing-offer','Existing Flowwow offerId failed required validation');
- $newOffer=$edit;$newOffer['id']='local-unique-123';$newOffer['channels']['flowwow']['externalId']='';$newOffer['channels']['flowwow']['offerId']='';
+ $newOffer=$edit;$newOffer['id']='local-unique-123';$newOffer['channels']['flowwow']['externalId']='';$newOffer['channels']['flowwow']['offerId']='';$newOffer['channels']['flowwow']['category']='9';
  $newOffer['channels']['flowwow']['properties']=['stock'=>1,'height'=>['val'=>8,'measure'=>2]];
  $newOfferBody=$fw->payload($newOffer,null,$identitySchema,'https://botanikart.ru');
  verify($newOfferBody['offerId']==='ba-local-unique-123','New Flowwow offerId is not deterministic');
