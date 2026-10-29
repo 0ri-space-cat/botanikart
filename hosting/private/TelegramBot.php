@@ -40,6 +40,7 @@ final class TelegramBot {
         $info=$this->request('getWebhookInfo');if(($info['url']??'')!==$url)throw new \RuntimeException('Webhook not confirmed');
         $this->put('webhook_ready',$fingerprint);
     }
+    public function workerHeartbeat(): void {$this->put('worker_last_run',(string)time());}
     public function owner(): ?string {return $this->setting('owner');}
     private function put(string $name,string $value): void {$q=$this->db->prepare('INSERT INTO settings(name,value) VALUES(?,?) ON CONFLICT(name) DO UPDATE SET value=excluded.value');$q->execute([$name,$value]);}
     public function pairingLink(): string {$code=bin2hex(random_bytes(20));$this->put('pair_hash',hash('sha256',$code));$this->put('pair_expires',(string)(time()+172800));return 'https://t.me/'.$this->config['username'].'?start=owner_'.$code;}
@@ -47,10 +48,29 @@ final class TelegramBot {
     private function say(string $key,string $chat,string $text,array $rows=[]): void {$p=['chat_id'=>$chat,'text'=>$text,'parse_mode'=>'HTML','link_preview_options'=>['is_disabled'=>true]];if($rows)$p['reply_markup']=['inline_keyboard'=>$rows];$this->queue($key,'sendMessage',$p);}
     private function esc(string $s): string {return htmlspecialchars($s,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8');}
     private function price($n): string {return number_format((float)$n,0,',',' ').' ₽';}
-    private function button(string $label,string $action,bool $url=false): array {return ['text'=>$label,$url?'url':'callback_data'=>$action];}
-    private function contact(): array {return $this->button('Связаться со студией','https://t.me/Ekaterina_Freed',true);}
+    private function button(string $label,string $action,bool $url=false,string $style=''): array {$b=['text'=>$label,$url?'url':'callback_data'=>$action];if($style)$b['style']=$style;return $b;}
+    private function contact(): array {return $this->button('💬 Написать нам','https://t.me/Ekaterina_Freed',true,'primary');}
     private function catalog(): array {$s=new CatalogStore($this->private.'/catalogue',dirname($this->private,2).'/data/catalog.json');return $s->publicCatalog()['products'];}
-    private function menu(): array {return [[$this->button('Флорариумы','c:florarium:0')],[$this->button('Растения','c:plants:0'),$this->button('Материалы','c:material:0')],[$this->button('Каталог на сайте',$this->config['site_url'].'/catalog.html',true),$this->contact()]];}
+    private function menu(): array {return [[$this->button('🌿 Флорариумы','c:florarium:0',false,'success')],[$this->button('🪴 Растения','c:plants:0',false,'success'),$this->button('🪵 Материалы','c:material:0',false,'primary')],[$this->button('🌐 Наш сайт',$this->config['site_url'],true),$this->contact()]];}
+    private function imageUrl(string $image): string {return str_starts_with($image,'https://')?$image:$this->config['site_url'].'/'.ltrim($image,'/');}
+    private function photo(string $key,string $chat,string $image,string $caption,array $rows=[]): void {
+        if(!$image){$this->say($key,$chat,$caption,$rows);return;}
+        $body=['chat_id'=>$chat,'photo'=>$this->imageUrl($image),'caption'=>$caption,'parse_mode'=>'HTML'];if($rows)$body['reply_markup']=['inline_keyboard'=>$rows];$this->queue($key,'sendPhoto',$body);
+    }
+    private function welcome(string $key,string $chat): void {
+        $image='';$file=dirname($this->private,2).'/index.html';
+        if(is_file($file)){$doc=new \DOMDocument();$old=libxml_use_internal_errors(true);$doc->loadHTML('<?xml encoding="UTF-8">'.file_get_contents($file),LIBXML_NONET);libxml_clear_errors();libxml_use_internal_errors($old);$nodes=(new \DOMXPath($doc))->query('//*[contains(concat(" ",normalize-space(@class)," ")," hero-photo ")]//img');if($nodes->length)$image=$nodes->item(0)->getAttribute('src');}
+        $this->photo($key,$chat,$image,$this->intro(),$this->menu());
+    }
+    public static function excerpt(string $text,int $budget=650): string {
+        $text=trim(strip_tags(str_replace(['\\r\\n','\\n',"\r"],["\n","\n",''],$text)));
+        $text=preg_replace('/(?<=[.!?])\h+(?=[🦕🌿🎁🌱🎨])/u',"\n\n",$text);
+        $parts=preg_split('/\n\s*\n/u',$text,-1,PREG_SPLIT_NO_EMPTY);$result='';
+        foreach(array_slice($parts,0,2) as $part){$candidate=$result===''?trim($part):$result."\n\n".trim($part);if(mb_strlen($candidate)<=$budget){$result=$candidate;continue;}
+            // Keep complete sentences; never manufacture a mid-word ellipsis.
+            foreach(preg_split('/(?<=[.!?])\s+/u',trim($part),-1,PREG_SPLIT_NO_EMPTY) as $sentence){$candidate=$result===''?$sentence:$result.' '.$sentence;if(mb_strlen($candidate)>$budget)break;$result=$candidate;}break;
+        }return $result;
+    }
     private function intro(): string {
         $file=dirname($this->private,2).'/index.html';$text='Создаём флорариумы, выращиваем растения и проводим мастер-классы.';
         if(is_file($file)){$doc=new \DOMDocument();$old=libxml_use_internal_errors(true);$doc->loadHTML('<?xml encoding="UTF-8">'.file_get_contents($file),LIBXML_NONET);libxml_clear_errors();libxml_use_internal_errors($old);$nodes=(new \DOMXPath($doc))->query('//p[contains(concat(" ",normalize-space(@class)," ")," hero-description ")]');if($nodes->length)$text=trim($nodes->item(0)->textContent);}
@@ -64,24 +84,33 @@ final class TelegramBot {
         if(!preg_match('/^[1-9][0-9]{0,18}$/D',$id)||($data['product']??'')!==$product||($data['expires']??0)<time())throw new \InvalidArgumentException('Expired bot checkout');return $id;
     }
     private function browse(string $key,string $chat,string $group,int $page): void {
-        $groups=['florarium'=>['florarium','composition'],'plants'=>['potted','plant'],'potted'=>['potted'],'plant'=>['plant'],'material'=>['material']];$names=['florarium'=>'Флорариумы','plants'=>'Растения','potted'=>'Комнатные растения','plant'=>'Растения для флорариума','material'=>'Материалы'];
-        if(!isset($groups[$group])){$this->say($key,$chat,$this->intro(),$this->menu());return;}
+        $groups=['florarium'=>['florarium','composition'],'plants'=>['potted','plant'],'potted'=>['potted'],'plant'=>['plant'],'material'=>['material']];$names=['florarium'=>'🌿 Флорариумы','plants'=>'🪴 Растения','potted'=>'🪴 Комнатные растения','plant'=>'🌱 Растения для флорариума','material'=>'🪵 Материалы'];
+        if(!isset($groups[$group])){$this->welcome($key,$chat);return;}
         $items=array_values(array_filter($this->catalog(),fn($p)=>in_array($p['catalogGroup']??$p['category']??'', $groups[$group],true)));usort($items,fn($a,$b)=>((int)!$a['available'])<=>((int)!$b['available'])?:strnatcasecmp($a['title'],$b['title']));
-        $page=max(0,min($page,max(0,(int)ceil(count($items)/5)-1)));$rows=[];
-        if(in_array($group,['plants','potted','plant'],true))$rows[] = [$this->button('Комнатные','c:potted:0'),$this->button('Для флорариума','c:plant:0')];
-        foreach(array_slice($items,$page*5,5) as $p)$rows[]=[$this->button(mb_strimwidth($p['title'],0,38,'…').' · '.$this->price($p['price']),'p:'.substr(hash('sha256',$p['id']),0,20))];
-        $nav=[];if($page>0)$nav[]=$this->button('Назад','c:'.$group.':'.($page-1));if(($page+1)*5<count($items))$nav[]=$this->button('Дальше','c:'.$group.':'.($page+1));if($nav)$rows[]=$nav;
-        $rows[]=[$this->button('Все разделы','menu'),$this->contact()];
-        $this->say($key,$chat,'<b>'.$names[$group].'</b>'."\n".(count($items)?'Выберите товар · страница '.($page+1).' из '.max(1,(int)ceil(count($items)/5)):'Пока нет доступных товаров.'),$rows);
+        $page=max(0,min($page,max(0,(int)ceil(count($items)/5)-1)));$rows=[];$text='<b>'.$names[$group].'</b>'."\n".($page+1).' / '.max(1,(int)ceil(count($items)/5));$media=[];
+        if(in_array($group,['plants','potted','plant'],true))$rows[] = [$this->button('🪴 Комнатные','c:potted:0',false,'success'),$this->button('🌱 Для флорариума','c:plant:0',false,'success')];
+        foreach(array_slice($items,$page*5,5) as $i=>$p){
+            $number=$page*5+$i+1;$summary=self::excerpt($p['description']??'',160);
+            $caption='<b>'.$number.'. '.$this->esc($p['title']).'</b>'."\n".$this->price($p['price']).($p['available']?'':' · Под заказ');
+            if($summary)$caption.="\n".$this->esc($summary);
+            $text.="\n\n".$caption;
+            if(!empty($p['images'][0]))$media[]=['type'=>'photo','media'=>$this->imageUrl($p['images'][0]),'caption'=>$caption,'parse_mode'=>'HTML'];
+            $rows[]=[$this->button($number.'. '.mb_strimwidth($p['title'],0,48,'').' · '.$this->price($p['price']),'p:'.substr(hash('sha256',$p['id']),0,20).':'.$group.':'.$page,false,'primary')];
+        }
+        if(count($media)>1)$this->queue($key.':00-album','sendMediaGroup',['chat_id'=>$chat,'media'=>$media]);
+        elseif($media)$this->photo($key.':00-album',$chat,$media[0]['media'],$media[0]['caption']);
+        if(!$items)$text.="\n\nПока нет доступных товаров.";
+        $nav=[$this->button('☰ Меню','menu')];if(($page+1)*5<count($items))$nav[]=$this->button('Дальше →','c:'.$group.':'.($page+1),false,'success');$rows[]=$nav;
+        $this->say($key.':99-list',$chat,$text,$rows);
     }
-    private function product(string $key,string $chat,string $hash): void {
+    private function product(string $key,string $chat,string $hash,string $group='plants',int $page=0): void {
         $found=null;foreach($this->catalog() as $p)if(substr(hash('sha256',$p['id']),0,20)===$hash){$found=$p;break;}
         if(!$found){$this->say($key,$chat,'Этот товар больше не отображается в каталоге. Выберите другой.',$this->menu());return;}$p=$found;
-        $caption='<b>'.$this->esc($p['title']).'</b>'."\n".$this->price($p['price']).' · '.($p['available']?'В наличии':'Под заказ')."\n\n".$this->esc(mb_strimwidth(trim(strip_tags($p['description']??'')),0,600,'…'));
+        $caption='<b>'.$this->esc($p['title']).'</b>'."\n".$this->price($p['price']).' · '.($p['available']?'В наличии':'Под заказ')."\n\n".$this->esc(self::excerpt($p['description']??''));
         $url=$this->config['site_url'].'/catalog.html?product='.rawurlencode($p['id']);$rows=[];
-        if($p['available']&&($p['purchaseMode']??'direct')!=='inquiry')$rows[]=[$this->button('Купить',$url.'&checkout=1&tg='.rawurlencode($this->checkoutContext($chat,$p['id'])),true)];
-        else $rows[]=[$this->button('Согласовать заказ','https://t.me/Ekaterina_Freed?text='.rawurlencode('Здравствуйте! Интересует '.$p['title'].'. Хочу согласовать заказ.'),true)];
-        $rows[]=[$this->button('Подробнее',$url,true),$this->contact()];$rows[]=[$this->button('Вернуться в каталог','menu')];
+        if($p['available']&&($p['purchaseMode']??'direct')!=='inquiry')$rows[]=[$this->button('🛍 Купить',$url.'&checkout=1&tg='.rawurlencode($this->checkoutContext($chat,$p['id'])),true,'success')];
+        else $rows[]=[$this->button('💬 Согласовать заказ','https://t.me/Ekaterina_Freed?text='.rawurlencode('Здравствуйте! Интересует '.$p['title'].'. Хочу согласовать заказ.'),true,'success')];
+        $rows[]=[$this->button('Подробнее',$url,true,'primary')];$rows[]=[$this->button('← Назад','c:'.$group.':'.$page),$this->button('☰ Меню','menu')];$rows[]=[$this->contact()];
         $image=$p['images'][0]??'';if($image!==''){$image=str_starts_with($image,'https://')?$image:$this->config['site_url'].'/'.ltrim($image,'/');$this->queue($key,'sendPhoto',['chat_id'=>$chat,'photo'=>$image,'caption'=>$caption,'parse_mode'=>'HTML','reply_markup'=>['inline_keyboard'=>$rows]]);}else $this->say($key,$chat,$caption,$rows);
     }
     public function accept(array $u): void {
@@ -105,8 +134,8 @@ final class TelegramBot {
             }elseif(preg_match('/^done:(ba-[a-f0-9]{24})$/D',$action,$m)){
                 if($this->owner()===$chat){require_once __DIR__.'/PaymentService.php';(new MerchantOrders(require $this->private.'/config.php'))->complete($m[1],true);$this->say($key,$chat,'Заказ отмечен выполненным.');}else $this->say($key,$chat,'Эта кнопка доступна только студии.');
             }elseif(preg_match('/^c:([a-z]+):(\d{1,4})$/D',$action,$m))$this->browse($key,$chat,$m[1],(int)$m[2]);
-            elseif(preg_match('/^p:([a-f0-9]{20})$/D',$action,$m))$this->product($key,$chat,$m[1]);
-            else $this->say($key,$chat,$this->intro(),$this->menu());
+            elseif(preg_match('/^p:([a-f0-9]{20})(?::(florarium|plants|potted|plant|material):(\d{1,4}))?$/D',$action,$m))$this->product($key,$chat,$m[1],$m[2]??'plants',(int)($m[3]??0));
+            else $this->welcome($key,$chat);
             $this->db->exec('COMMIT');
         }catch(\Throwable $e){try{$this->db->exec('ROLLBACK');}catch(\Throwable){}throw $e;}
     }
@@ -127,6 +156,7 @@ final class TelegramBot {
             try{$this->request($job['method'],$payload);$q=$this->db->prepare('UPDATE outbox SET sent=?,lease=0 WHERE id=?');$q->execute([time(),$job['id']]);$done++;}
             catch(TelegramFailure $e){
                 if($job['method']==='sendPhoto'&&$e->apiCode===400){$payload['text']=$payload['caption'];unset($payload['photo'],$payload['caption']);$q=$this->db->prepare("UPDATE outbox SET method='sendMessage',payload=?,lease=0,next_try=0 WHERE id=?");$q->execute([json_encode($payload,JSON_UNESCAPED_UNICODE),$job['id']]);}
+                elseif($job['method']==='sendMediaGroup'&&$e->apiCode===400){$q=$this->db->prepare('UPDATE outbox SET sent=-1,lease=0,error=400 WHERE id=?');$q->execute([$job['id']]);}
                 else{$terminal=$e->apiCode===403||($job['method']==='answerCallbackQuery'&&$e->apiCode===400);$q=$this->db->prepare('UPDATE outbox SET sent=?,lease=0,next_try=?,attempts=attempts+1,error=? WHERE id=?');$q->execute([$terminal?-1:0,time()+$e->retryAfter,$e->apiCode,$job['id']]);}
             }catch(\Throwable){$q=$this->db->prepare('UPDATE outbox SET lease=0,next_try=?,attempts=attempts+1 WHERE id=?');$q->execute([time()+60,$job['id']]);}
         }return $done;

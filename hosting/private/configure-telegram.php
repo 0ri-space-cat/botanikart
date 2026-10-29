@@ -16,12 +16,9 @@ try{
  if(!empty($old['username'])&&$old['username']!==$cfg['username'])throw new RuntimeException('Введён токен другого бота. Для замены нужен отдельный перенос настроек.');
  $tmp=$file.'.tmp';file_put_contents($tmp,"<?php\nreturn ".var_export($cfg,true).";\n");chmod($tmp,0600);rename($tmp,$file);
  $bot=new \BotanikArt\TelegramBot($cfg,__DIR__);
- $line='* * * * * /opt/php83/bin/php '.escapeshellarg(__DIR__.'/telegram-worker.php').' >/dev/null 2>&1 # botanikart-telegram';
- $current=(string)shell_exec('crontab -l 2>/dev/null');$lines=array_values(array_filter(explode("\n",$current),fn($s)=>trim($s)!==''&&!str_contains($s,'# botanikart-telegram')));$lines[]=$line;
- $cron=tempnam(sys_get_temp_dir(),'ba-cron-');file_put_contents($cron,implode("\n",$lines)."\n");exec('crontab '.escapeshellarg($cron),$ignored,$status);unlink($cron);
  $bot->ensureWebhook();
  if(!$bot->request('getMyCommands'))$bot->request('setMyCommands',['commands'=>[['command'=>'start','description'=>'Знакомство со студией'],['command'=>'catalog','description'=>'Каталог растений, флорариумов и материалов'],['command'=>'orders','description'=>'Заказы студии (для владелицы)']]]);
  echo "Бот подключён: https://t.me/".$cfg['username']."\n";
- if($status!==0)echo "Повторные отправки по расписанию не установились — сообщите об этом в чат.\n";else echo "Проверка очереди сообщений: каждую минуту.\n";
+ echo "Фоновая проверка сообщений настраивается в панели Timeweb → Crontab (каждую минуту).\n";
  echo "Отправьте сестре эту одноразовую ссылку. Она должна открыть её со своего аккаунта @".$cfg['owner_username']." и нажать Начать:\n".$bot->pairingLink()."\n";
 }catch(Throwable $e){fwrite(STDERR,'Подключение не завершено: '.$e->getMessage()."\n");exit(1);}

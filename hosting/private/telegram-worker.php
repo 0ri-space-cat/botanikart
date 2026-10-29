@@ -6,7 +6,7 @@ require_once __DIR__.'/TelegramBot.php';require_once __DIR__.'/PaymentService.ph
 $lock=fopen(__DIR__.'/telegram-worker.lock','c');if(!$lock||!flock($lock,LOCK_EX|LOCK_NB))exit;
 try{
  if(is_file(__DIR__.'/config.php'))(new \BotanikArt\MerchantOrders(require __DIR__.'/config.php'))->queueTelegram();
- $bot=\BotanikArt\TelegramBot::installed(__DIR__);
+ $bot=\BotanikArt\TelegramBot::installed(__DIR__);$bot->workerHeartbeat();
  try{$bot->ensureWebhook();}catch(Throwable){error_log('BotanikArt: Telegram connection will retry');}
  $sent=$bot->drain(5);
  $q=$bot->db->prepare('DELETE FROM updates WHERE created<?');$q->execute([time()-604800]);
