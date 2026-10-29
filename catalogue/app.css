@@ -365,3 +365,17 @@
 .publication-technical p{font-size:11px;line-height:1.5;color:#90483d}
 #editor-publication-results .publication-result{margin-bottom:7px}
 @media(max-width:520px){#publication-save-result{padding:11px 12px}.publication-result{padding:9px 10px}.publication-result strong{font-size:11.5px}}
+
+/* Verified marketplace lifecycle: sending, accepted for moderation, published. */
+.publication-status-sending{background:#f4f6f9!important;border-color:#dce3ea!important;color:#536879!important}
+.publication-status-sending strong{color:#536879}
+.publication-status-sending .publication-status-icon{background:#e4ebf2;color:#52728c}
+.publication-status-moderation{background:#edf5ff!important;border-color:#c9def8!important;color:#3375b4!important}
+.publication-status-moderation strong{color:#3375b4}
+.publication-status-moderation .publication-status-icon{background:#d7e9ff;color:#2376c8}
+.publication-status-published{background:#ebf8ef!important;border-color:#c9e8d2!important;color:#287746!important}
+.publication-status-published strong{color:#287746}
+.publication-status-published .publication-status-icon{background:#ccecd6;color:#26713e;font-size:10px;letter-spacing:-3px;padding-right:3px}
+.publication-spinner{display:block;width:13px;height:13px;border:2px solid #a3b7c6;border-right-color:transparent;border-radius:50%;animation:publication-spin .75s linear infinite}
+@keyframes publication-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.publication-spinner{animation:none;border-right-color:#a3b7c6;border-style:dotted}}
