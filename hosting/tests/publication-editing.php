@@ -57,7 +57,8 @@ try{
  verify($inactive['state']==='awaiting_confirmation'&&str_contains($inactive['message'],'модерации'),'Hidden item not explained');
  $checkedProduct['isActive']=true;
  verify($poller->confirmPublished($edit,'123')['state']==='published','Confirmed published readback not recognized');
- verify(count($pollCalls)===4&&count(array_filter($pollCalls,fn($path)=>!str_starts_with($path,'/apiseller/products?')))===0,'Readback polling issued a write');
+ verify($poller->confirmPublished($edit,'123')['offerId']==='existing-offer','Remote offerId was replaced during fallback lookup');
+ verify(count($pollCalls)>=4&&count(array_filter($pollCalls,fn($path)=>!str_starts_with($path,'/apiseller/products?')))===0,'Readback polling issued a write');
  $emptyTransport=fn($method,$path,$payload)=>['items'=>[]];
  $notFound=(new FlowwowPublisher(['token'=>'fixture','shop_id'=>1],$root.'/api/.private',$emptyTransport))->confirmPublished($edit,'123');
  verify($notFound['state']==='awaiting_confirmation'&&str_contains($notFound['message'],'offerId'),'Missing Flowwow readback reason not reported');
