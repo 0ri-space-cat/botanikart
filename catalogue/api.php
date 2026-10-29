@@ -138,6 +138,17 @@ try {
         try { respond($runner->flowwow()->editor($p,$category)); } catch (\RuntimeException $e) {respond(['error'=>'marketplace_error','message'=>$e->getMessage()],422);}
     }
     if ($action==='sync-product' && $method==='POST') {session_write_close();set_time_limit(90);respond($runner->process((string)($input['id']??'')));}
+    // Safe foreground continuation: only read back a Flowwow write already accepted.
+    if ($action==='confirm-flowwow' && $method==='POST') {
+        $id=$input['id']??null;
+        if(!is_string($id)||$id===''||strlen($id)>100)respond(['error'=>'invalid_request'],400);
+        $c=$store->channels($id)['flowwow']??[];
+        $q=$store->db->prepare("SELECT state FROM publication_jobs WHERE product_id=? AND channel='flowwow'");
+        $q->execute([$id]);
+        if(empty($c['enabled'])||($c['state']??'')!=='awaiting_confirmation'||$q->fetchColumn()!=='awaiting_confirmation')
+            respond(['skipped'=>true]);
+        session_write_close();set_time_limit(45);respond($runner->process($id,'flowwow'));
+    }
     if ($action==='retry-publication' && $method==='POST') {
         $id=$input['id']??null;$channel=$input['channel']??null;
         if(!is_string($id)||strlen($id)>100||!is_string($channel)||!in_array($channel,['avito','flowwow'],true))respond(['error'=>'invalid_request'],400);
