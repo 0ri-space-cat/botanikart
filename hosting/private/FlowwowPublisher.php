@@ -149,7 +149,7 @@ final class FlowwowPublisher
         $c=$p['channels']['flowwow'];
         $offer=(string)($c['offerId']??'') ?: 'ba-'.$p['id'];
         $remoteId=$knownRemoteId ?: ((string)($c['externalId']??''));
-        $await=function(string $reason)use($offer,&$remoteId):array{
+        $await=function(string $reason)use(&$offer,&$remoteId):array{
             return ['state'=>'awaiting_confirmation','offerId'=>$offer,'externalId'=>$remoteId,
                 'message'=>'Flowwow принял отправку, но проверка пока не завершилась: '.$reason.' Повторно создавать товар не нужно — проверим автоматически.'];
         };
@@ -160,6 +160,7 @@ final class FlowwowPublisher
             return $await('контрольный запрос не удался ('.$this->safeError($e->getMessage()).')');
         }
         if(!$check)return $await('товар с offerId «'.$offer.'» пока не находится в ответе API');
+        if(!empty($check['offerId']))$offer=(string)$check['offerId'];
         $remoteId=(string)($check['productId']??$remoteId);
         $expectedName=(string)($c['title']?:$p['title']);
         if(!array_key_exists('name',$check))return $await('API пока не вернул название товара');
