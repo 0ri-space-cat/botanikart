@@ -15,7 +15,20 @@ const fwLabels={minOrderCount:'Минимальное количество дл�
 const fwLabel=f=>fwLabels[f.field]||(/[а-яё]/i.test(f.name||'')?f.name:'Параметр Flowwow: '+String(f.name||f.field).replace(/([a-z])([A-Z])/g,'$1 $2'));
 const fwUnitOptions=f=>(Array.isArray(f.measure)?f.measure:[]).filter(m=>m&&typeof m==='object'&&m.id!==undefined&&m.id!==null).map(m=>({id:m.id,label:String(m.name||m.label||m.title||m.unitName||m.unit||'Единица (ID '+m.id+')')}));
 function fwDefaultUnit(f,v){if(v&&v.measure!==undefined&&v.measure!==null)return String(v.measure);if(editing)return '';const opts=fwUnitOptions(f);if(opts.length===1)return String(opts[0].id);const pattern=f.field==='productionTime'?/(^|\s)(час|ч\.|hour|hr)(\b|\s|$)/i:['height','width','postWidth','postHeight','postLength'].includes(f.field)?/(сантиметр|см\b|centimeter|cm\b)/i:null;if(!pattern)return '';return String(opts.find(o=>pattern.test(o.label))?.id??'')}
-function publicationResults(p,host){const rows=['avito','flowwow'].map(key=>({key,c:channelData(p)[key]||{}})).filter(x=>x.c.enabled||x.c.error);host.hidden=!rows.length;host.innerHTML=rows.map(({key,c})=>`<div class="publication-result ${c.error?'has-error':''}"><strong>${escape(names[key])} — ${c.error?'ошибка публикации':c.state==='published'?'опубликовано':c.state==='awaiting_report'?'ожидаем отчёт':c.state==='queued'?'ожидает отправки':'ожидает подтверждения'}</strong><p>${escape(c.error||c.message||'')}</p></div>`).join('')}
+function publicationResults(p,host){
+ const rows=['avito','flowwow'].map(key=>({key,c:channelData(p)[key]||{}})).filter(({c})=>c.enabled||c.error);
+ host.hidden=!rows.length;
+ host.innerHTML=rows.map(({key,c})=>{
+  const failed=Boolean(c.error)||c.state==='error';
+  const status=failed?'Ошибка публикации':c.state==='published'?'Опубликовано':c.state==='hidden'?'Скрыто':c.state==='awaiting_report'?'Ожидаем отчёт Авито':c.state==='queued'?'В очереди':c.state==='manual_removal'?'Требуется снять вручную':c.management==='external'?'Управляется площадкой':'Ожидает подтверждения';
+  const raw=String(c.error||c.message||'');
+  const match=/«([^»]+)»/.exec(raw);const named=match&&fwLabels[match[1]];
+  const readable=named?raw.replace('«'+match[1]+'»','«'+named+'»'):raw;
+  const technical=named&&readable!==raw?`<details class="publication-technical"><summary>Исходное сообщение площадки</summary><p>${escape(raw)}</p></details>`:'';
+  const retry=failed&&c.enabled&&c.management==='site'?`<button type="button" class="subtle" data-retry-channel="${key}" data-product-id="${escape(p.id)}">Повторить публикацию</button>`:'';
+  return `<div class="publication-result ${failed?'has-error':''}"><strong>${escape(names[key])} — ${escape(status)}</strong><p>${escape(readable)}</p>${technical}<div class="publication-result-actions"><button type="button" class="subtle" data-open-channel="${key}" data-product-id="${escape(p.id)}">Открыть настройки ${escape(names[key])}</button>${retry}</div></div>`;
+ }).join('');
+}
 let connections={},reminderId='',reminderOpen=false,authenticated=false;
 let csrf='',products=[],source='all',editing=null,images=[],dirty=false,uploading=false;
 const errors={active_payment_exists:'По этому товару уже оформляется другая покупка.',sale_confirmation_required:'Сначала подтвердите продажу.',invalid_channels:'Проверьте настройки площадок и цены.',external_channel:'Существующее объявление пока управляется на своей площадке.',invalid_date:'Укажите корректную дату продления.',duplicate_source:'Товар с этой ссылкой Авито уже есть в каталоге. Найдите и отредактируйте его.',setup_required:'Вход ещё не настроен.',invalid_credentials:'Проверьте логин и пароль.',too_many_attempts:'Слишком много попыток. Попробуйте через 15 минут.',service_unavailable:'Не удалось связаться с каталогом. Попробуйте ещё раз.',invalid_product:'Проверьте название, цену и фотографии.',edit_conflict:'Товар уже изменился. Закройте карточку, обновите список и откройте её снова.',upload_failed:'Не удалось загрузить фото. Выберите JPEG, PNG или WebP.',invalid_image:'Этот формат фотографии не поддерживается. Сохраните её как JPEG или PNG.',image_too_large:'Фото слишком большое. Выберите изображение поменьше.',request_too_large:'Слишком много данных. Уменьшите описание.',https_required:'Откройте каталог по защищённому адресу https://.'};
@@ -137,10 +150,39 @@ function renderAvitoFields(c={}){
  const primary=fields.filter(f=>!additional.includes(f));
  $('#avito-attributes').innerHTML=primary.map(draw).join('')+(additional.length?`<details class="marketplace-extra"><summary>Уже заполненные характеристики Авито (${additional.length})</summary><p class="field-hint">Значения сохранены и будут отправлены вместе с товаром.</p>${additional.map(draw).join('')}</details>`:'');
  };
- render();
+ render();if(c.error)revealPublicationField('avito',c.error,false);
  $('#avito-attributes').addEventListener('change',e=>{if(!e.target.matches('[data-avito-field]'))return;const selected=$('#edit-form').elements.avito_category.value;avitoDrafts[selected]=readAvitoAttributes(selected);const fields=avitoSchema[selected]?.fields||[];if(fields.some(f=>f.conditions?.some(c=>c.source_field_tag===e.target.dataset.avitoField)))render()});
  $('#edit-form').elements.avito_category.addEventListener('change',e=>{if(currentCategory)avitoDrafts[currentCategory]=readAvitoAttributes(currentCategory);currentCategory=e.target.value;if(!avitoDrafts[currentCategory])avitoDrafts[currentCategory]={};render()});
 }
+
+function revealPublicationField(key,raw,scroll=true){
+ const label=String(raw||'').match(/«([^»]+)»/)?.[1];if(!label)return;
+ const compare=text=>String(text||'').trim().toLocaleLowerCase('ru-RU');
+ let target=null;
+ if(key==='flowwow'){const f=flowwowEditorData?.fields?.find(f=>[f.field,f.name,fwLabel(f)].some(s=>compare(s)===compare(label)));if(f)target=[...document.querySelectorAll('[data-fw]')].find(el=>el.dataset.fw===f.field)||null;}
+ else {target=[...document.querySelectorAll('[data-avito-field]')].find(el=>compare(el.closest('label')?.textContent)===compare(label))||null;}
+ if(!target)return;
+ const section=target.closest('details');if(section)section.open=true;
+ if(scroll){target.scrollIntoView({block:'center',behavior:'smooth'});target.focus({preventScroll:true})}
+}
+document.addEventListener('click',async e=>{
+ const settings=e.target.closest('[data-open-channel]');
+ if(settings){const key=settings.dataset.openChannel,id=settings.dataset.productId;if(!$('#editor').open)openEditor(id);
+  const exp=document.querySelector(`[data-channel-expand="${key}"]`);if(exp&&exp.getAttribute('aria-expanded')!=='true')exp.click();
+  const card=document.querySelector(`[data-channel-card="${key}"]`);const error=channelData(products.find(p=>p.id===id)||{})[key]?.error;
+  card?.scrollIntoView({block:'start',behavior:'smooth'});revealPublicationField(key,error);return;
+ }
+ const retry=e.target.closest('[data-retry-channel]');if(!retry)return;
+ if($('#editor').open&&dirty){message($('#edit-message'),'Сначала сохраните изменения в карточке, затем повторите публикацию.',true);return}
+ const id=retry.dataset.productId,key=retry.dataset.retryChannel;
+ retry.disabled=true;retry.textContent='Отправляем…';
+ try{const result=await api('retry-publication',{id,channel:key});await load();const updated=products.find(p=>p.id===id);
+  if(updated){if($('#publication-save-result').hidden){$('#publication-save-result').hidden=false;$('#publication-save-result').innerHTML='<strong>Результат повторной отправки</strong><div id="publication-save-channels"></div>';}publicationResults(updated,$('#publication-save-channels'));
+   if($('#editor').open&&editing?.id===id){editing=updated;publicationResults(updated,$('#editor-publication-results'));$('#state-'+key).textContent=updated.channels?.[key]?.message||'';}
+  }
+  if(result.busy)toast('Публикация уже обрабатывается. Обновите статусы позже.');
+ }catch(err){if($('#editor').open)message($('#edit-message'),err.message,true);else toast(err.message)}finally{retry.disabled=false;retry.textContent='Повторить публикацию'}
+});
 
 function flowwowValue(field){return flowwowEditorData?.properties?.[field.field]??channelData(editing||{}).flowwow.properties?.[field.field]}
 function renderFlowwowProperties(fields,properties){
@@ -171,7 +213,7 @@ async function loadFlowwowEditor(category){
   flowwowEditorData=data;
   const saved=channelData(editing||{}).flowwow;const selected=category||saved.category||data.category||'';
   box.innerHTML=`${data.unsupported?'<p class="source-note">Этот специальный тип товара Flowwow не разрешает изменять через API. Данные сайта можно редактировать отдельно.</p>':''}<label>Категория Flowwow<select id="flowwow-category" ${data.immutableCategory?'data-fixed="true"':''} ${data.immutableCategory||editing?.deleted?'disabled':''}><option value="">Выберите категорию</option>${data.categories.map(c=>`<option value="${escape(c.id)}" ${String(c.id)===String(selected)?'selected':''}>${escape(c.name)}</option>`).join('')}</select></label><div id="flowwow-properties"></div><p class="field-hint">Звёздочкой отмечены поля, которые нужны только для Flowwow.</p>`;
-  const properties={...data.properties,...(String(saved.category||'')===String(selected)?saved.properties||{}:{}),...(flowwowDrafts[selected]||{})};flowwowEditorData.properties=properties;renderFlowwowProperties(data.fields,properties);
+  const properties={...data.properties,...(String(saved.category||'')===String(selected)?saved.properties||{}:{}),...(flowwowDrafts[selected]||{})};flowwowEditorData.properties=properties;renderFlowwowProperties(data.fields,properties);if(saved.error)revealPublicationField('flowwow',saved.error,false);
   $('#flowwow-category').addEventListener('change',e=>{flowwowDrafts[selected]=readFlowwowProperties();loadFlowwowEditor(e.target.value)});
  }catch(error){if(sequence===flowwowEditorSequence)box.innerHTML=`<p class="form-message error">${escape(error.message)}</p><button type="button" id="retry-flowwow-fields" class="subtle">Повторить загрузку</button>`;$('#retry-flowwow-fields')?.addEventListener('click',()=>loadFlowwowEditor(category));}
 }
