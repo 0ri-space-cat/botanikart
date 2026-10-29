@@ -20,7 +20,12 @@ final class FlowwowPublisher
         curl_setopt_array($h,[CURLOPT_RETURNTRANSFER=>true,CURLOPT_CUSTOMREQUEST=>$method,CURLOPT_CONNECTTIMEOUT=>5,CURLOPT_TIMEOUT=>18,CURLOPT_FOLLOWLOCATION=>false,
             CURLOPT_HTTPHEADER=>['Authorization: Bearer '.$this->config['token'],'Content-Type: application/json','Accept: application/json'],CURLOPT_POSTFIELDS=>json_encode($payload,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR)]);
         $raw=curl_exec($h);$status=(int)curl_getinfo($h,CURLINFO_RESPONSE_CODE);curl_close($h);
-        if($status<200||$status>=300||!is_string($raw))throw new \RuntimeException('Flowwow: запрос не выполнен (HTTP '.$status.'). Можно повторить отправку.');
+        if($status<200||$status>=300||!is_string($raw)){
+            $decoded=is_string($raw)?json_decode($raw,true):null;
+            $details=is_array($decoded)?($decoded['errors'][0]['message']??$decoded['message']??null):null;
+            $reason=is_string($details)?$this->safeError($details):'запрос не выполнен';
+            throw new \RuntimeException('Flowwow: '.$reason.' (HTTP '.$status.').');
+        }
         $data=json_decode($raw,true,512,JSON_THROW_ON_ERROR);
         if(!is_array($data))throw new \RuntimeException('Flowwow: неожиданный ответ.');
         return $data;
@@ -124,9 +129,19 @@ final class FlowwowPublisher
         }
         return $body;
     }
+    private function safeError(string $message): string
+    {
+        $message=trim(strip_tags($message));
+        $message=preg_replace('~https?://\\S+~u','[ссылка]', $message);
+        $message=preg_replace('/\\b(Bearer|token|password|client_secret|api_key)\\s*[:= ]\\s*[^\\s,;]+/iu','$1 [скрыто]',$message);
+        return mb_substr($message,0,350)?:'товар не принят';
+    }
     private function ensureSuccess(array $response): void
     {
-        if(!empty($response['errors'])||($response['summary']['failed']??0)>0)throw new \RuntimeException('Flowwow: '.mb_substr((string)($response['errors'][0]['message']??'товар не принят'),0,350));
+        if(!empty($response['errors'])||($response['summary']['failed']??0)>0||($response['success']??true)===false){
+            $details=$response['errors'][0]['message']??$response['errors'][0]['error']??$response['message']??'товар не принят';
+            throw new \RuntimeException('Flowwow: '.$this->safeError(is_string($details)?$details:'товар не принят'));
+        }
     }
     public function publish(array $p,string $site): array
     {
