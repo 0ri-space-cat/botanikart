@@ -215,3 +215,15 @@
   .publication-result-actions .publication-action{width:auto;flex:0 0 auto;padding:8px 9px;font-size:10.5px;min-height:36px;gap:5px}
   .publication-result-actions .publication-action svg{width:14px;height:14px;flex-basis:14px}
 }
+
+
+/* Flowwow: unit identifiers are kept in hidden fields when there's only one valid unit. */
+.flowwow-property .measure-input{grid-template-columns:minmax(0,1fr) auto;align-items:center}
+.flowwow-property .measure-input>input[type=number]{min-width:0}
+.flowwow-property .measure-input>select{min-width:100px;max-width:160px}
+.fw-unit-suffix{display:inline-flex;align-items:center;justify-content:center;min-width:35px;min-height:35px;padding:6px 9px;border:1px solid #dae4d4;border-radius:10px;background:#f6f9f3;color:#4b6753;font-size:12px;white-space:nowrap}
+.consist-row{grid-template-columns:minmax(0,1.4fr) minmax(0,.75fr) minmax(0,1fr) 28px;align-items:center}
+.fw-composition-unit{display:flex;min-width:0;align-items:center;justify-content:center}
+.fw-composition-unit select{width:100%;min-width:0}
+.fw-composition-unit .fw-unit-suffix{min-height:34px}
+@media(max-width:480px){.flowwow-property .measure-input>select{min-width:96px;max-width:125px}.consist-row{gap:5px;grid-template-columns:minmax(0,1.1fr) minmax(0,.75fr) minmax(0,.85fr) 26px}.fw-unit-suffix{padding:5px 7px;min-width:29px}}
