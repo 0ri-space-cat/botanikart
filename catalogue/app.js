@@ -13,7 +13,14 @@ let channelTouched={avito:false,flowwow:false};
 let flowwowEditorSequence=0,flowwowEditorData=null;let flowwowDrafts={},avitoDrafts={};
 const fwLabels={minOrderCount:'Минимальное количество для заказа',maxOrderCount:'Максимальное количество для заказа',stock:'Количество в наличии',productionTime:'Время изготовления',height:'Высота',width:'Ширина',volume:'Объём',quantityInPackage:'Количество в упаковке',approximateWeight:'Примерный вес',manufacturerName:'Производитель',manufacturerAddress:'Адрес производителя',importerName:'Импортёр',importerAddress:'Адрес импортёра',regionOfOrigin:'Регион происхождения',isPostDelivery:'Доставка почтой',postWidth:'Ширина посылки',postHeight:'Высота посылки',postLength:'Длина посылки',postWeight:'Вес посылки',isAdultsOnly:'Товар для взрослых',material:'Материал',consist:'Составляющие товара',thematicSelections:'Тематические подборки',gender:'Для кого',textDimensions:'Размеры',kilocalories:'Калорийность',proteins:'Белки',fats:'Жиры',carbohydrates:'Углеводы',brand:'Бренд',composition:'Состав',author:'Автор',year:'Год',certificatePurpose:'Назначение сертификата',certificateType:'Тип сертификата',baloonType:'Тип воздушного шара'};
 const fwLabel=f=>fwLabels[f.field]||(/[а-яё]/i.test(f.name||'')?f.name:'Параметр Flowwow: '+String(f.name||f.field).replace(/([a-z])([A-Z])/g,'$1 $2'));
-const fwUnitOptions=f=>(Array.isArray(f.measure)?f.measure:[]).filter(m=>m&&typeof m==='object'&&m.id!==undefined&&m.id!==null).map(m=>{const raw=[m.name,m.label,m.title,m.unitName,m.measureName,m.unit?.name,m.unit,m.code,m.abbreviation].filter(n=>typeof n==='string'&&n.trim());const label=raw.find(n=>!/^единица$/i.test(n.trim()))||raw[0]||'Единица (ID '+m.id+')';return {id:m.id,label};});
+const fwUnitOptions=f=>(Array.isArray(f.measure)?f.measure:[]).map(m=>{
+ const id=m&&typeof m==='object'?(m.id??m.measureId??m.valueId):m;
+ if(id===undefined||id===null||id==='')return null;
+ const candidates=m&&typeof m==='object'?[m.name,m.label,m.title,m.value,m.displayName,m.fullName,m.shortName,m.unitName,m.measureName,m.measure?.name,m.unit?.name,m.unit,m.symbol,m.code,m.abbreviation]:[];
+ const raw=candidates.find(x=>typeof x==='string'&&x.trim()&&!/^\\d+$/.test(x.trim())&&!/^единица(?: измерения)?$/i.test(x.trim()));
+ const fallback={'productionTime':'время','height':'высота','width':'ширина','volume':'объём','approximateWeight':'вес','postWeight':'вес','postHeight':'высота','postWidth':'ширина','postLength':'длина'}[f.field]||'единица измерения';
+ return {id,label:raw?raw.trim():fallback,unlabelled:!raw};
+}).filter(Boolean);
 function fwDefaultUnit(f,v){if(v&&v.measure!==undefined&&v.measure!==null)return String(v.measure);if(editing)return '';const opts=fwUnitOptions(f);if(opts.length===1)return String(opts[0].id);const pattern=f.field==='productionTime'?/(час|\bч\b|hour|\bhr\b)/i:['height','width','postWidth','postHeight','postLength'].includes(f.field)?/(сантиметр|см\b|centimeter|cm\b)/i:null;if(!pattern)return '';return String(opts.find(o=>pattern.test(o.label))?.id??'')}
 function publicationResults(p,host){
  const rows=['avito','flowwow'].map(key=>({key,c:channelData(p)[key]||{}})).filter(({c})=>c.enabled||c.error);
@@ -149,7 +156,7 @@ function renderAvitoFields(c={}){
  const hasValue=f=>Array.isArray(attrs[f.tag])?attrs[f.tag].length>0:String(attrs[f.tag]??'').trim()!=='';
  const additional=fields.filter(f=>f.required===false||hasValue(f)&&!controlling.has(f.tag));
  const primary=fields.filter(f=>!additional.includes(f));
- $('#avito-attributes').innerHTML=primary.map(draw).join('')+(additional.length?`<details class="marketplace-extra"><summary>Дополнительные параметры Авито (${additional.length})</summary><p class="field-hint">Значения сохранены и будут отправлены вместе с товаром.</p>${additional.map(draw).join('')}</details>`:'');
+ $('#avito-attributes').innerHTML=primary.map(draw).join('')+(additional.length?`<details class="marketplace-extra"><summary>Дополнительные параметры</summary><p class="field-hint">Значения сохранены и будут отправлены вместе с товаром.</p>${additional.map(draw).join('')}</details>`:'');
  };
  render();if(c.error)revealPublicationField('avito',c.error,false);
  $('#avito-attributes').addEventListener('change',e=>{if(!e.target.matches('[data-avito-field]'))return;const selected=$('#edit-form').elements.avito_category.value;avitoDrafts[selected]=readAvitoAttributes(selected);const fields=avitoSchema[selected]?.fields||[];if(fields.some(f=>f.conditions?.some(c=>c.source_field_tag===e.target.dataset.avitoField)))render()});
@@ -200,7 +207,7 @@ function renderFlowwowProperties(fields,properties){
   else {const defaultOne=!editing&&(['minOrderCount'].includes(f.field)||f.field==='stock'&&$('#edit-form').elements.status.value==='ready')&&(!f.minValue||Number(f.minValue)<=1)&&(!f.maxValue||Number(f.maxValue)>=1);control=`<input id="${id}" data-fw="${escape(f.field)}" type="${f.type==='decimal'?'number':'text'}" ${f.type==='decimal'?'step="any" inputmode="decimal"':''} ${f.minValue!==undefined?'min="'+escape(f.minValue)+'"':''} ${f.maxValue!==undefined?'max="'+escape(f.maxValue)+'"':''} placeholder="${escape(f.type==='decimal'?'Введите число':'Укажите при необходимости')}" ${defaultOne&&v===undefined?'data-fw-default="1"':''} value="${escape(v??(defaultOne?1:''))}">`;}
   const hint=f.dependsOn?.length?'<small class="field-hint">Заполните это поле или альтернативное — оба одновременно не нужны.</small>':'';
   return `<div class="flowwow-property"><label for="${id}">${label}</label>${control}${hint}</div>`;
- };const essential=visible.filter(f=>f.required||['stock','productionTime'].includes(f.field));const extra=visible.filter(f=>!essential.includes(f));container.innerHTML=essential.map(draw).join('')+(extra.length?`<details class="marketplace-extra"><summary>Дополнительные параметры Flowwow (${extra.length})</summary>${extra.map(draw).join('')}</details>`:'');
+ };const essential=visible.filter(f=>f.required||['stock','productionTime'].includes(f.field));const extra=visible.filter(f=>!essential.includes(f));container.innerHTML=essential.map(draw).join('')+(extra.length?`<details class="marketplace-extra"><summary>Дополнительные параметры</summary>${extra.map(draw).join('')}</details>`:'');
  container.onclick=e=>{const b=e.target.closest('[data-remove-consist]');if(b){b.closest('.consist-row').remove();dirty=true;channelTouched.flowwow=true}};
  container.querySelectorAll('[data-add-consist]').forEach(b=>b.addEventListener('click',()=>{const f=fields.find(f=>f.field===b.dataset.addConsist);container.querySelector(`[data-fw-consist="${f.field}"]`).insertAdjacentHTML('beforeend',consistRow(f,{}));dirty=true;channelTouched.flowwow=true}));
  setChannelControls('flowwow');
