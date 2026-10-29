@@ -134,7 +134,7 @@ final class MarketplaceService
             }else $warnings[]='Шаблоны Авито не загружены.';
         }else{
             require_once __DIR__.'/FlowwowPublisher.php';$fw=new FlowwowPublisher($this->config['flowwow']??[],$this->directory);
-            try{$source=$fw->cachedProduct($p);if(!$source&&!empty($c['externalId']))$source=$fw->findProduct($c['externalId']);$category=(int)($source['subCategoryId']??$c['category']??0);$fw->payload($p,$source,$fw->schema($category),$site);}catch(\Throwable $e){$warnings[]=$e->getMessage();}
+            try{$source=$fw->cachedProduct($p);if(!$source&&!empty($c['externalId']))$source=$fw->findProduct($c['externalId']);$category=(int)($source['subCategoryId']??$c['category']??0);$fw->payload($p,$source,$fw->schema($category),$site,(string)($source['offerId']??$c['offerId']??('ba-'.$p['id'])));}catch(\Throwable $e){$warnings[]=$e->getMessage();}
         }
         return ['channel'=>$channel,'ready'=>!$warnings,'action'=>$c['externalId']!==''?'update':'create','product'=>$payload,'warnings'=>$warnings];
     }

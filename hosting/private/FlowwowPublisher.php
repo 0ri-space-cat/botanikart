@@ -78,7 +78,7 @@ final class FlowwowPublisher
         }
         return array_intersect_key($fields,array_flip($allowed));
     }
-    public function payload(array $p,?array $source,array $schema,string $site): array
+    public function payload(array $p,?array $source,array $schema,string $site,?string $offerId=null): array
     {
         $c=$p['channels']['flowwow'];
         if(($source['type']??1)===2)throw new \RuntimeException('Flowwow: этот специальный тип товара нельзя редактировать через API.');
@@ -86,6 +86,8 @@ final class FlowwowPublisher
         $allowed=json_decode(file_get_contents(__DIR__.'/flowwow-fields.json'),true,512,JSON_THROW_ON_ERROR);
         $properties=$c['properties']??[];
         $body=array_replace($body,array_intersect_key($properties,array_flip($allowed)));
+        // Set the stable seller-side identifier before category-required validation.
+        $body['offerId']=$offerId ?: (string)($source['offerId']??$c['offerId']??('ba-'.$p['id']));
         $body['productType']=1;
         $body['subCategoryId']=(int)($source['subCategoryId']??$c['category']??0);
         if($body['subCategoryId']<=0)throw new \RuntimeException('Flowwow: выберите категорию.');
@@ -101,7 +103,8 @@ final class FlowwowPublisher
         if(mb_strlen($body['description'])>5000)throw new \RuntimeException('Flowwow: описание не должно превышать 5000 символов.');
         if(isset($properties['stock'])&&$properties['stock']!=='')unset($body['productionTime']);
         if(isset($properties['productionTime'])&&$properties['productionTime']!==null)unset($body['stock']);
-        foreach($body as $key=>$value)if($value===null)unset($body[$key]);
+        // Optional unset values must be absent, rather than empty payload properties.
+        foreach($body as $key=>$value)if($value===null||$value===''||$value===[])unset($body[$key]);
         if(!empty($c['stock'])){$body['stock']=$c['stock'];unset($body['productionTime']);}
         if($p['status']==='preorder'&&!isset($body['productionTime']))throw new \RuntimeException('Flowwow: для товара под заказ укажите время изготовления вместо количества.');
         if($p['status']==='ready'&&!isset($body['stock']))throw new \RuntimeException('Flowwow: для товара в наличии укажите количество вместо времени изготовления.');
@@ -127,7 +130,7 @@ final class FlowwowPublisher
     }
     public function publish(array $p,string $site): array
     {
-        $c=$p['channels']['flowwow'];$remoteId=(string)($c['externalId']??'');$offer='ba-'.$p['id'];
+        $c=$p['channels']['flowwow'];$remoteId=(string)($c['externalId']??'');$offer=(string)($c['offerId']??'') ?: 'ba-'.$p['id'];
         $source=$remoteId!==''?$this->findProduct($remoteId):$this->findProduct($offer,true);
         if(!$c['enabled'] && !$source)return ['state'=>'off'];
         if($remoteId!==''&&!$source)throw new \RuntimeException('Flowwow: связанный товар не найден. Новая карточка автоматически не создаётся.');
@@ -136,7 +139,7 @@ final class FlowwowPublisher
             if(!empty($source['originalId']))throw new \RuntimeException('Flowwow: арендованный товар нельзя изменять из каталога.');
             $remoteId=(string)$source['productId'];
             if(!empty($source['offerId']))$offer=(string)$source['offerId'];
-            else {$result=$this->request('/apiseller/products/offersMappings',['offers'=>[['offerId'=>$offer,'productId'=>(int)$remoteId]]]);$this->ensureSuccess($result);}
+            // Legacy remote goods need an offer mapping, but only after local payload validation.
         }
         if(!$c['enabled']||$p['status']==='sold'){
             $this->ensureSuccess($this->request('/apiseller/products/hide',['offers'=>[['offerId'=>$offer]]]));
@@ -145,7 +148,11 @@ final class FlowwowPublisher
             return ['state'=>'hidden','externalId'=>$remoteId,'offerId'=>$offer,'url'=>$check['url']??''];
         }
         $category=(int)($source['subCategoryId']??$c['category']??0);$schema=$this->schema($category);
-        $body=$this->payload($p,$source,$schema,$site);$body['offerId']=$offer;
+        $body=$this->payload($p,$source,$schema,$site,$offer);
+        if($source && empty($source['offerId'])){
+            $mapping=$this->request('/apiseller/products/offersMappings',['offers'=>[['offerId'=>$offer,'productId'=>(int)$remoteId]]]);
+            $this->ensureSuccess($mapping);
+        }
         if($source && !empty($source['isArchived']))throw new \RuntimeException('Flowwow: товар находится в архиве. Сначала восстановите его в Flowwow.');
         $result=$this->request($source?'/apiseller/products/update':'/apiseller/products/create',['products'=>[$body]]);$this->ensureSuccess($result);
         $this->ensureSuccess($this->request('/apiseller/products/unhide',['offers'=>[['offerId'=>$offer]]]));

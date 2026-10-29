@@ -78,7 +78,7 @@ final class PublicationRunner
                     $results[]=['id'=>$p['id'],'channel'=>$channel,'state'=>$changes['state']];
                 }catch(\Throwable $error){
                     $this->recordResult($job,['state'=>'error','error'=>mb_substr($error->getMessage(),0,500)],'retry');
-                    $results[]=['id'=>$p['id'],'channel'=>$channel,'state'=>'error'];
+                    $results[]=['id'=>$p['id'],'channel'=>$channel,'state'=>'error','message'=>mb_substr($error->getMessage(),0,500)];
                 }
             }
         }finally{flock($lock,LOCK_UN);fclose($lock);}
