@@ -102,7 +102,7 @@ function openEditor(id){
  $('#archive-product').hidden=!editing||Boolean(p.deleted);$('#restore-product').hidden=!p.deleted;$('#save').hidden=Boolean(p.deleted);
  $('#editor-heading').textContent=editing?'Карточка товара':'Новый товар';$('#editor-source').innerHTML=productBadges(p);
  updatePurchaseChoice();updateVisibility();updateCategoryHint();images=[...(p.images||[])];renderPhotos();message($('#edit-message'));dirty=false;
- renderPublicationSettings(p);renderAvitoFields(channelData(p).avito);updateEditorSaveSummary();$('#publication-preview').hidden=true;form.elements.url.closest('label').hidden=p.source!=='avito';
+ renderPublicationSettings(p);renderAvitoFields(channelData(p).avito);updateEditorSaveSummary();$('#publication-preview').hidden=true;form.elements.url.closest('label').hidden=p.source!=='avito';form.elements.url.closest('details').hidden=p.source!=='avito';
  $('#source-url-label').textContent=p.source==='flowwow'?'Ссылка на Flowwow':'Ссылка на объявление Авито';$('#editor').showModal();fitTitle();$('#editor').scrollTop=0;document.body.style.overflow='hidden';
 }
 function closeEditor(){if(uploading)return;if(dirty&&!confirm('Закрыть карточку без сохранения?'))return;$('#editor').close()}
