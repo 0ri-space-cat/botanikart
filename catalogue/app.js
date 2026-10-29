@@ -124,7 +124,15 @@ function renderAvitoFields(c={}){
  const external=Boolean(editing?.deleted),category=c.category||'',attrs=c.attributes||{};
  $('#avito-fields').hidden=!c.enabled||external;
  $('#avito-fields').innerHTML=`<label>Категория Авито<select name="avito_category" ${external?'disabled':''}><option value="">Выберите категорию</option>${Object.entries(avitoSchema).map(([key,v])=>`<option value="${escape(key)}" ${key===category?'selected':''}>${escape(v.label)}</option>`).join('')}</select></label><div id="avito-attributes"></div>`;
- const render=()=>{const selected=$('#edit-form').elements.avito_category.value;$('#avito-attributes').innerHTML=(avitoSchema[selected]?.fields||[]).filter(f=>f.values.length!==1&&avitoFieldApplies(f,attrs)).map(f=>`<label>${escape(f.label)}${f.values.length?`<select data-avito-field="${escape(f.tag)}" ${f.multiple?'multiple':''} ${external?'disabled':''}><option value="">Выберите</option>${f.values.map(v=>`<option value="${escape(v)}" ${(Array.isArray(attrs[f.tag])?attrs[f.tag].includes(v):attrs[f.tag]===v)?'selected':''}>${escape(v)}</option>`).join('')}</select>`:`<input data-avito-field="${escape(f.tag)}" value="${escape(attrs[f.tag]||'')}" maxlength="250" ${external?'disabled':''}>`}</label>`).join('');};
+ const render=()=>{const selected=$('#edit-form').elements.avito_category.value;const fields=(avitoSchema[selected]?.fields||[]).filter(f=>f.values.length!==1&&avitoFieldApplies(f,attrs));
+ const draw=f=>`<label>${escape(f.label)}${f.values.length?`<select data-avito-field="${escape(f.tag)}" ${f.multiple?'multiple':''} ${external?'disabled':''}><option value="">Выберите</option>${f.values.map(v=>`<option value="${escape(v)}" ${(Array.isArray(attrs[f.tag])?attrs[f.tag].includes(v):attrs[f.tag]===v)?'selected':''}>${escape(v)}</option>`).join('')}</select>`:`<input data-avito-field="${escape(f.tag)}" placeholder="Укажите ${escape(f.label.toLowerCase())}" value="${escape(attrs[f.tag]??'')}" maxlength="250" ${external?'disabled':''}>`}</label>`;
+ // Existing optional-looking descriptive fields can be folded only if they already
+ // contain a value. Empty fields remain visible because AvitoFeed currently validates
+ // every applicable field as required.
+ const lowPriority=new Set(['Vendor','Brand','Manufacturer','Material','Color']);
+ const optional=fields.filter(f=>lowPriority.has(f.tag)&&Boolean(attrs[f.tag]));
+ const primary=fields.filter(f=>!optional.includes(f));
+ $('#avito-attributes').innerHTML=primary.map(draw).join('')+(optional.length?`<details class="marketplace-extra"><summary>Дополнительные параметры Авито (${optional.length})</summary>${optional.map(draw).join('')}</details>`:'');};
  render();$('#avito-attributes').onchange=e=>{if(e.target.dataset.avitoField){Object.assign(attrs,readAvitoAttributes());const fields=avitoSchema[$('#edit-form').elements.avito_category.value]?.fields||[];if(fields.some(f=>f.conditions?.some(c=>c.source_field_tag===e.target.dataset.avitoField)))render();}};
  $('#edit-form').elements.avito_category.addEventListener('change',()=>{Object.assign(attrs,readAvitoAttributes());render();});
 }
