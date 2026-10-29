@@ -323,3 +323,15 @@
 #editor .editor-channels-section .channel-expand[aria-expanded=true] .channel-expand-caption{font-size:0!important}
 #editor .editor-channels-section .channel-expand[aria-expanded=true] .channel-expand-caption::after{content:'Свернуть';font-size:10px;line-height:1.2}
 #editor .editor-channels-section .channel-head-aside{min-width:76px;align-items:flex-end}
+
+/* Quiet platform forms: no repeated technical warnings; one concise alternative switch. */
+#editor .fw-alternative{margin:13px 0 17px;padding:12px;background:#f8faf6;border:1px solid #e3ecdc;border-radius:13px}
+#editor .fw-alternative-label{font-size:11px;font-weight:600;color:#52745c;margin-bottom:8px}
+#editor .fw-alternative-choice{font-size:13px!important;max-width:100%;margin:0 0 9px}
+#editor .fw-alternative [data-fw-alt-option] .flowwow-property{margin:0}
+#editor .fw-alternative [data-fw-alt-option] .flowwow-property>label{display:none}
+#editor .fw-alternative [data-fw-alt-option][hidden]{display:none!important}
+#editor #avito-attributes .marketplace-extra>.field-hint{display:none}
+#editor #flowwow-fields .field-hint:empty{display:none}
+#editor .flowwow-property{margin:11px 0}
+#editor .marketplace-extra summary{font-size:12px;font-weight:500}
