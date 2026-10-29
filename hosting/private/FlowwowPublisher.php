@@ -172,7 +172,7 @@ final class FlowwowPublisher
         $expected=(float)($c['price']??$p['price']);
         if(abs($net-$expected)>0.009)return $await('цена ещё не совпадает: на Flowwow '.number_format($net,2,'.','').' ₽, в каталоге '.number_format($expected,2,'.','').' ₽');
         if(!array_key_exists('isActive',$check))return $await('API пока не вернул признак активности товара');
-        if(!$check['isActive'])return $await('товар найден, но пока скрыт или ожидает модерации; проверьте его статус в кабинете Flowwow');
+        if(!$check['isActive'])return ['state'=>'moderation','offerId'=>$offer,'externalId'=>$remoteId,'url'=>$check['url']??'','error'=>'','message'=>'Ожидает публикации на Flowwow'];
         return ['state'=>'published','externalId'=>$remoteId,'offerId'=>$offer,'url'=>$check['url']??'','message'=>'Опубликовано'];
     }
     public function publish(array $p,string $site): array
