@@ -993,26 +993,6 @@
       "flowwowOfferId": null
     },
     {
-      "id": "flowwow-77572940",
-      "title": "Форма для флорариума",
-      "url": "https://flowwow.com/forma-dlya-florariuma",
-      "price": 1000.0,
-      "available": true,
-      "status": "ready",
-      "category": "florarium",
-      "sourceCategory": "Декор Вазы",
-      "description": "Тест",
-      "checkedAt": "2026-10-29",
-      "flowwowProductId": 77572940,
-      "flowwowOfferId": "ba-local-77313b95ece782fc41ee8870",
-      "source": "flowwow",
-      "images": [
-        "https://content2.flowwow-images.com/data/flowers/1000x1000/12/1793269097_32463612.jpg"
-      ],
-      "catalogGroup": "material",
-      "tags": []
-    },
-    {
       "id": "flowwow-77433503",
       "title": "Эпипремнум Марбл Квин в нежно-розовом кашпо",
       "url": "https://flowwow.com/epipremnum-marbl-kvin-v-nezhno",
@@ -1085,6 +1065,26 @@
       "catalogGroup": "potted",
       "tags": [],
       "flowwowOfferId": null
+    },
+    {
+      "id": "flowwow-77572940",
+      "title": "Форма для флорариума",
+      "url": "https://flowwow.com/forma-dlya-florariuma-6ae31fe5265e7",
+      "price": 1000.0,
+      "available": false,
+      "status": "preorder",
+      "category": "florarium",
+      "sourceCategory": "Декор Вазы",
+      "description": "Тест",
+      "checkedAt": "2026-10-29",
+      "flowwowProductId": 77572940,
+      "flowwowOfferId": "ba-local-77313b95ece782fc41ee8870",
+      "source": "flowwow",
+      "images": [
+        "https://content2.flowwow-images.com/data/flowers/1000x1000/12/1793269097_32463612.jpg"
+      ],
+      "catalogGroup": "material",
+      "tags": []
     },
     {
       "id": "florarium-s-kryshkoy-zelenaya-",
