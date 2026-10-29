@@ -63,6 +63,9 @@ final class PublicationRunner
                     }
                     else {
                         $c=$p['channels']['avito'];
+                        if($job['state']==='awaiting_report'&&in_array(($c['state']??''),['awaiting_report','moderation'],true)){
+                            $results[]=['id'=>$p['id'],'channel'=>'avito','state'=>$c['state']];continue;
+                        }
                         if(!$c['enabled']||!empty($p['deleted'])){
                             $active=array_filter($products,fn($q)=>!empty($q['channels']['avito']['enabled'])&&($q['channels']['avito']['management']??'')==='site'&&empty($q['deleted']));
                             if(!$active){$profile=$this->avito('GET','/autoload/v2/profile');$expected=rtrim($this->config['site_url']??'https://botanikart.ru','/').'/api/avito-feed.php';if(array_column($profile['feeds_data']??[],'feed_url')===[$expected]&&!empty($profile['autoload_enabled'])){$settings=array_intersect_key($profile,array_flip(['feeds_data','schedule','report_email']));$settings['autoload_enabled']=false;$settings['allow_pay_over_limit']=false;$this->avito('POST','/autoload/v2/profile',$settings);}}
