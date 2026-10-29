@@ -113,7 +113,7 @@ final class MarketplaceService
 
             if ($c['management']==='external') { $c['message']='Существующее объявление. Управляется на площадке.';continue; }
             if (!$c['enabled'] && $c['externalId']==='') { $c['state']='off';$c['message']='Не выбрана';continue; }
-            $c['message']=match($c['state']??'off') {'queued'=>'Ожидает публикации','awaiting_report'=>'Ожидаем ответа Авито','off'=>'Отправка выключена.',default=>$c['enabled']?'Сохраните товар, чтобы опубликовать его.':'Отправка выключена.'};
+            $c['message']=match($c['state']??'off') {'queued'=>'Ожидает публикации','awaiting_report'=>'Ожидаем ответа Авито','awaiting_confirmation'=>$c['message']??'Flowwow: ждём подтверждения изменений','off'=>'Отправка выключена.',default=>$c['enabled']?'Сохраните товар, чтобы опубликовать его.':'Отправка выключена.'};
         }
         unset($c);return $p;
     }
