@@ -10,7 +10,7 @@ const money=n=>new Intl.NumberFormat('ru-RU',{style:'currency',currency:'RUB',mi
 const imageURL=path=>String(path).startsWith('https://')?path:'/'+String(path).replace(/^\/+/, '');
 let avitoSchema={};const schemaReady=fetch('avito-schema.json?v=7').then(r=>{if(!r.ok)throw Error('schema');return r.json()}).then(s=>{avitoSchema=s}).catch(()=>{});
 let channelTouched={avito:false,flowwow:false};
-let flowwowEditorSequence=0,flowwowEditorData=null;let flowwowDrafts={};
+let flowwowEditorSequence=0,flowwowEditorData=null;let flowwowDrafts={},avitoDrafts={};
 const fwLabels={minOrderCount:'Минимальное количество для заказа',maxOrderCount:'Максимальное количество для заказа',stock:'Количество в наличии',productionTime:'Время изготовления',height:'Высота',width:'Ширина',quantityInPackage:'Количество в упаковке',approximateWeight:'Примерный вес',manufacturerName:'Производитель',manufacturerAddress:'Адрес производителя',importerName:'Импортёр',importerAddress:'Адрес импортёра',regionOfOrigin:'Регион происхождения',isPostDelivery:'Доставка почтой'};
 function publicationResults(p,host){const rows=['avito','flowwow'].map(key=>({key,c:channelData(p)[key]||{}})).filter(x=>x.c.enabled||x.c.error);host.hidden=!rows.length;host.innerHTML=rows.map(({key,c})=>`<div class="publication-result ${c.error?'has-error':''}"><strong>${escape(names[key])} — ${c.error?'ошибка публикации':c.state==='published'?'опубликовано':c.state==='awaiting_report'?'ожидаем отчёт':c.state==='queued'?'ожидает отправки':'ожидает подтверждения'}</strong><p>${escape(c.error||c.message||'')}</p></div>`).join('')}
 let connections={},reminderId='',reminderOpen=false,authenticated=false;
@@ -118,23 +118,25 @@ setInterval(()=>{if(authenticated&&!document.hidden)checkConnections()},300000);
 
 initialize();
 
-function readAvitoAttributes(){return Object.fromEntries([...document.querySelectorAll('[data-avito-field]')].map(el=>[el.dataset.avitoField,el.multiple?[...el.selectedOptions].map(o=>o.value).filter(Boolean):el.value]))}
+function readAvitoAttributes(category=$('#edit-form').elements.avito_category.value){const current=structuredClone(avitoDrafts[category]||{});for(const el of document.querySelectorAll('[data-avito-field]'))current[el.dataset.avitoField]=el.multiple?[...el.selectedOptions].map(o=>o.value).filter(Boolean):el.value;return current;}
 function avitoFieldApplies(f,attrs){return !f.conditions?.length||f.conditions.some(c=>c.clause==='value'&&(c.values||[]).includes(attrs[c.source_field_tag]||''))}
 function renderAvitoFields(c={}){
- const external=Boolean(editing?.deleted),category=c.category||'',attrs=c.attributes||{};
+ const external=Boolean(editing?.deleted),category=c.category||'';avitoDrafts={};if(category)avitoDrafts[category]=structuredClone(c.attributes||{});let currentCategory=category;
  $('#avito-fields').hidden=!c.enabled||external;
  $('#avito-fields').innerHTML=`<label>Категория Авито<select name="avito_category" ${external?'disabled':''}><option value="">Выберите категорию</option>${Object.entries(avitoSchema).map(([key,v])=>`<option value="${escape(key)}" ${key===category?'selected':''}>${escape(v.label)}</option>`).join('')}</select></label><div id="avito-attributes"></div>`;
- const render=()=>{const selected=$('#edit-form').elements.avito_category.value;const fields=(avitoSchema[selected]?.fields||[]).filter(f=>f.values.length!==1&&avitoFieldApplies(f,attrs));
+ const render=()=>{const selected=$('#edit-form').elements.avito_category.value,attrs=avitoDrafts[selected]||{};const fields=(avitoSchema[selected]?.fields||[]).filter(f=>f.values.length!==1&&avitoFieldApplies(f,attrs));
  const draw=f=>`<label>${escape(f.label)}${f.values.length?`<select data-avito-field="${escape(f.tag)}" ${f.multiple?'multiple':''} ${external?'disabled':''}><option value="">Выберите</option>${f.values.map(v=>`<option value="${escape(v)}" ${(Array.isArray(attrs[f.tag])?attrs[f.tag].includes(v):attrs[f.tag]===v)?'selected':''}>${escape(v)}</option>`).join('')}</select>`:`<input data-avito-field="${escape(f.tag)}" placeholder="Укажите ${escape(f.label.toLowerCase())}" value="${escape(attrs[f.tag]??'')}" maxlength="250" ${external?'disabled':''}>`}</label>`;
- // Existing optional-looking descriptive fields can be folded only if they already
- // contain a value. Empty fields remain visible because AvitoFeed currently validates
- // every applicable field as required.
- const lowPriority=new Set(['Vendor','Brand','Manufacturer','Material','Color']);
- const optional=fields.filter(f=>lowPriority.has(f.tag)&&Boolean(attrs[f.tag]));
- const primary=fields.filter(f=>!optional.includes(f));
- $('#avito-attributes').innerHTML=primary.map(draw).join('')+(optional.length?`<details class="marketplace-extra"><summary>Дополнительные параметры Авито (${optional.length})</summary>${optional.map(draw).join('')}</details>`:'');};
- render();$('#avito-attributes').onchange=e=>{if(e.target.dataset.avitoField){Object.assign(attrs,readAvitoAttributes());const fields=avitoSchema[$('#edit-form').elements.avito_category.value]?.fields||[];if(fields.some(f=>f.conditions?.some(c=>c.source_field_tag===e.target.dataset.avitoField)))render();}};
- $('#edit-form').elements.avito_category.addEventListener('change',()=>{Object.assign(attrs,readAvitoAttributes());render();});
+ // The local Avito schema has no required flags. Its feed validator requires every
+ // applicable field. Keep empty fields visible and fold only values already provided.
+ const controlling=new Set(['AdType','GoodsType','Category',...fields.flatMap(f=>(f.conditions||[]).map(c=>c.source_field_tag))]);
+ const hasValue=f=>Array.isArray(attrs[f.tag])?attrs[f.tag].length>0:String(attrs[f.tag]??'').trim()!=='';
+ const additional=fields.filter(f=>hasValue(f)&&!controlling.has(f.tag));
+ const primary=fields.filter(f=>!additional.includes(f));
+ $('#avito-attributes').innerHTML=primary.map(draw).join('')+(additional.length?`<details class="marketplace-extra"><summary>Уже заполненные характеристики Авито (${additional.length})</summary><p class="field-hint">Значения сохранены и будут отправлены вместе с товаром.</p>${additional.map(draw).join('')}</details>`:'');
+ };
+ render();
+ $('#avito-attributes').addEventListener('change',e=>{if(!e.target.matches('[data-avito-field]'))return;const selected=$('#edit-form').elements.avito_category.value;avitoDrafts[selected]=readAvitoAttributes(selected);const fields=avitoSchema[selected]?.fields||[];if(fields.some(f=>f.conditions?.some(c=>c.source_field_tag===e.target.dataset.avitoField)))render()});
+ $('#edit-form').elements.avito_category.addEventListener('change',e=>{if(currentCategory)avitoDrafts[currentCategory]=readAvitoAttributes(currentCategory);currentCategory=e.target.value;if(!avitoDrafts[currentCategory])avitoDrafts[currentCategory]={};render()});
 }
 
 function flowwowValue(field){return flowwowEditorData?.properties?.[field.field]??channelData(editing||{}).flowwow.properties?.[field.field]}
