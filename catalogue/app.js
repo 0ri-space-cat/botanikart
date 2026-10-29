@@ -44,21 +44,24 @@ function fwMeasureControl(f,v,id){
  const unit=selected?`<input type="hidden" data-fw-measure="${escape(f.field)}" value="${escape(selected.id)}">`:'';
  return `<div class="measure-input">${input}${unit}</div>`;
 }
-const publicationPending=c=>Boolean(c.enabled)&&['queued','awaiting_report','awaiting_confirmation','waiting_connection','publishing'].includes(c.state);
+const publicationPending=c=>Boolean(c.enabled)&&['queued','awaiting_report','awaiting_confirmation','moderation','waiting_connection','publishing'].includes(c.state);
+const publicationStage=c=>{
+ if(c.error||c.state==='error')return 'error';
+ if(c.state==='published')return 'published';
+ if(c.state==='moderation')return 'moderation';
+ return 'sending';
+};
 function publicationResults(p,host){
- const channels=channelData(p);
- const rows=['avito','flowwow'].map(key=>({key,c:channels[key]||{}})).filter(({c})=>c.enabled||c.error);
+ const rows=['avito','flowwow'].map(key=>({key,c:channelData(p)[key]||{}})).filter(({c})=>c.enabled||c.error);
  host.hidden=!rows.length;
  host.innerHTML=rows.map(({key,c})=>{
-  const failed=Boolean(c.error)||c.state==='error';
-  const pending=publicationPending(c);
-  const status=failed?'Ошибка публикации':pending?'Публикуется':c.state==='published'?'Опубликовано':c.state==='hidden'?'Скрыто':'Ожидает публикации';
-  const tone=failed?'error':c.state==='published'?'success':'pending';
-  const glyph=failed?'×':c.state==='published'?'✓':'◷';
-  const details=failed&&c.error?`<details class="publication-technical"><summary>Подробнее об ошибке</summary><p>${escape(c.error)}</p></details>`:'';
-  const retry=failed&&c.enabled&&c.management==='site'?`<button type="button" class="publication-action" data-retry-channel="${key}" data-product-id="${escape(p.id)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.4 6M20 4v7h-7"/></svg><span data-retry-label>Повторить попытку</span></button>`:'';
-  const edit=failed?`<button type="button" class="publication-action" data-open-channel="${key}" data-product-id="${escape(p.id)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5 4 4M4 20l4.5-.9L19.4 8.2a2.1 2.1 0 0 0-3-3L5.5 16.1 4 20Z"/></svg><span>Редактировать публикацию</span></button>`:'';
-  return `<div class="publication-result publication-status-${tone}"><strong><span class="publication-status-icon" aria-hidden="true">${glyph}</span>${escape(names[key])} — ${escape(status)}</strong>${details}${failed?`<div class="publication-result-actions">${retry}${edit}</div>`:''}</div>`;
+  const stage=publicationStage(c);
+  const status={error:'Ошибка публикации',published:'Товар опубликован',moderation:'Товар на модерации',sending:'Отправляется'}[stage];
+  const icon=stage==='error'?'✕':stage==='published'?'✓✓':stage==='moderation'?'✓':'<span class="publication-spinner" aria-hidden="true"></span>';
+  const details=stage==='error'&&c.error?`<details class="publication-technical"><summary>Подробнее об ошибке</summary><p>${escape(c.error)}</p></details>`:'';
+  const retry=stage==='error'&&c.enabled&&c.management==='site'?`<button type="button" class="publication-action" data-retry-channel="${key}" data-product-id="${escape(p.id)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.4 6M20 4v7h-7"/></svg><span data-retry-label>Повторить попытку</span></button>`:'';
+  const edit=stage==='error'?`<button type="button" class="publication-action" data-open-channel="${key}" data-product-id="${escape(p.id)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5 4 4M4 20l-4.5-.9L19.4 8.2a2.1 2.1 0 0 0-3-3L5.5 16.1 4 20Z"/></svg><span>Редактировать публикацию</span></button>`:'';
+  return `<div class="publication-result publication-status-${stage}"><strong><span class="publication-status-icon" aria-hidden="true">${icon}</span><span>${escape(names[key])} — ${escape(status)}</span></strong>${details}${stage==='error'?`<div class="publication-result-actions">${retry}${edit}</div>`:''}</div>`;
  }).join('');
 }
 function renderPublicationTracker(){
@@ -166,7 +169,7 @@ function updateChannelQuickStatus(key,c,on=c.enabled){
  badge.dataset.state=!on?'off':problem?'error':pending?'pending':c.state==='published'?'published':'selected';
 }
 function renderPublicationSettings(p){
- const form=$('#edit-form');publicationResults(p,$('#editor-publication-results'));for(const key of ['avito','flowwow']){const c=channelData(p)[key];form.elements['publish_'+key].checked=Boolean(c.enabled);form.elements['publish_'+key].disabled=Boolean(p.deleted);for(const f of ['price','title','description']){form.elements[f+'_'+key].value=c[f]??'';form.elements[f+'_'+key].disabled=Boolean(p.deleted)}$('#state-'+key).textContent=c.error?'Ошибка публикации':publicationPending(c)?'Публикуется…':c.state==='published'?'Опубликовано':'';document.querySelector(`[data-channel-body="${key}"]`).hidden=!c.error;document.querySelector(`[data-channel-expand="${key}"]`).setAttribute('aria-expanded',String(Boolean(c.error)));document.querySelector(`[data-channel-card="${key}"]`).classList.toggle('is-enabled',Boolean(c.enabled));updateChannelQuickStatus(key,c);}
+ const form=$('#edit-form');publicationResults(p,$('#editor-publication-results'));for(const key of ['avito','flowwow']){const c=channelData(p)[key];form.elements['publish_'+key].checked=Boolean(c.enabled);form.elements['publish_'+key].disabled=Boolean(p.deleted);for(const f of ['price','title','description']){form.elements[f+'_'+key].value=c[f]??'';form.elements[f+'_'+key].disabled=Boolean(p.deleted)}$('#state-'+key).textContent=c.error?'Ошибка публикации':publicationPending(c)?'Публикуется…':c.state==='published'?'Опубликовано':c.state==='moderation'?'На модерации':'';document.querySelector(`[data-channel-body="${key}"]`).hidden=!c.error;document.querySelector(`[data-channel-expand="${key}"]`).setAttribute('aria-expanded',String(Boolean(c.error)));document.querySelector(`[data-channel-card="${key}"]`).classList.toggle('is-enabled',Boolean(c.enabled));updateChannelQuickStatus(key,c);}
  const av=channelData(p).avito;$('#avito-shared').hidden=!(av.sharedCount>1);$('#avito-shared').textContent=`На Авито это одно общее объявление для ${av.sharedCount||1} товаров. Изменения Авито затронут все товары этого общего объявления.`;
  if(av.listingTitle){form.elements.title_avito.placeholder=av.listingTitle;form.elements.description_avito.placeholder=av.listingDescription;form.elements.price_avito.placeholder=money(av.listingPrice);}
  flowwowEditorSequence++;flowwowEditorData=null;flowwowDrafts={};if(channelData(p).flowwow.error)loadFlowwowEditor();for(const k of ['avito','flowwow'])setChannelControls(k);
@@ -199,7 +202,7 @@ setInterval(()=>{if(authenticated&&!document.hidden)checkConnections()},300000);
 let confirmationBusy=false;
 async function refreshPublicationStates(){
  if(!authenticated||document.hidden)return;
- const pending=products.find(p=>!p.deleted&&(channelData(p).flowwow?.state==='awaiting_confirmation'));
+ const pending=products.find(p=>!p.deleted&&(['awaiting_confirmation','moderation'].includes(channelData(p).flowwow?.state)));
  if(pending&&!confirmationBusy){
   confirmationBusy=true;
   try{await api('confirm-flowwow',{id:pending.id})}catch{}finally{confirmationBusy=false}
