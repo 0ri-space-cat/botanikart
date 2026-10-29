@@ -21,7 +21,7 @@ const fwUnitOptions=f=>{
   const id=m&&typeof m==='object'?(m.id??m.measureId??m.valueId):m;
   if(id===null||id===undefined||id==='')return null;
   const names=m&&typeof m==='object'?[m.name,m.label,m.title,m.text,m.displayName,m.fullName,m.full_name,m.shortName,m.short_name,m.unitName,m.measureName,m.measureTitle,m.unitTitle,m.measureSymbol,m.measure,m.measure?.name,m.measure?.title,m.unit?.name,m.unit?.title,m.unit,m.symbol,m.code,m.abbreviation]:[];
-  const meaningful=v=>typeof v==='string'&&v.trim()&&!/^\\d+(?:[.,]\\d+)?$/.test(v.trim())&&!/^(единица(?: измерения)?|единица длины|единица веса|единица времени|единица объёма)$/i.test(v.trim());
+  const meaningful=v=>typeof v==='string'&&v.trim()&&!/^[0-9]+(?:[.,][0-9]+)?$/.test(v.trim())&&!/^(единица(?: измерения)?|единица длины|единица веса|единица времени|единица объёма)$/i.test(v.trim());
   const raw=names.find(meaningful);
   return {id,label:raw?(aliases[raw.trim().toLowerCase()]||raw.trim()):null};
  }).filter(Boolean);
