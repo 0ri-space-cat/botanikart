@@ -67,7 +67,8 @@ function renderPublicationTracker(){
  const active=products.filter(p=>!p.deleted&&['avito','flowwow'].some(key=>publicationPending(channelData(p)[key]||{})));
  const currentId=host.dataset.productId;
  const current=products.find(p=>p.id===currentId);
- const list=[...(current?[current]:[]),...active.filter(p=>p.id!==currentId)];
+ const recent=products.filter(p=>!p.deleted&&!active.includes(p)&&['avito','flowwow'].some(key=>{const c=channelData(p)[key]||{};const when=Date.parse(c.checkedAt||'');return c.enabled&&['published','error'].includes(c.state)&&Number.isFinite(when)&&Date.now()-when<86400000})).slice(0,3);
+ const list=[...(current?[current]:[]),...active.filter(p=>p.id!==currentId),...recent.filter(p=>p.id!==currentId)];
  if(!list.length&&!current){host.hidden=true;host.innerHTML='';return}
  host.dataset.hasPending=String(active.length>0);
  host.hidden=false;
@@ -195,8 +196,18 @@ for(const key of ['avito','flowwow'])$('#edit-form').elements['publish_'+key].ad
 });
 document.querySelectorAll('[data-preview]').forEach(b=>b.addEventListener('click',async()=>{if(!editing)return;const output=$('#publication-preview');output.hidden=false;if(dirty){output.textContent='Сначала сохраните изменения, затем проверьте данные в карточке.';return}b.disabled=true;try{const result=await api('publication-preview',undefined,{id:editing.id,channel:b.dataset.preview});output.innerHTML=`<strong>${escape(result.product.title)} · ${money(result.product.price)}</strong><p>Фотографий: ${result.product.images.length}</p><ul>${result.warnings.map(w=>`<li>${escape(w)}</li>`).join('')}</ul>`}catch(error){output.textContent=error.message}finally{b.disabled=false}}));
 setInterval(()=>{if(authenticated&&!document.hidden)checkConnections()},300000);
-setInterval(()=>{if(authenticated&&!document.hidden)load().catch(()=>{})},12000);
-document.addEventListener('visibilitychange',()=>{if(authenticated&&!document.hidden)load().catch(()=>{})});
+let confirmationBusy=false;
+async function refreshPublicationStates(){
+ if(!authenticated||document.hidden)return;
+ const pending=products.find(p=>!p.deleted&&(channelData(p).flowwow?.state==='awaiting_confirmation'));
+ if(pending&&!confirmationBusy){
+  confirmationBusy=true;
+  try{await api('confirm-flowwow',{id:pending.id})}catch{}finally{confirmationBusy=false}
+ }
+ await load();
+}
+setInterval(()=>{refreshPublicationStates().catch(()=>{})},12000);
+document.addEventListener('visibilitychange',()=>{if(authenticated&&!document.hidden)refreshPublicationStates().catch(()=>{})});
 
 initialize();
 
