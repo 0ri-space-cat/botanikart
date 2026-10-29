@@ -335,3 +335,8 @@
 #editor #flowwow-fields .field-hint:empty{display:none}
 #editor .flowwow-property{margin:11px 0}
 #editor .marketplace-extra summary{font-size:12px;font-weight:500}
+
+/* Unit identifiers are internal; composition has no visible unit column. */
+#editor .consist-row{grid-template-columns:minmax(0,1fr) minmax(0,105px) 30px;align-items:center}
+#editor .flowwow-property .measure-input{display:block}
+#editor .flowwow-property .measure-input>input[type=number]{width:100%}
