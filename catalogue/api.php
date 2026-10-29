@@ -88,17 +88,29 @@ try {
         setcookie(session_name(),'', ['expires'=>time()-3600,'path'=>'/catalogue/','secure'=>$secure,'httponly'=>true,'samesite'=>'Strict']);
         respond(['ok'=>true]);
     }
-    if ($action==='orders' || $action==='complete-order') {
+    if (in_array($action,['orders','complete-order','confirm-sale','withdraw-sale'],true)) {
         require_once $private.'/PaymentService.php';
-        if(!is_file($private.'/config.php')) respond(['orders'=>[]]);
+        if(!is_file($private.'/config.php')) { if($action!=='orders') respond(['error'=>'payments_not_configured'],503); respond(['orders'=>[]]); }
         $paymentConfig=require $private.'/config.php';
         $orders=new \BotanikArt\MerchantOrders($paymentConfig);
         if($action==='complete-order' && $method==='POST') {
             if(!is_string($input['id']??null)||!is_bool($input['completed']??null))respond(['error'=>'invalid_request'],400);
             $orders->complete($input['id'],$input['completed']);
         }
+        $extra=[];
+        if(in_array($action,['confirm-sale','withdraw-sale'],true)){
+            if(!is_string($input['id']??null)||!preg_match('/^ba-[a-f0-9]{24}$/D',$input['id']))respond(['error'=>'invalid_request'],400);
+            if($action==='confirm-sale')$extra['sale']=$orders->confirmSale($input['id'],$store);
+            else{
+                $channels=$input['channels']??null;if(!is_array($channels)||!array_is_list($channels)||count(array_filter($channels,fn($c)=>is_string($c)&&in_array($c,['flowwow','avito'],true)))!==count($channels))respond(['error'=>'invalid_request'],400);
+                $productId=$orders->withdrawSale($input['id'],$store,$channels);session_write_close();
+                require_once $private.'/PublicationRunner.php';set_time_limit(90);$extra['publication']=$channels?(new \BotanikArt\PublicationRunner($store,$private))->process($productId):['results'=>[]];
+            }
+        }
         $orderList=$orders->all();
-        respond(['orders'=>$orderList,'notificationReady'=>is_file($paymentConfig['data_dir'].'/notifications-setup.php')||count(array_filter($orderList,fn($o)=>$o['emailState']==='accepted'))>0]);
+        $byId=array_column($store->all(true),null,'id');
+        foreach($orderList as &$row){$p=$byId[$row['productId']]??[];$row['singleItem']=in_array($p['catalogGroup']??$p['category']??'',['florarium','composition'],true);$row['salePlatforms']=[];foreach(['flowwow','avito'] as $key){$c=$p['channels'][$key]??[];if(!empty($c['enabled'])||!empty($c['externalId']))$row['salePlatforms'][$key]=['enabled'=>(bool)($c['enabled']??false),'url'=>$c['url']??''];}}unset($row);
+        respond($extra+['orders'=>$orderList,'notificationReady'=>is_file($paymentConfig['data_dir'].'/notifications-setup.php')||count(array_filter($orderList,fn($o)=>$o['emailState']==='accepted'))>0]);
     }
     require_once $private . '/MarketplaceService.php';
     $marketplaces=new \BotanikArt\MarketplaceService($store,$private);
@@ -118,7 +130,15 @@ try {
     if ($action==='renewal-date' && $method==='POST') { $marketplaces->saveRenewalDate($input['date']??null);respond(['connections'=>$marketplaces->connections()]); }
     if ($action==='reminder-seen' && $method==='POST') { $marketplaces->acknowledgeReminder($input['id']??null);respond(['ok'=>true]); }
     if ($action === 'products' && $method === 'GET') respond(['products'=>array_map(fn($p)=>$marketplaces->productStatus($p),$store->all(true)),'connections'=>$marketplaces->connections()]);
-    if ($action === 'save' && $method === 'POST') respond(['id'=>$store->save($input)]);
+    if ($action === 'save' && $method === 'POST') {
+        if(($input['status']??'')==='ready'&&is_file($private.'/config.php')){
+            foreach($store->all(true) as $p)if($p['id']===($input['id']??'')&&!empty($p['soldOnSite'])&&!empty($p['saleOrderId'])){
+                if(($input['version']??0)!==$p['version'])throw new \UnexpectedValueException('edit_conflict');
+                require_once $private.'/PaymentService.php';(new \BotanikArt\PaymentService(require $private.'/config.php'))->restock($p['id'],$p['saleOrderId']);break;
+            }
+        }
+        respond(['id'=>$store->save($input)]);
+    }
     if ($action === 'upload' && $method === 'POST') {
         $file = $_FILES['image'] ?? null;
         if (!$file || !is_array($file) || ($file['error'] ?? 1) !== UPLOAD_ERR_OK || !is_uploaded_file($file['tmp_name'])) respond(['error'=>'upload_failed'],400);
@@ -135,6 +155,7 @@ try {
         respond(['path'=>$path,'width'=>$prepared['width'],'height'=>$prepared['height'],'padded'=>$prepared['padded']]);
     }
     respond(['error'=>'unknown_action'],404);
+} catch (\BotanikArt\ApiError $e) { respond(['error'=>$e->reason],$e->status);
 } catch (\UnexpectedValueException) { respond(['error'=>'edit_conflict'],409);
 } catch (\InvalidArgumentException|\JsonException) { respond(['error'=>'invalid_product'],400);
 } catch (\OutOfBoundsException) { respond(['error'=>'product_missing'],404);

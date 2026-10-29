@@ -12,6 +12,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PAGES = (
+    "robots.txt",
+    "sitemap.xml",
     "index.html",
     "catalog.html",
     "offer.html",
@@ -81,11 +83,17 @@ def main() -> None:
             raise RuntimeError(f"Expected exactly one catalog script in {page}")
         target.write_text(html, encoding="utf-8")
 
-    # Version the UI code so an earlier cached script cannot mislabel local stock.
-    for page in ("index.html", "catalog.html"):
-        target = output / page
-        version = hashlib.sha256((output / 'script.js').read_bytes()).hexdigest()[:16]
-        target.write_text(re.sub(r'src="script\.js(?:\?[^"<>]*)?"', f'src="script.js?v={version}"', target.read_text(encoding='utf-8')), encoding='utf-8')
+    # Keep public and installed-catalog UI assets in sync after every release.
+    for asset in ('style.css','script.js','payment-result.js','catalogue/app.css','catalogue/app.js'):
+        version = hashlib.sha256((output / asset).read_bytes()).hexdigest()[:16]
+        directory = Path(asset).parent
+        targets = (list(output.glob('*.html')) if str(directory)=='.' else [output/'catalogue/index.php'])
+        basename = Path(asset).name
+        for target in targets:
+            html = target.read_text(encoding='utf-8')
+            html = re.sub(r'((?:src|href)=")' + re.escape(basename) + r'(?:\?[^"<>]*)?"',
+                          lambda m: m[1] + basename + '?v=' + version + '"', html)
+            target.write_text(html, encoding='utf-8')
 
     for relative in PUBLIC_ASSETS:
         copy_file(f"assets/{relative}", output)

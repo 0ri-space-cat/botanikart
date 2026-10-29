@@ -108,7 +108,7 @@ final class CatalogStore
     {
         $raw = $this->db->query("SELECT value FROM metadata WHERE name='snapshot_meta'")->fetchColumn();
         $catalog = $raw ? json_decode($raw, true, 512, JSON_THROW_ON_ERROR) : [];
-        $catalog['products'] = $this->all();
+        $catalog['products'] = array_map(function($p){if(!empty($p['soldOnSite'])){$p['available']=false;$p['status']='sold';$p['canOrder']=true;}return $p;},$this->all());
         $ids = array_column($catalog['products'], 'id');
         $catalog['featured'] = array_values(array_filter($catalog['featured'] ?? [], fn($id) => in_array($id, $ids, true)));
         return $catalog;
@@ -129,6 +129,31 @@ final class CatalogStore
             $this->db->exec('ROLLBACK TO SAVEPOINT product_save');
             $this->db->exec('RELEASE SAVEPOINT product_save');throw $error;
         }
+    }
+
+    /** Website-only sale state; external listings change only on explicit owner choice. */
+    public function confirmSale(string $id,string $orderId): string
+    {
+        $this->backup();$this->db->exec('SAVEPOINT confirm_sale');
+        try{
+            $q=$this->db->prepare('SELECT document FROM products WHERE id=?');$q->execute([$id]);$raw=$q->fetchColumn();if(!$raw)throw new \OutOfBoundsException('product_missing');$p=json_decode($raw,true,512,JSON_THROW_ON_ERROR);
+            $kind=in_array($p['catalogGroup']??$p['category']??'',['florarium','composition'],true)?'single':'repeat';
+            $q=$this->db->prepare('SELECT value FROM metadata WHERE name=?');$q->execute(['sale:'.$orderId]);$prior=$q->fetchColumn();
+            if($prior!==false){$this->db->exec('RELEASE SAVEPOINT confirm_sale');return (string)json_decode($prior,true);}
+            if($kind==='single'){$p['soldOnSite']=true;$p['saleOrderId']=$orderId;$q=$this->db->prepare('UPDATE products SET document=?,managed=1,version=version+1,updated_at=? WHERE id=?');$q->execute([json_encode($p,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),gmdate('c'),$id]);}
+            $q=$this->db->prepare('INSERT INTO metadata(name,value) VALUES(?,?)');$q->execute(['sale:'.$orderId,json_encode($kind)]);
+            $this->db->exec('RELEASE SAVEPOINT confirm_sale');return $kind;
+        }catch(\Throwable $e){$this->db->exec('ROLLBACK TO SAVEPOINT confirm_sale');$this->db->exec('RELEASE SAVEPOINT confirm_sale');throw $e;}
+    }
+    public function withdrawSold(string $id,array $channels): void
+    {
+        if(array_diff($channels,['avito','flowwow']))throw new \InvalidArgumentException('invalid_channels');
+        $this->backup();$this->db->exec('SAVEPOINT withdraw_sold');
+        try{
+            foreach($this->channels($id) as $key=>$c){if(!in_array($key,$channels,true))continue;$c['enabled']=false;$c['management']='site';$c['state']=$key==='avito'?'manual_removal':'queued';
+                $q=$this->db->prepare('UPDATE product_channels SET document=? WHERE product_id=? AND channel=?');$q->execute([json_encode($c,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),$id,$key]);$this->queuePublications($id,$key);}
+            $q=$this->db->prepare('UPDATE products SET version=version+1,updated_at=? WHERE id=?');$q->execute([gmdate('c'),$id]);$this->db->exec('RELEASE SAVEPOINT withdraw_sold');
+        }catch(\Throwable $e){$this->db->exec('ROLLBACK TO SAVEPOINT withdraw_sold');$this->db->exec('RELEASE SAVEPOINT withdraw_sold');throw $e;}
     }
 
     public function archive(string $id,int $version,bool $restore=false,bool $hideFlowwow=false): void
@@ -194,9 +219,11 @@ final class CatalogStore
             if ($source!=='flowwow' && $url !== '' && (strlen($url) > 2048 || !filter_var($url, FILTER_VALIDATE_URL) || parse_url($url, PHP_URL_SCHEME) !== 'https'
                 || !in_array(parse_url($url, PHP_URL_HOST), ['avito.ru', 'www.avito.ru'], true))) throw new \InvalidArgumentException('invalid_url');
             if ($id === '') $id = ($source === 'avito' ? 'avito-local-' : 'local-') . bin2hex(random_bytes(12));
+            $soldOnSite=!empty($prior['soldOnSite'])&&$status==='sold';
+            if($soldOnSite)$status=$prior['status'];
             $product = array_merge($prior, ['id'=>$id,'title'=>$title,'description'=>$description,'price'=>round((float)$price, 2),
                 'source'=>$source,'url'=>$url,'category'=>$group,'catalogGroup'=>$group,'images'=>array_values(array_unique($images)),
-                'available'=>$status==='ready','status'=>$status,'purchaseMode'=>$purchaseMode]);
+                'available'=>$status==='ready','status'=>$status,'purchaseMode'=>$purchaseMode,'soldOnSite'=>$soldOnSite]);
             if ($source === 'avito') {
                 $externalId = $prior['avitoItemId'] ?? ($input['avitoItemId'] ?? '');
                 if (preg_match('~(?:_|/)(\d+)(?:/)?(?:\?|$)~', $url, $match)) {

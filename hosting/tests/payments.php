@@ -84,6 +84,9 @@ try {
     $bankStatus = 'NEW';
     $second = $service->create(array_replace($input, ['requestId' => requestId()]));
     check($second['orderId'] !== $result['orderId'], 'Restocking explicitly permits a new order');
+    $service->restock($productId,$result['orderId']);
+    $currentState=json_decode(substr(file_get_contents($directory.'/data/test/orders.php'),strlen(\BotanikArt\OrderStore::GUARD)),true);
+    check($currentState['reservations'][$productId]===$second['orderId'],'Restocking an old sale cannot release a newer buyer reservation');
     $statePath = $directory . '/data/test/orders.php';
     $guard = \BotanikArt\OrderStore::GUARD;
     check(str_starts_with(file_get_contents($statePath), $guard), 'Direct PHP access cannot print order data');

@@ -31,5 +31,7 @@ try{
  ok(TelegramBot::excerpt("Вступление.\n\nПервый абзац.\n\nЛишний абзац.")==="Вступление.\n\nПервый абзац.",'Product excerpt preserves two whole paragraphs');
  ok(!str_contains(TelegramBot::excerpt(str_repeat('длинно',200)),'…'),'No arbitrary ellipsis truncation');
  ok($calls[0][0]==='sendPhoto'&&str_contains($calls[0][1]['photo'],'welcome.jpg'),'Greeting includes the website hero photograph');
+ $sold=array_replace($plant,['id'=>'flowwow-20','catalogGroup'=>'florarium','soldOnSite'=>true]);file_put_contents($root.'/public/data/catalog.json',json_encode(['products'=>[$sold],'featured'=>[]]));
+ $callback['update_id']=13;$callback['callback_query']['id']='sold-card';$callback['callback_query']['data']='p:'.substr(hash('sha256','flowwow-20'),0,20).':florarium:0';$bot->accept($callback);$bot->drain(8);$card=end($calls)[1];ok(str_contains($card['caption'],'Раскупили')&&str_contains($card['reply_markup']['inline_keyboard'][0][0]['text'],'Сделать на заказ'),'Sold composition remains visible as made-to-order in bot');ok(str_starts_with($card['reply_markup']['inline_keyboard'][0][0]['url'],'https://t.me/'),'Sold composition cannot open a bank payment');
  echo "Telegram tests passed: $checks assertions.\n";
 }finally{$it=new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root,FilesystemIterator::SKIP_DOTS),RecursiveIteratorIterator::CHILD_FIRST);foreach($it as $f)$f->isDir()?rmdir($f->getPathname()):unlink($f->getPathname());rmdir($root);}

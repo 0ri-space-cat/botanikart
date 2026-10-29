@@ -150,7 +150,7 @@ final class FlowwowPublisher
         $result=$this->request($source?'/apiseller/products/update':'/apiseller/products/create',['products'=>[$body]]);$this->ensureSuccess($result);
         $this->ensureSuccess($this->request('/apiseller/products/unhide',['offers'=>[['offerId'=>$offer]]]));
         $check=$this->findProduct($offer,true);
-        if(!$check || empty($check['isActive'])||$check['name']!==$body['name'])throw new \RuntimeException('Flowwow: изменения отправлены, подтверждение ещё не получено. Повторная проверка не создаст дубль.');
+        if(!$check || empty($check['isActive'])||$check['name']!==$body['name'])throw new \RuntimeException('Flowwow ещё не подтвердил изменения. Попробуйте позже.');
         $net=round((float)$check['price']*(1-(float)($check['discount']??0)/100),2);
         if(abs($net-(float)($c['price']??$p['price']))>0.009)throw new \RuntimeException('Flowwow: цена ещё не подтвердилась.');
         return ['state'=>'published','externalId'=>(string)$check['productId'],'offerId'=>$offer,'url'=>$check['url']??''];

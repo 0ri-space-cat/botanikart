@@ -13,7 +13,7 @@ let channelTouched={avito:false,flowwow:false};
 let flowwowEditorSequence=0,flowwowEditorData=null;
 let connections={},reminderId='',reminderOpen=false,authenticated=false;
 let csrf='',products=[],source='all',editing=null,images=[],dirty=false,uploading=false;
-const errors={invalid_channels:'Проверьте настройки площадок и цены.',external_channel:'Существующее объявление пока управляется на своей площадке.',invalid_date:'Укажите корректную дату продления.',duplicate_source:'Товар с этой ссылкой Авито уже есть в каталоге. Найдите и отредактируйте его.',setup_required:'Вход ещё не настроен.',invalid_credentials:'Проверьте логин и пароль.',too_many_attempts:'Слишком много попыток. Попробуйте через 15 минут.',service_unavailable:'Не удалось связаться с каталогом. Попробуйте ещё раз.',invalid_product:'Проверьте название, цену и фотографии.',edit_conflict:'Товар уже изменился. Закройте карточку, обновите список и откройте её снова.',upload_failed:'Не удалось загрузить фото. Выберите JPEG, PNG или WebP.',invalid_image:'Этот формат фотографии не поддерживается. Сохраните её как JPEG или PNG.',image_too_large:'Фото слишком большое. Выберите изображение поменьше.',request_too_large:'Слишком много данных. Уменьшите описание.',https_required:'Откройте каталог по защищённому адресу https://.'};
+const errors={active_payment_exists:'По этому товару уже оформляется другая покупка.',sale_confirmation_required:'Сначала подтвердите продажу.',invalid_channels:'Проверьте настройки площадок и цены.',external_channel:'Существующее объявление пока управляется на своей площадке.',invalid_date:'Укажите корректную дату продления.',duplicate_source:'Товар с этой ссылкой Авито уже есть в каталоге. Найдите и отредактируйте его.',setup_required:'Вход ещё не настроен.',invalid_credentials:'Проверьте логин и пароль.',too_many_attempts:'Слишком много попыток. Попробуйте через 15 минут.',service_unavailable:'Не удалось связаться с каталогом. Попробуйте ещё раз.',invalid_product:'Проверьте название, цену и фотографии.',edit_conflict:'Товар уже изменился. Закройте карточку, обновите список и откройте её снова.',upload_failed:'Не удалось загрузить фото. Выберите JPEG, PNG или WebP.',invalid_image:'Этот формат фотографии не поддерживается. Сохраните её как JPEG или PNG.',image_too_large:'Фото слишком большое. Выберите изображение поменьше.',request_too_large:'Слишком много данных. Уменьшите описание.',https_required:'Откройте каталог по защищённому адресу https://.'};
 function message(element,text='',error=false){element.textContent=text;element.classList.toggle('error',error)}
 async function api(action,body,params={}){
  const options={credentials:'same-origin',cache:'no-store'};
@@ -25,12 +25,12 @@ async function api(action,body,params={}){
 }
 function showLogin(){authenticated=false;$('#catalog-view').hidden=true;$('#orders-view').hidden=true;$('#login-view').hidden=false;$('#logout').hidden=true;$('#editor').close();products=[]}
 async function load(){await schemaReady;const result=await api('products');products=result.products;connections=result.connections||{};renderConnections();render()}
-async function showCatalog(){authenticated=true;window.scrollTo(0,0);$('#login-view').hidden=true;$('#catalog-view').hidden=false;$('#logout').hidden=false;await load();checkConnections();loadOrders().catch(()=>{});if(location.hash==='#orders')openOrders()}
+async function showCatalog(){authenticated=true;window.scrollTo(0,0);$('#login-view').hidden=true;$('#catalog-view').hidden=false;$('#logout').hidden=false;await load();checkConnections();loadOrders().catch(()=>{});if(location.hash.startsWith('#orders'))openOrders()}
 function render(){
  const query=$('#search').value.toLocaleLowerCase('ru-RU').replace(/ё/g,'е').trim();const visibility=$('#visibility').value;const category=$('#category').value;
- const items=products.filter(p=>(visibility==='archive'?p.deleted:!p.deleted)&&(category==='all'||productGroup(p)===category)&&matchesChannel(p,source)&&(!query||(p.title+' '+p.description).toLocaleLowerCase('ru-RU').replace(/ё/g,'е').includes(query))&&(visibility==='all'||visibility==='archive'||visibility==='hidden'&&(p.hidden||p.sourceMissing)||visibility==='visible'&&!p.hidden&&!p.sourceMissing||visibility==='ready'&&p.available||visibility==='sold'&&p.status==='sold'));
+ const items=products.filter(p=>(visibility==='archive'?p.deleted:!p.deleted)&&(category==='all'||productGroup(p)===category)&&matchesChannel(p,source)&&(!query||(p.title+' '+p.description).toLocaleLowerCase('ru-RU').replace(/ё/g,'е').includes(query))&&(visibility==='all'||visibility==='archive'||visibility==='hidden'&&(p.hidden||p.sourceMissing)||visibility==='visible'&&!p.hidden&&!p.sourceMissing||visibility==='ready'&&p.available&&!p.soldOnSite||visibility==='sold'&&(p.status==='sold'||p.soldOnSite)));
  $('#total').textContent=products.length;$('#empty').hidden=items.length!==0;
- $('#products').innerHTML=items.map(p=>`<button class="product ${p.source==='avito'?'source-avito':''} ${p.hidden||p.sourceMissing||p.deleted?'is-hidden':''}" data-id="${escape(p.id)}"><img src="${escape(imageURL(p.images?.[0]||'assets/logo-mark-roots.png'))}" alt="" loading="lazy">${p.deleted?'<span class="hidden-badge">В архиве</span>':(p.hidden||p.sourceMissing?'<span class="hidden-badge">Скрыт</span>':'')}<div class="product-body"><span class="publication-badges">${productBadges(p)}</span><h2>${escape(p.title)}</h2><span class="product-category">${escape(categories[productGroup(p)]||'Растение')}</span><span class="product-price">${money(p.price)}</span><span class="product-status">${escape(statuses[p.status]||(p.available?'В наличии':'Под заказ'))}</span></div></button>`).join('');
+ $('#products').innerHTML=items.map(p=>`<button class="product ${p.source==='avito'?'source-avito':''} ${p.hidden||p.sourceMissing||p.deleted?'is-hidden':''}" data-id="${escape(p.id)}"><img src="${escape(imageURL(p.images?.[0]||'assets/logo-mark-roots.png'))}" alt="" loading="lazy">${p.deleted?'<span class="hidden-badge">В архиве</span>':(p.hidden||p.sourceMissing?'<span class="hidden-badge">Скрыт</span>':'')}<div class="product-body"><span class="publication-badges">${productBadges(p)}</span><h2>${escape(p.title)}</h2><span class="product-category">${escape(categories[productGroup(p)]||'Растение')}</span><span class="product-price">${money(p.price)}</span><span class="product-status">${escape(p.soldOnSite?'Раскупили':(statuses[p.status]||(p.available?'В наличии':'Под заказ')))}</span></div></button>`).join('');
 }
 function renderPhotos(){
  $('#photo-count').textContent=images.length+' / 20';
@@ -38,7 +38,7 @@ function renderPhotos(){
 }
 function openEditor(id){
  editing=products.find(p=>p.id===id)||null;const p=editing||{title:'',price:'',description:'',source:'manual',catalogGroup:$('#category').value==='all'?'plant':$('#category').value,status:'ready',url:'',images:[],hidden:false};
- channelTouched={avito:false,flowwow:false};const form=$('#edit-form');form.reset();for(const key of ['title','price','description','catalogGroup','status','url'])form.elements[key].value=p[key]??'';
+ channelTouched={avito:false,flowwow:false};const form=$('#edit-form');form.reset();for(const key of ['title','price','description','catalogGroup','status','url'])form.elements[key].value=key==='status'&&p.soldOnSite?'sold':(p[key]??'');
  form.elements.catalogGroup.value=productGroup(p);$('#editor-category').textContent=categories[productGroup(p)]||'Растение';form.elements.purchase_mode.value=p.purchaseMode==='inquiry'?'inquiry':'direct';form.elements.visible.checked=!p.hidden;$('#product-fields').disabled=Boolean(p.deleted);
  $('#archive-product').hidden=!editing||Boolean(p.deleted);$('#restore-product').hidden=!p.deleted;$('#save').hidden=Boolean(p.deleted);
  $('#editor-heading').textContent=editing?'Карточка товара':'Новый товар';$('#editor-source').innerHTML=productBadges(p);
@@ -85,13 +85,13 @@ function matchesChannel(p,key){const selected=selectedChannels(p);return key==='
 function productBadges(p){const keys=selectedChannels(p);if(!keys.length)return !p.hidden&&!p.sourceMissing?`<span class="source-badge manual">${sourceLabel('manual')}</span>`:'<span class="unpublished-badge">Не опубликован</span>';return keys.map(k=>`<span class="source-badge ${k}" title="${escape(channelData(p)[k]?.message||'Выбранная площадка')}">${sourceLabel(k)}${channelData(p)[k]?.state==='error'?'<span class="pending-mark error" aria-label="Ошибка площадки">!</span>':(['queued','awaiting_report','waiting_connection'].includes(channelData(p)[k]?.state)?'<span class="pending-mark" aria-label="Ожидает обработки">…</span>':'')}</span>`).join('')}
 function renderPublicationSettings(p){
  const form=$('#edit-form');for(const key of ['avito','flowwow']){const c=channelData(p)[key];form.elements['publish_'+key].checked=Boolean(c.enabled);form.elements['publish_'+key].disabled=Boolean(p.deleted);for(const f of ['price','title','description']){form.elements[f+'_'+key].value=c[f]??'';form.elements[f+'_'+key].disabled=Boolean(p.deleted)}$('#state-'+key).textContent=c.error?c.message||c.error:(['queued','awaiting_report'].includes(c.state)?'Отправляется…':'');document.querySelector(`[data-channel-body="${key}"]`).hidden=!c.error;document.querySelector(`[data-channel-expand="${key}"]`).setAttribute('aria-expanded',String(Boolean(c.error)));document.querySelector(`[data-channel-card="${key}"]`).classList.toggle('is-enabled',Boolean(c.enabled));document.querySelector(`[data-preview="${key}"]`).disabled=!editing;}
- const av=channelData(p).avito;$('#avito-shared').hidden=!(av.sharedCount>1);$('#avito-shared').textContent=`На Авито это одно общее объявление для ${av.sharedCount||1} товаров. Поля ниже и переключатель площадки общие для всей группы; данные на сайте редактируются отдельно.`;
+ const av=channelData(p).avito;$('#avito-shared').hidden=!(av.sharedCount>1);$('#avito-shared').textContent=`На Авито это одно общее объявление для ${av.sharedCount||1} товаров. Изменения Авито затронут все товары этого общего объявления.`;
  if(av.listingTitle){form.elements.title_avito.placeholder=av.listingTitle;form.elements.description_avito.placeholder=av.listingDescription;form.elements.price_avito.placeholder=money(av.listingPrice);}
  flowwowEditorSequence++;flowwowEditorData=null;if(channelData(p).flowwow.error)loadFlowwowEditor();for(const k of ['avito','flowwow'])setChannelControls(k);
 }
 function renderConnections(){
  const avito=connections.avito||{},health=avito.health||{};const denied=health.state==='access_denied';const network=['unreachable','rate_limited'].includes(health.state);const alert=$('#connection-alert');alert.hidden=!denied&&!network;alert.classList.toggle('warning',network);
- alert.textContent=denied?'Авито не даёт доступ к API отчётов автозагрузки. Проверьте настройки и подписку — не забыли её оплатить? Загрузка по ссылке настраивается отдельно.':(health.state==='rate_limited'?'Авито временно ограничило частоту запросов. Повторим проверку позже.':'Не удаётся связаться с Авито. Это может быть временный сбой соединения.');
+ alert.textContent=denied?'Нет доступа к отчётам Авито. Проверьте, активен ли тариф.':(health.state==='rate_limited'?'Авито временно ограничило частоту запросов. Повторим проверку позже.':'Не удаётся связаться с Авито. Это может быть временный сбой соединения.');
  const reminder=avito.reminder;$('#renewal-banner').hidden=!reminder;$('#renewal-banner').textContent=reminder?.text||'';
  $('#connections-summary').innerHTML=['avito','flowwow'].map(k=>`<div class="connection-summary"><span class="source-badge ${k}">${sourceLabel(k)}</span><p>${escape(connections[k]?.message||'Ожидает подключения')}</p></div>`).join('');
  if(reminder&&!reminder.seen&&!reminderOpen&&!$('#editor').open&&!$('#connections-dialog').open){reminderId=reminder.id;reminderOpen=true;$('#renewal-message').textContent=reminder.text;$('#renewal-dialog').showModal();}
@@ -195,7 +195,7 @@ $('#delete-confirm').addEventListener('click',async()=>{
 });
 $('#restore-product').addEventListener('click',async()=>{
  if(!editing)return;
- try{await api('archive',{id:editing.id,version:editing.version,restore:true});dirty=false;$('#editor').close();await load();toast('Товар восстановлен на сайте. Настройки площадок сохранены.')}catch(error){message($('#edit-message'),error.message,true)}
+ try{await api('archive',{id:editing.id,version:editing.version,restore:true});dirty=false;$('#editor').close();await load();toast('Товар восстановлен.')}catch(error){message($('#edit-message'),error.message,true)}
 });
 
 document.querySelectorAll('[data-channel-expand]').forEach(b=>b.addEventListener('click',()=>{
@@ -220,26 +220,43 @@ let orders=[],orderFilter='open',orderLoaded=false;
 async function loadOrders(announce=false){
  if(!authenticated)return;
  const previous=new Set(orders.map(o=>o.orderId));
- const result=await api('orders');orders=result.orders||[];$('#orders-mail-warning').hidden=result.notificationReady===true;
+ const result=await api('orders');orders=result.orders||[];
  const count=orders.filter(o=>o.fulfillment!=='completed'&&o.status!=='REFUNDED').length;
  $('#orders-count').textContent=count;$('#orders-count').hidden=!count;
  if(announce&&orderLoaded&&orders.some(o=>!previous.has(o.orderId)))toast('Новый оплаченный заказ');
  orderLoaded=true;renderOrders();
 }
 function renderOrders(){
- const items=orders.filter(o=>orderFilter==='all'||(orderFilter==='completed'?o.fulfillment==='completed':o.fulfillment!=='completed'));
- $('#orders-list').innerHTML=items.map(o=>`<article class="order-card"><div class="order-head"><div><h2>${escape(o.title)}</h2><small>${escape(o.orderId)} · ${new Intl.DateTimeFormat('ru-RU',{dateStyle:'medium',timeStyle:'short',timeZone:'Europe/Moscow'}).format(new Date((o.paidAt||o.createdAt)*1000))}</small></div><strong class="order-amount">${money(o.amount)}</strong></div>${o.status!=='CONFIRMED'?`<p class="order-state">${o.status==='REFUNDED'?'Возврат оплаты':'Частичный возврат'}</p>`:''}<p>${o.phone?`<a href="tel:${escape(o.phone)}">${escape(o.phone)}</a> · `:''}<a href="mailto:${escape(o.email)}">${escape(o.email)}</a></p><div class="order-actions"><button type="button" class="${o.fulfillment==='completed'?'secondary':'primary'}" data-complete-order="${escape(o.orderId)}" data-completed="${o.fulfillment!=='completed'}">${o.fulfillment==='completed'?'Вернуть в новые':'Заказ выполнен'}</button>${o.fulfillment==='completed'?'<small>Выполнен</small>':''}${o.emailState==='pending'?'<small>Письмо ожидает отправки</small>':''}</div></article>`).join('');
+ const items=orders.filter(o=>orderFilter==='all'||(orderFilter==='completed'?o.fulfillment==='completed':o.fulfillment!=='completed'&&o.status!=='REFUNDED'));
+ $('#orders-list').innerHTML=items.map(o=>`<article class="order-card"><div class="order-head"><div><h2>${escape(o.title)}</h2><small>${escape(o.orderId)} · ${new Intl.DateTimeFormat('ru-RU',{dateStyle:'medium',timeStyle:'short',timeZone:'Europe/Moscow'}).format(new Date((o.paidAt||o.createdAt)*1000))}</small></div><strong class="order-amount">${money(o.amount)}</strong></div>${o.status!=='CONFIRMED'?`<p class="order-state">${o.status==='REFUNDED'?'Возврат оплаты':'Частичный возврат'}</p>`:''}<p>${[o.phone?`<a href="tel:${escape(o.phone)}">${escape(o.phone)}</a>`:'',o.email?`<a href="mailto:${escape(o.email)}">${escape(o.email)}</a>`:''].filter(Boolean).join(' · ')}</p><div class="order-actions">${o.status==='CONFIRMED'&&!o.saleConfirmedAt?`<button type="button" class="primary" data-confirm-sale="${escape(o.orderId)}">Подтвердить продажу</button>`:''}${o.saleConfirmedAt?`<span class="sale-confirmed">Продажа подтверждена</span><button type="button" class="${o.fulfillment==='completed'?'secondary':'primary'}" data-complete-order="${escape(o.orderId)}" data-completed="${o.fulfillment!=='completed'}">${o.fulfillment==='completed'?'Вернуть в новые':'Заказ выполнен'}</button>`:''}${o.saleConfirmedAt&&o.saleKind==='single'&&Object.keys(o.salePlatforms||{}).length?`<button type="button" class="secondary" data-sale-platforms="${escape(o.orderId)}">Площадки</button>`:''}${o.fulfillment==='completed'?'<small>Выполнен</small>':''}${o.emailState==='pending'?'<small>Письмо ожидает отправки</small>':''}</div></article>`).join('');
  $('#orders-message').textContent=items.length?'':orderFilter==='completed'?'Выполненных заказов пока нет.':'Оплаченных заказов пока нет.';
 }
 async function openOrders(){
- $('#catalog-view').hidden=true;$('#orders-view').hidden=false;location.hash='orders';
- try{await loadOrders()}catch(error){message($('#orders-message'),error.message,true)}
+ const target=new URLSearchParams(location.hash.split('?')[1]||'').get('sale');$('#catalog-view').hidden=true;$('#orders-view').hidden=false;location.hash='orders';
+ try{await loadOrders();if(target){const item=orders.find(o=>o.orderId===target);if(item&&!item.saleConfirmedAt){const b=document.querySelector(`[data-confirm-sale="${CSS.escape(target)}"]`);b?.focus();b?.scrollIntoView({block:'center'});}}}catch(error){message($('#orders-message'),error.message,true)}
 }
 $('#orders-open').addEventListener('click',openOrders);
 $('#orders-back').addEventListener('click',()=>{$('#orders-view').hidden=true;$('#catalog-view').hidden=false;history.replaceState(null,'',location.pathname)});
 $('#orders-refresh').addEventListener('click',()=>loadOrders().catch(e=>message($('#orders-message'),e.message,true)));
 document.querySelectorAll('[data-orders]').forEach(button=>button.addEventListener('click',()=>{orderFilter=button.dataset.orders;document.querySelectorAll('[data-orders]').forEach(b=>b.classList.toggle('active',b===button));renderOrders()}));
-$('#orders-list').addEventListener('click',async e=>{const button=e.target.closest('[data-complete-order]');if(!button)return;button.disabled=true;try{await api('complete-order',{id:button.dataset.completeOrder,completed:button.dataset.completed==='true'});await loadOrders();toast(button.dataset.completed==='true'?'Заказ выполнен':'Заказ возвращён в новые')}catch(error){toast(error.message)}finally{button.disabled=false}});
+let saleOrderId='';
+function showSalePlatforms(order){
+ const targets=order.salePlatforms||{};if(!Object.keys(targets).length)return;
+ saleOrderId=order.orderId;$('#sale-platform-title').textContent=order.title;$('#sale-platform-options').innerHTML=['flowwow','avito'].filter(k=>targets[k]).map(k=>`<label class="sale-target"><input type="checkbox" name="sale_channel" value="${k}" ${targets[k].enabled?'checked':''}><span>${sourceLabel(k)}${k==='avito'?`<small>Объявление нужно снять вручную.${targets[k].url?` <a href="${escape(targets[k].url)}" target="_blank" rel="noopener">Открыть Авито</a>`:''}</small>`:''}</span></label>`).join('');message($('#sale-platform-message'));$('#sale-platform-submit').hidden=false;$('#sale-platform-cancel').textContent='Оставить на площадках';$('#sale-platform-dialog').showModal();
+}
+$('#sale-platform-cancel').addEventListener('click',()=>$('#sale-platform-dialog').close());
+$('#sale-platform-form').addEventListener('submit',async e=>{
+ e.preventDefault();const b=$('#sale-platform-submit');b.disabled=true;
+ try{const channels=[...document.querySelectorAll('[name=sale_channel]:checked')].map(x=>x.value);const r=await api('withdraw-sale',{id:saleOrderId,channels});await loadOrders();
+ const states=r.publication?.results||[];const error=states.some(s=>s.state==='error');const notes=[];if(channels.includes('flowwow'))notes.push(states.find(s=>s.channel==='flowwow')?.state==='hidden'?'Flowwow: товар скрыт.':'Flowwow: отключена публикация.');if(channels.includes('avito'))notes.push('Авито: снимите объявление вручную.');message($('#sale-platform-message'),error?'Не удалось обновить площадку. Откройте настройки товара.':notes.join(' ')||'Площадки оставлены без изменений.',error);b.hidden=!error;$('#sale-platform-cancel').textContent='Готово';
+ }catch(error){message($('#sale-platform-message'),error.message,true)}finally{b.disabled=false}
+});
+$('#orders-list').addEventListener('click',async e=>{
+ const sale=e.target.closest('[data-confirm-sale]'),platforms=e.target.closest('[data-sale-platforms]'),button=e.target.closest('[data-complete-order]');
+ if(platforms){showSalePlatforms(orders.find(o=>o.orderId===platforms.dataset.salePlatforms));return;}
+ if(sale){sale.disabled=true;try{const r=await api('confirm-sale',{id:sale.dataset.confirmSale});await loadOrders();await load();toast('Продажа подтверждена');if(r.sale.kind==='single')showSalePlatforms(orders.find(o=>o.orderId===sale.dataset.confirmSale));}catch(error){toast(error.message)}finally{sale.disabled=false}return;}
+ if(!button)return;button.disabled=true;try{await api('complete-order',{id:button.dataset.completeOrder,completed:button.dataset.completed==='true'});await loadOrders();toast(button.dataset.completed==='true'?'Заказ выполнен':'Заказ возвращён в новые')}catch(error){toast(error.message)}finally{button.disabled=false}
+});
 setInterval(()=>{if(authenticated&&document.visibilityState==='visible')loadOrders(true).catch(()=>{})},60000);
 
 function fitTitle(){const field=$('#edit-form').elements.title;field.style.height='auto';const height=field.scrollHeight+2;field.style.height=Math.min(height,120)+'px';field.style.overflowY=height>120?'auto':'hidden'}

@@ -91,7 +91,7 @@ final class TelegramBot {
         if(in_array($group,['plants','potted','plant'],true))$rows[] = [$this->button('🪴 Комнатные','c:potted:0',false,'success'),$this->button('🌱 Для флорариума','c:plant:0',false,'success')];
         foreach(array_slice($items,$page*5,5) as $i=>$p){
             $number=$page*5+$i+1;$summary=self::excerpt($p['description']??'',160);
-            $caption='<b>'.$number.'. '.$this->esc($p['title']).'</b>'."\n".$this->price($p['price']).($p['available']?'':' · Под заказ');
+            $caption='<b>'.$number.'. '.$this->esc($p['title']).'</b>'."\n".$this->price($p['price']).(!empty($p['canOrder'])?' · Раскупили':($p['available']?'':' · Под заказ'));
             if($summary)$caption.="\n".$this->esc($summary);
             $text.="\n\n".$caption;
             if(!empty($p['images'][0]))$media[]=['type'=>'photo','media'=>$this->imageUrl($p['images'][0]),'caption'=>$caption,'parse_mode'=>'HTML'];
@@ -106,10 +106,10 @@ final class TelegramBot {
     private function product(string $key,string $chat,string $hash,string $group='plants',int $page=0): void {
         $found=null;foreach($this->catalog() as $p)if(substr(hash('sha256',$p['id']),0,20)===$hash){$found=$p;break;}
         if(!$found){$this->say($key,$chat,'Этот товар больше не отображается в каталоге. Выберите другой.',$this->menu());return;}$p=$found;
-        $caption='<b>'.$this->esc($p['title']).'</b>'."\n".$this->price($p['price']).' · '.($p['available']?'В наличии':'Под заказ')."\n\n".$this->esc(self::excerpt($p['description']??''));
+        $caption='<b>'.$this->esc($p['title']).'</b>'."\n".$this->price($p['price']).' · '.(!empty($p['canOrder'])?'Раскупили':($p['available']?'В наличии':'Под заказ'))."\n\n".(!empty($p['canOrder'])?"Можем сделать похожий на заказ.\n\n":'').$this->esc(self::excerpt($p['description']??''));
         $url=$this->config['site_url'].'/catalog.html?product='.rawurlencode($p['id']);$rows=[];
         if($p['available']&&($p['purchaseMode']??'direct')!=='inquiry')$rows[]=[$this->button('🛍 Купить',$url.'&checkout=1&tg='.rawurlencode($this->checkoutContext($chat,$p['id'])),true,'success')];
-        else $rows[]=[$this->button('💬 Согласовать заказ','https://t.me/Ekaterina_Freed?text='.rawurlencode('Здравствуйте! Интересует '.$p['title'].'. Хочу согласовать заказ.'),true,'success')];
+        else $rows[]=[$this->button(!empty($p['canOrder'])?'🌿 Сделать на заказ':'💬 Согласовать заказ','https://t.me/Ekaterina_Freed?text='.rawurlencode('Здравствуйте! Интересует '.$p['title'].'. Хочу согласовать заказ.'),true,'success')];
         $rows[]=[$this->button('Подробнее',$url,true,'primary')];$rows[]=[$this->button('← Назад','c:'.$group.':'.$page),$this->button('☰ Меню','menu')];$rows[]=[$this->contact()];
         $image=$p['images'][0]??'';if($image!==''){$image=str_starts_with($image,'https://')?$image:$this->config['site_url'].'/'.ltrim($image,'/');$this->queue($key,'sendPhoto',['chat_id'=>$chat,'photo'=>$image,'caption'=>$caption,'parse_mode'=>'HTML','reply_markup'=>['inline_keyboard'=>$rows]]);}else $this->say($key,$chat,$caption,$rows);
     }
@@ -132,7 +132,7 @@ final class TelegramBot {
                 if($this->owner()!==$chat)$this->say($key,$chat,'Для покупок выберите раздел каталога.',$this->menu());
                 else{require_once __DIR__.'/PaymentService.php';$orders=(new MerchantOrders(require $this->private.'/config.php'))->all();$text='<b>Последние оплаченные заказы</b>';foreach(array_slice($orders,0,5) as $o)$text.="\n\n".$this->esc($o['title']).' · '.$this->price($o['amount'])."\n".$this->esc($o['orderId']).' · '.($o['fulfillment']==='completed'?'Выполнен':'Новый');$this->say($key,$chat,$text,[[$this->button('Открыть заказы',$this->config['site_url'].'/catalogue/#orders',true)]]);}
             }elseif(preg_match('/^done:(ba-[a-f0-9]{24})$/D',$action,$m)){
-                if($this->owner()===$chat){require_once __DIR__.'/PaymentService.php';(new MerchantOrders(require $this->private.'/config.php'))->complete($m[1],true);$this->say($key,$chat,'Заказ отмечен выполненным.');}else $this->say($key,$chat,'Эта кнопка доступна только студии.');
+                if($this->owner()===$chat){require_once __DIR__.'/PaymentService.php';try{(new MerchantOrders(require $this->private.'/config.php'))->complete($m[1],true);$this->say($key,$chat,'Заказ отмечен выполненным.');}catch(ApiError $e){if($e->reason!=='sale_confirmation_required')throw $e;$this->say($key,$chat,'Сначала подтвердите продажу в каталоге.',[[$this->button('Подтвердить продажу',$this->config['site_url'].'/catalogue/#orders?sale='.rawurlencode($m[1]),true,'success')]]);}}else $this->say($key,$chat,'Эта кнопка доступна только студии.');
             }elseif(preg_match('/^c:([a-z]+):(\d{1,4})$/D',$action,$m))$this->browse($key,$chat,$m[1],(int)$m[2]);
             elseif(preg_match('/^p:([a-f0-9]{20})(?::(florarium|plants|potted|plant|material):(\d{1,4}))?$/D',$action,$m))$this->product($key,$chat,$m[1],$m[2]??'plants',(int)($m[3]??0));
             else $this->welcome($key,$chat);
@@ -142,7 +142,7 @@ final class TelegramBot {
     public function enqueuePaid(array $o): bool {
         if(!empty($o['testMode'])||empty($o['paid'])||($o['status']??'')!=='CONFIRMED')return false;
         $owner=$this->owner();$buyer=(string)($o['telegramChatId']??'');$id=$o['orderId'];
-        if($owner){$text='<b>Оплачен новый заказ</b>'."\n\n".$this->esc($o['title'])."\n".$this->price($o['amount']/100)."\nЗаказ: ".$this->esc($id)."\nТелефон: ".$this->esc($o['phone']?:'не указан')."\nПочта: ".$this->esc($o['email']?:'не указана');$rows=[[$this->button('Заказ выполнен','done:'.$id)],[$this->button('Открыть в каталоге',$this->config['site_url'].'/catalogue/#orders',true)]];
+        if($owner){$text='<b>Оплачен новый заказ</b>'."\n\n".$this->esc($o['title'])."\n".$this->price($o['amount']/100)."\nЗаказ: ".$this->esc($id)."\nТелефон: ".$this->esc($o['phone']?:'не указан')."\nПочта: ".$this->esc($o['email']?:'не указана');$rows=[[$this->button('Подтвердить продажу',$this->config['site_url'].'/catalogue/#orders?sale='.rawurlencode($id),true,'success')],[$this->button('Заказ выполнен','done:'.$id)],[$this->button('Открыть в каталоге',$this->config['site_url'].'/catalogue/#orders',true)]];
             if($buyer){$q=$this->db->prepare('SELECT username FROM chats WHERE id=?');$q->execute([$buyer]);$username=$q->fetchColumn();if($username)$rows[]=[$this->button('Написать покупателю','https://t.me/'.$username,true)];}
             $this->say('paid:'.$id.':owner',$owner,$text,$rows);
         }

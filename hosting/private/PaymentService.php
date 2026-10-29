@@ -345,10 +345,11 @@ final class PaymentService
         return count($ids);
     }
 
-    public function restock(string $productId): void
+    public function restock(string $productId,?string $expectedOrder=null): void
     {
-        $this->store->transaction(function (array &$s) use ($productId) {
+        $this->store->transaction(function (array &$s) use ($productId,$expectedOrder) {
             $id = $s['reservations'][$productId] ?? null;
+            if($expectedOrder!==null&&$id!==$expectedOrder)return;
             if ($id && !$s['orders'][$id]['sold']) throw new ApiError('active_payment_exists', 409);
             unset($s['reservations'][$productId]);
         });
@@ -369,7 +370,7 @@ final class MerchantOrders
             $result=[];
             foreach($s['orders'] as $o){
                 if(($o['testMode']??true)||!($o['sold']??false)||!in_array($o['status']??'', ['CONFIRMED','REFUNDED','PARTIAL_REFUNDED'],true))continue;
-                $row=array_intersect_key($o,array_flip(['orderId','productId','title','email','phone','status','createdAt','paidAt','completedAt','fulfillment','updatedAt']));
+                $row=array_intersect_key($o,array_flip(['orderId','productId','title','email','phone','status','createdAt','paidAt','completedAt','fulfillment','updatedAt','saleConfirmedAt','saleKind']));
                 $row['amount']=($o['amount']??0)/100;$row['fulfillment']=$o['fulfillment']??'open';
                 $row['emailState']=isset($o['merchantMailSentAt'])?'accepted':(isset($o['merchantMailPendingAt'])?'pending':'');
                 $result[]=$row;
@@ -379,11 +380,31 @@ final class MerchantOrders
         usort($orders,fn($a,$b)=>($b['paidAt']??$b['createdAt'])<=>($a['paidAt']??$a['createdAt']));
         return $orders;
     }
+    public function confirmSale(string $id,CatalogStore $catalog): array
+    {
+        return $this->store->transaction(function(array &$s)use($id,$catalog):array{
+            $o=$s['orders'][$id]??null;
+            if(!$o||!empty($o['testMode'])||empty($o['paid'])||($o['status']??'')!=='CONFIRMED')throw new \OutOfBoundsException('paid_order_missing');
+            if(empty($o['saleConfirmedAt'])){
+                $kind=$catalog->confirmSale($o['productId'],$id);$s['orders'][$id]['saleKind']=$kind;$s['orders'][$id]['saleConfirmedAt']=time();
+                if($kind==='repeat'&&($s['reservations'][$o['productId']]??null)===$id)unset($s['reservations'][$o['productId']]);
+            }
+            return ['productId'=>$o['productId'],'kind'=>$s['orders'][$id]['saleKind']];
+        });
+    }
+    public function withdrawSale(string $id,CatalogStore $catalog,array $channels): string
+    {
+        $this->store->transaction(function(array &$s)use($id,$catalog,$channels):void{
+            $o=$s['orders'][$id]??null;if(!$o||!empty($o['testMode'])||empty($o['saleConfirmedAt'])||($o['saleKind']??'')!=='single')throw new \OutOfBoundsException('sale_missing');
+            $catalog->withdrawSold($o['productId'],$channels);
+        });
+        return $this->store->transaction(fn(array &$s)=>$s['orders'][$id]['productId']);
+    }
     public function complete(string $id, bool $completed): void
     {
         $this->store->transaction(function(array &$s)use($id,$completed):void {
             if(!isset($s['orders'][$id])||($s['orders'][$id]['testMode']??true)||!($s['orders'][$id]['sold']??false))throw new \OutOfBoundsException('Order missing');
-            $o=&$s['orders'][$id];$o['fulfillment']=$completed?'completed':'open';$o['completedAt']=$completed?time():null;
+            $o=&$s['orders'][$id];if($completed&&empty($o['saleConfirmedAt']))throw new ApiError('sale_confirmation_required',409);$o['fulfillment']=$completed?'completed':'open';$o['completedAt']=$completed?time():null;
         });
     }
     public function queueTelegram(): void

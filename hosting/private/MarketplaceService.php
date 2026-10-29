@@ -29,7 +29,7 @@ final class MarketplaceService
             $hasCredentials=$channel==='avito'?(!empty($cfg['client_id'])&&!empty($cfg['client_secret'])):(!empty($cfg['token'])&&!empty($cfg['shop_id']));
             $health=$this->meta('health:'.$channel,['state'=>'unknown','checkedAt'=>null]);
             $result[$channel]=['configured'=>$hasCredentials,'outboundEnabled'=>$hasCredentials,'health'=>$health,
-                'message'=>$hasCredentials?'Ключи настроены. Результат отправки показан в карточках товаров.':'Отправка: ожидает подключения'];
+                'message'=>$hasCredentials?match($health['state']??'unknown'){'ok'=>'Подключено','access_denied'=>'Нет доступа','unreachable'=>'Нет связи','rate_limited'=>'Временно недоступно',default=>'Настройки сохранены'}:'Нужна настройка'];
         }
         $date=$this->meta('avito:renewalDate','');$reminder=null;
         if ($date!=='') {
@@ -109,11 +109,11 @@ final class MarketplaceService
                 }
             }
             if (!empty($c['error'])) { $c['message']=$c['error'];continue; }
-            if (in_array($c['state']??'', ['published','hidden','manual_removal'],true)) { $c['message']=['published'=>'Изменения подтверждены площадкой','hidden'=>'Скрыто на площадке','manual_removal'=>'Отправка выключена. Снимите объявление на Авито вручную.'][$c['state']];continue; }
+            if (in_array($c['state']??'', ['published','hidden','manual_removal'],true)) { $c['message']=['published'=>'Опубликовано','hidden'=>'Скрыто на площадке','manual_removal'=>'Отправка выключена. Снимите объявление на Авито вручную.'][$c['state']];continue; }
 
             if ($c['management']==='external') { $c['message']='Существующее объявление. Управляется на площадке.';continue; }
             if (!$c['enabled'] && $c['externalId']==='') { $c['state']='off';$c['message']='Не выбрана';continue; }
-            $c['message']=match($c['state']??'off') {'queued'=>'Сохранено. Ожидает отправки.','awaiting_report'=>'Файл готов. Авито обработает его по расписанию.','off'=>'Отправка выключена.',default=>$c['enabled']?'Откройте настройки и сохраните карточку для отправки.':'Отправка выключена.'};
+            $c['message']=match($c['state']??'off') {'queued'=>'Ожидает публикации','awaiting_report'=>'Ожидаем ответа Авито','off'=>'Отправка выключена.',default=>$c['enabled']?'Сохраните товар, чтобы опубликовать его.':'Отправка выключена.'};
         }
         unset($c);return $p;
     }

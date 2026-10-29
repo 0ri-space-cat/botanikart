@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /catalogue/
+Disallow: /api/
+Disallow: /order-success.html
+Disallow: /order-error.html
+Sitemap: https://botanikart.ru/sitemap.xml

@@ -72,22 +72,32 @@ with tempfile.TemporaryDirectory(prefix="botanikart-catalogue-http-") as tempora
         status, data = call("products")
         assert status == 200 and data["products"]
         assert call("connections")[0]==200
-        (private/'config.php').write_text("<?php return ['data_dir'=>__DIR__.'/orders'];")
-        order={'orderId':'ba-'+24*'a','productId':'fixture','title':'Растение','amount':25000,'paid':True,'sold':True,'testMode':False,'createdAt':1,'status':'CONFIRMED','email':'buyer@example.com','phone':'','reference':'must-not-leak'}
+        (private/'config.php').write_text("<?php return ['data_dir'=>__DIR__.'/orders','terminal_key'=>'FIXTURELIVE'];")
+        order={'orderId':'ba-'+24*'a','productId':next(p['id'] for p in data['products'] if p.get('catalogGroup')=='florarium'),'title':'Растение','amount':25000,'paid':True,'sold':True,'testMode':False,'createdAt':1,'status':'CONFIRMED','email':'buyer@example.com','phone':'','reference':'must-not-leak'}
         (private/'orders/live').mkdir(parents=True)
-        (private/'orders/live/orders.php').write_text('<?php exit; ?>\n'+json.dumps({'orders':{order['orderId']:order},'reservations':{'fixture':order['orderId']}}))
+        (private/'orders/live/orders.php').write_text('<?php exit; ?>\n'+json.dumps({'orders':{order['orderId']:order},'reservations':{order['productId']:order['orderId']}}))
         status, result=call('orders')
         assert status==200 and len(result['orders'])==1 and 'reference' not in result['orders'][0]
         assert result['notificationReady'] is False
         assert call('complete-order',{'id':order['orderId'],'completed':True})[0]==403
         assert call('complete-order',{'id':order['orderId'],'completed':True},login['csrf'],'https://evil.example')[0]==403
+        assert call('confirm-sale',{'id':order['orderId']})[0]==403
+        assert call('complete-order',{'id':order['orderId'],'completed':True},login['csrf'])[0]==409
+        assert call('confirm-sale',{'id':order['orderId']},login['csrf'])[0]==200
+        assert call('withdraw-sale',{'id':order['orderId'],'channels':[]},login['csrf'])[0]==200
         assert call('complete-order',{'id':order['orderId'],'completed':True},login['csrf'])[1]['orders'][0]['fulfillment']=='completed'
         assert call('complete-order',{'id':order['orderId'],'completed':False},login['csrf'])[1]['orders'][0]['fulfillment']=='open'
         assert call('complete-order',{'id':order['orderId'],'completed':'yes'},login['csrf'])[0]==400
+        reopened=next(p for p in call('products')[1]['products'] if p['id']==order['productId'])
+        reopened['status']='ready'
+        assert call('save',reopened,login['csrf'])[0]==200
+        state=json.loads((private/'orders/live/orders.php').read_text().split('\n',1)[1])
+        assert order['productId'] not in state['reservations'], 'Returning unique item to stock left it permanently unpurchasable'
+
         assert call("check-connections",{},login["csrf"])[0]==200
         assert call("renewal-date",{"date":"2026-02-30"},login["csrf"])[0]==400
         assert call("renewal-date",{"date":"2026-11-28"},login["csrf"])[0]==200
-        product = data["products"][0]
+        product = call("products")[1]["products"][0]
         assert call("save", {"id":product["id"],"version":product["version"],"hidden":True}, login["csrf"])[0] == 200
         status, public_catalog = call("", path="/api/catalog.php")
         decoded=json.loads(public_catalog.decode().removeprefix("window.BOTANIK_CATALOG=").rstrip(";"))
