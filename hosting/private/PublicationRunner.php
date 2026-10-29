@@ -117,7 +117,8 @@ final class PublicationRunner
                 $job=$this->store->db->prepare("SELECT * FROM publication_jobs WHERE product_id=? AND channel='avito'");$job->execute([$p['id']]);$pending=$job->fetch(\PDO::FETCH_ASSOC);if(!$pending||$started<strtotime($pending['updated_at']))continue;
                 $ok=($item['avito_status']??'')==='active'&&($item['section']['slug']??'')==='success_published';
                 $errors=array_values(array_filter($item['messages']??[],fn($m)=>($m['type']??'')==='error'));
-                $state=$ok?'published':($errors?'error':'awaiting_report');
+                $accepted=!$errors&&in_array((string)($item['avito_status']??''),['moderation','moderated','pending','processing','waiting','active'],true)&&($item['section']['slug']??'')!=='success_published';
+                $state=$ok?'published':($errors?'error':($accepted?'moderation':'awaiting_report'));
                 $this->recordResult($pending,['state'=>$state,'externalId'=>(string)($item['avito_id']??$c['externalId']),'url'=>$item['url']??'','error'=>$errors?mb_substr((string)$errors[0]['description'],0,500):''],$ok?'confirmed':($errors?'retry':'awaiting_report'));
                 $seen++;
             }
