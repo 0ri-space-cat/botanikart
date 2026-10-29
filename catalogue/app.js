@@ -37,19 +37,11 @@ function fwDefaultUnit(f,v){
  return pattern?String(opts.find(o=>o.label&&pattern.test(o.label))?.id??''):'';
 }
 function fwMeasureControl(f,v,id){
- const opts=fwUnitOptions(f),choice=fwDefaultUnit(f,v),single=opts.length===1;
- const named=opts.filter(o=>o.label),unknown=opts.some(o=>!o.label);
- const automatic=single||(unknown&&choice!==''&&opts.some(o=>String(o.id)===choice));
- const blocked=opts.length===0||(!automatic&&named.length===0);
- const input=`<input id="${id}" data-fw="${escape(f.field)}" type="number" inputmode="decimal" step="any" ${blocked?'disabled data-fw-locked="true"':''} ${f.minValue!==undefined?'min="'+escape(f.minValue)+'"':''} ${f.maxValue!==undefined?'max="'+escape(f.maxValue)+'"':''} placeholder="Введите число" value="${escape(v?.val??'')}">`;
- let unit='';
- if(automatic){
-  const selected=opts.find(o=>String(o.id)===(single?String(opts[0].id):choice));
-  unit=`<input type="hidden" data-fw-measure="${escape(f.field)}" value="${escape(selected.id)}">${selected.label?`<span class="fw-unit-suffix">${escape(selected.label)}</span>`:''}`;
- }else if(!blocked){
-  unit=`<select data-fw-measure="${escape(f.field)}" aria-label="Единица измерения: ${escape(fwLabel(f))}"><option value="">Выберите единицу</option>${named.map(o=>`<option value="${escape(o.id)}" ${choice===String(o.id)?'selected':''}>${escape(o.label)}</option>`).join('')}</select>`;
- }
- 
+ const opts=fwUnitOptions(f);
+ const preserved=opts.find(o=>String(o.id)===String(v?.measure));
+ const selected=preserved||opts[0];
+ const input=`<input id="${id}" data-fw="${escape(f.field)}" type="number" inputmode="decimal" step="any" ${f.minValue!==undefined?'min="'+escape(f.minValue)+'"':''} ${f.maxValue!==undefined?'max="'+escape(f.maxValue)+'"':''} placeholder="Введите число" value="${escape(v?.val??'')}">`;
+ const unit=selected?`<input type="hidden" data-fw-measure="${escape(f.field)}" value="${escape(selected.id)}">`:'';
  return `<div class="measure-input">${input}${unit}</div>`;
 }
 function publicationResults(p,host){
@@ -277,13 +269,9 @@ function renderFlowwowProperties(fields,properties){
  for(const part of container.querySelectorAll('[data-fw-alt-option][hidden]'))for(const el of part.querySelectorAll('input,select,textarea'))el.disabled=true;
 }
 function consistRow(f,row){
- const units=fwUnitOptions(f),single=units.length===1;
- const saved=units.find(u=>String(u.id)===String(row.measure));
- const unknown=units.length>1&&units.some(u=>!u.label);
- const control=single?`<input type="hidden" data-consist-measure value="${escape(units[0].id)}">${units[0].label?`<span class="fw-unit-suffix">${escape(units[0].label)}</span>`:''}`:
-  unknown&&saved?`<input type="hidden" data-consist-measure value="${escape(saved.id)}"><small class="field-hint">Единица сохранена</small>`:
-  `<select data-consist-measure aria-label="Единица составляющей" ${unknown?'disabled':''}><option value="">${unknown?'Flowwow не указал названия':'Выберите единицу'}</option>${unknown?'':units.map(m=>`<option value="${escape(m.id)}" ${String(m.id)===String(row.measure)?'selected':''}>${escape(m.label)}</option>`).join('')}</select>`;
- return `<div class="consist-row"><input data-consist-name placeholder="Название" value="${escape(row.name||'')}"><input data-consist-count type="number" min="0.01" step="any" placeholder="Количество" value="${escape(row.quantity??'')}"><span class="fw-composition-unit">${control}</span><button type="button" data-remove-consist aria-label="Убрать составляющую">×</button></div>`;
+ const units=fwUnitOptions(f),selected=units.find(u=>String(u.id)===String(row.measure))||units[0];
+ const unit=selected?`<input type="hidden" data-consist-measure value="${escape(selected.id)}">`:'';
+ return `<div class="consist-row"><input data-consist-name placeholder="Название" value="${escape(row.name||'')}"><input data-consist-count type="number" min="0.01" step="any" placeholder="Количество" value="${escape(row.quantity??'')}">${unit}<button type="button" data-remove-consist aria-label="Убрать составляющую">×</button></div>`;
 }
 async function loadFlowwowEditor(category){
  const sequence=++flowwowEditorSequence,id=editing?.id||'';const box=$('#flowwow-fields');box.innerHTML='<p class="field-hint">Загружаем настройки Flowwow…</p>';
