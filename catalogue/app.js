@@ -250,7 +250,7 @@ function consistRow(f,row){
  const control=single?`<input type="hidden" data-consist-measure value="${escape(units[0].id)}">${units[0].label?`<span class="fw-unit-suffix">${escape(units[0].label)}</span>`:''}`:
   unknown&&saved?`<input type="hidden" data-consist-measure value="${escape(saved.id)}"><small class="field-hint">Единица сохранена</small>`:
   `<select data-consist-measure aria-label="Единица составляющей" ${unknown?'disabled':''}><option value="">${unknown?'Flowwow не указал названия':'Выберите единицу'}</option>${unknown?'':units.map(m=>`<option value="${escape(m.id)}" ${String(m.id)===String(row.measure)?'selected':''}>${escape(m.label)}</option>`).join('')}</select>`;
- return `<div class="consist-row"><input data-consist-name placeholder="Название" value="${escape(row.name||'')}"><input data-consist-count type="number" min="0.01" step="any" placeholder="Количество" value="${escape(row.quantity??'')}">${control}<button type="button" data-remove-consist aria-label="Убрать составляющую">×</button></div>`;
+ return `<div class="consist-row"><input data-consist-name placeholder="Название" value="${escape(row.name||'')}"><input data-consist-count type="number" min="0.01" step="any" placeholder="Количество" value="${escape(row.quantity??'')}"><span class="fw-composition-unit">${control}</span><button type="button" data-remove-consist aria-label="Убрать составляющую">×</button></div>`;
 }
 async function loadFlowwowEditor(category){
  const sequence=++flowwowEditorSequence,id=editing?.id||'';const box=$('#flowwow-fields');box.innerHTML='<p class="field-hint">Загружаем настройки Flowwow…</p>';
