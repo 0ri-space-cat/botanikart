@@ -50,7 +50,7 @@ function fwMeasureControl(f,v,id){
   unit=`<select data-fw-measure="${escape(f.field)}" aria-label="Единица измерения: ${escape(fwLabel(f))}"><option value="">Выберите единицу</option>${named.map(o=>`<option value="${escape(o.id)}" ${choice===String(o.id)?'selected':''}>${escape(o.label)}</option>`).join('')}</select>`;
  }
  const hint=opts.length===0?'Flowwow не предоставил единицы для этого поля.':automatic&&!opts.find(o=>String(o.id)===(single?String(opts[0].id):choice))?.label?'Единица установлена автоматически по разрешённому варианту Flowwow.':unknown&&blocked?'Flowwow не прислал названия доступных единиц. Поле заблокировано, чтобы избежать неправильного значения.':unknown?'Некоторые единицы без названий скрыты — оставлены только подтверждённые варианты.':'';
- return `<div class="measure-input">${input}${unit}</div>${hint?`<small class="field-hint">${escape(hint)}</small>`:''}`;
+ return `<div class="measure-input">${input}${unit}</div>`;
 }
 function publicationResults(p,host){
  const rows=['avito','flowwow'].map(key=>({key,c:channelData(p)[key]||{}})).filter(({c})=>c.enabled||c.error);
@@ -199,7 +199,7 @@ function renderAvitoFields(c={}){
  const hasValue=f=>Array.isArray(attrs[f.tag])?attrs[f.tag].length>0:String(attrs[f.tag]??'').trim()!=='';
  const additional=fields.filter(f=>f.required===false||hasValue(f)&&!controlling.has(f.tag));
  const primary=fields.filter(f=>!additional.includes(f));
- $('#avito-attributes').innerHTML=primary.map(draw).join('')+(additional.length?`<details class="marketplace-extra"><summary>Дополнительные параметры</summary><p class="field-hint">Значения сохранены и будут отправлены вместе с товаром.</p>${additional.map(draw).join('')}</details>`:'');
+ $('#avito-attributes').innerHTML=primary.map(draw).join('')+(additional.length?`<details class="marketplace-extra"><summary>Дополнительные параметры</summary>${additional.map(draw).join('')}</details>`:'');
  };
  render();if(c.error)revealPublicationField('avito',c.error,false);
  $('#avito-attributes').addEventListener('change',e=>{if(!e.target.matches('[data-avito-field]'))return;const selected=$('#edit-form').elements.avito_category.value;avitoDrafts[selected]=readAvitoAttributes(selected);const fields=avitoSchema[selected]?.fields||[];if(fields.some(f=>f.conditions?.some(c=>c.source_field_tag===e.target.dataset.avitoField)))render()});
@@ -240,20 +240,41 @@ function renderFlowwowProperties(fields,properties){
  const container=$('#flowwow-properties');
  const skip=['name','price','description','images','offerId','productType','subCategoryId'];
  const visible=fields.filter(f=>!skip.includes(f.field));const draw=f=>{
-  const v=properties[f.field],id='fw-'+f.field,label=escape(fwLabel(f))+(f.required?' <span class="platform-required">*</span>':'');
+  const v=properties[f.field],id='fw-'+f.field,label=escape(fwLabel(f))+(f.required&&!f.dependsOn?.length?' <span class="platform-required">*</span>':'');
   let control='';const options=(f.values||[]).map(o=>`<option value="${escape(o.id)}" ${(Array.isArray(v)?v.some(x=>String(x)===String(o.id)):String(v??'')===String(o.id))?'selected':''}>${escape(o.name)}</option>`).join('');
   if(f.type==='select'||f.type==='multiselect')control=`<select id="${id}" data-fw="${escape(f.field)}" ${f.type==='multiselect'?'multiple':''}><option value="">Не выбрано</option>${options}</select>`;
   else if(f.type==='bool')control=`<input id="${id}" data-fw="${escape(f.field)}" type="checkbox" ${v?'checked':''}>`;
   else if(f.type==='measure')control=fwMeasureControl(f,v,id);
   else if(f.type==='consist')control=`<div class="consist" data-fw-consist="${escape(f.field)}">${(v||[]).map(row=>consistRow(f,row)).join('')}</div><button type="button" class="subtle" data-add-consist="${escape(f.field)}">＋ Добавить составляющую</button>`;
-  else if(f.type==='multitext')control=`<textarea id="${id}" data-fw="${escape(f.field)}" rows="3" placeholder="Каждый пункт с новой строки">${escape((v||[]).join('\n'))}</textarea>`;
+  else if(f.type==='multitext')control=`<textarea id="${id}" data-fw="${escape(f.field)}" rows="3" placeholder="${f.field==='material'?'Например, керамика':'Каждый пункт с новой строки'}">${escape((v||[]).join('\n'))}</textarea>`;
   else {const defaultOne=!editing&&(['minOrderCount'].includes(f.field)||f.field==='stock'&&$('#edit-form').elements.status.value==='ready')&&(!f.minValue||Number(f.minValue)<=1)&&(!f.maxValue||Number(f.maxValue)>=1);control=`<input id="${id}" data-fw="${escape(f.field)}" type="${f.type==='decimal'?'number':'text'}" ${f.type==='decimal'?'step="any" inputmode="decimal"':''} ${f.minValue!==undefined?'min="'+escape(f.minValue)+'"':''} ${f.maxValue!==undefined?'max="'+escape(f.maxValue)+'"':''} placeholder="${escape(f.type==='decimal'?'Введите число':'Укажите при необходимости')}" ${defaultOne&&v===undefined?'data-fw-default="1"':''} value="${escape(v??(defaultOne?1:''))}">`;}
-  const hint=f.dependsOn?.length?'<small class="field-hint">Заполните это поле или альтернативное — оба одновременно не нужны.</small>':'';
+  const hint='';
   return `<div class="flowwow-property"><label for="${id}">${label}</label>${control}${hint}</div>`;
- };const essential=visible.filter(f=>f.required||['stock','productionTime'].includes(f.field));const extra=visible.filter(f=>!essential.includes(f));container.innerHTML=essential.map(draw).join('')+(extra.length?`<details class="marketplace-extra"><summary>Дополнительные параметры</summary>${extra.map(draw).join('')}</details>`:'');
+ };
+ const essential=visible.filter(f=>f.required||['stock','productionTime'].includes(f.field));
+ const extra=visible.filter(f=>!essential.includes(f));
+ const pairUsed=new Set();
+ const drawField=f=>{
+   if(pairUsed.has(f.field))return '';
+   const partner=(f.dependsOn||[]).find(id=>visible.some(g=>g.field===id));
+   if(!partner){pairUsed.add(f.field);return draw(f)}
+   const other=visible.find(g=>g.field===partner);
+   if(pairUsed.has(partner)){pairUsed.add(f.field);return draw(f)}
+   pairUsed.add(f.field);pairUsed.add(partner);
+   const filled=x=>x!==undefined&&x!==null&&x!==''&&(!Array.isArray(x)||x.length>0);
+   const active=filled(properties[partner])&&!filled(properties[f.field])?partner:f.field;
+   return `<div class="fw-alternative" data-fw-alt-pair><label class="fw-alternative-label">Выберите параметр ${f.required||other.required?'<span class="platform-required">*</span>':''}</label><select class="fw-alternative-choice" aria-label="Выбрать параметр"><option value="${escape(f.field)}" ${active===f.field?'selected':''}>${escape(fwLabel(f))}</option><option value="${escape(partner)}" ${active===partner?'selected':''}>${escape(fwLabel(other))}</option></select><div data-fw-alt-option="${escape(f.field)}" ${active!==f.field?'hidden':''}>${draw(f)}</div><div data-fw-alt-option="${escape(partner)}" ${active!==partner?'hidden':''}>${draw(other)}</div></div>`;
+ };
+ container.innerHTML=essential.map(drawField).join('')+(extra.length?`<details class="marketplace-extra"><summary>Дополнительные параметры</summary>${extra.map(drawField).join('')}</details>`:'');
+ for(const pair of container.querySelectorAll('[data-fw-alt-pair]')){
+   const toggle=pair.querySelector('.fw-alternative-choice');
+   const update=()=>{for(const part of pair.querySelectorAll('[data-fw-alt-option]')){part.hidden=part.dataset.fwAltOption!==toggle.value;for(const el of part.querySelectorAll('input,select,textarea'))el.disabled=part.hidden||Boolean(editing?.deleted)}};
+   toggle.addEventListener('change',()=>{update();dirty=true;channelTouched.flowwow=true});update();
+ }
  container.onclick=e=>{const b=e.target.closest('[data-remove-consist]');if(b){b.closest('.consist-row').remove();dirty=true;channelTouched.flowwow=true}};
  container.querySelectorAll('[data-add-consist]').forEach(b=>b.addEventListener('click',()=>{const f=fields.find(f=>f.field===b.dataset.addConsist);container.querySelector(`[data-fw-consist="${f.field}"]`).insertAdjacentHTML('beforeend',consistRow(f,{}));dirty=true;channelTouched.flowwow=true}));
  setChannelControls('flowwow');
+ for(const part of container.querySelectorAll('[data-fw-alt-option][hidden]'))for(const el of part.querySelectorAll('input,select,textarea'))el.disabled=true;
 }
 function consistRow(f,row){
  const units=fwUnitOptions(f),single=units.length===1;
@@ -287,6 +308,7 @@ function readFlowwowProperties(){
    continue;
   }
   if(!el)continue;
+  if(el.closest('[data-fw-alt-option][hidden]')){delete result[f.field];continue;}
   if(f.type==='bool'){if(el.checked||f.required||result[f.field]!==undefined)result[f.field]=el.checked;else delete result[f.field];continue}
   if(f.type==='multiselect'){result[f.field]=[...el.selectedOptions].filter(o=>o.value!=='').map(o=>f.values.find(v=>String(v.id)===o.value)?.id);continue}
   if(f.type==='multitext'){result[f.field]=el.value.split('\n').map(s=>s.trim()).filter(Boolean);continue}
