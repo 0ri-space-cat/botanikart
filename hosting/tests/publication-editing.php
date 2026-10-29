@@ -24,6 +24,15 @@ try{
   throw new RuntimeException('Unexpected endpoint '.$path);
  };
  $fw=new FlowwowPublisher(['token'=>'fixture','shop_id'=>1],$root.'/api/.private',$transport);
+ // The seller offer ID must already exist when category-required fields are validated.
+ $identitySchema=array_merge($schema,[['field'=>'offerId','name'=>'ID товара в информационной системе продавца','type'=>'text','required'=>true]]);
+ $identity=$fw->payload($edit,$raw,$identitySchema,'https://botanikart.ru','existing-offer');
+ verify($identity['offerId']==='existing-offer','Existing Flowwow offerId failed required validation');
+ $newOffer=$edit;$newOffer['id']='local-unique-123';$newOffer['channels']['flowwow']['externalId']='';$newOffer['channels']['flowwow']['offerId']='';
+ $newOffer['channels']['flowwow']['properties']=['stock'=>1,'height'=>['val'=>8,'measure'=>2]];
+ $newOfferBody=$fw->payload($newOffer,null,$identitySchema,'https://botanikart.ru');
+ verify($newOfferBody['offerId']==='ba-local-unique-123','New Flowwow offerId is not deterministic');
+ verify($fw->payload($newOffer,null,$identitySchema,'https://botanikart.ru')['offerId']===$newOfferBody['offerId'],'Flowwow offerId changed across retries');
  $result=$fw->publish($edit,'https://botanikart.ru');verify($result['state']==='published','Update not verified');
  $writes=array_values(array_filter($calls,fn($c)=>str_starts_with($c[1],'/apiseller/products/update')));$body=$writes[0][2]['products'][0];
  verify($body['offerId']==='existing-offer'&&$body['productType']===1&&$body['subCategoryId']===9,'Existing identity/type changed');
