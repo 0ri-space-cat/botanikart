@@ -69,6 +69,7 @@ function renderPublicationTracker(){
  const current=products.find(p=>p.id===currentId);
  const list=[...(current?[current]:[]),...active.filter(p=>p.id!==currentId)];
  if(!list.length&&!current){host.hidden=true;host.innerHTML='';return}
+ host.dataset.hasPending=String(active.length>0);
  host.hidden=false;
  host.innerHTML=list.map(p=>{
   const fresh=p.id===currentId;
@@ -76,7 +77,7 @@ function renderPublicationTracker(){
   return `<section class="publication-tracker-item"><h3><span aria-hidden="true">${fresh?'✓':pending?'◷':'✓'}</span> ${fresh?'Товар добавлен на сайт':'Публикация товара'}</h3><p class="publication-tracker-title">${escape(p.title)}</p><div class="publication-tracker-channels" data-tracker-product="${escape(p.id)}"></div></section>`;
  }).join('');
  for(const p of list){const box=[...host.querySelectorAll('[data-tracker-product]')].find(el=>el.dataset.trackerProduct===p.id);if(box)publicationResults(p,box)}
- if(current&&!['avito','flowwow'].some(key=>publicationPending(channelData(current)[key]||{})))delete host.dataset.productId;
+ // Keep the most recently saved product until next navigation; pending jobs are always restored from the server.
 }
 
 let connections={},reminderId='',reminderOpen=false,authenticated=false;
@@ -98,7 +99,7 @@ function render(){
  const query=$('#search').value.toLocaleLowerCase('ru-RU').replace(/ё/g,'е').trim();const visibility=$('#visibility').value;const category=$('#category').value;
  const items=products.filter(p=>(visibility==='archive'?p.deleted:!p.deleted)&&(category==='all'||productGroup(p)===category)&&matchesChannel(p,source)&&(!query||(p.title+' '+p.description).toLocaleLowerCase('ru-RU').replace(/ё/g,'е').includes(query))&&(visibility==='all'||visibility==='archive'||visibility==='hidden'&&(p.hidden||p.sourceMissing)||visibility==='visible'&&!p.hidden&&!p.sourceMissing||visibility==='ready'&&p.available&&!p.soldOnSite||visibility==='sold'&&(p.status==='sold'||p.soldOnSite)));
  $('#total').textContent=products.length;$('#empty').hidden=items.length!==0;
- $('#products').innerHTML=items.map(p=>`<button class="product ${p.source==='avito'?'source-avito':''} ${p.hidden||p.sourceMissing||p.deleted?'is-hidden':''}" data-id="${escape(p.id)}"><img src="${escape(imageURL(p.images?.[0]||'assets/logo-mark-roots.png'))}" alt="" loading="lazy">${p.deleted?'<span class="hidden-badge">В архиве</span>':(p.hidden||p.sourceMissing?'<span class="hidden-badge">Скрыт</span>':'')}<div class="product-body"><span class="publication-badges">${productBadges(p)}</span>${['avito','flowwow'].filter(k=>channelData(p)[k]?.error).map(k=>`<span class="product-publication-error">⚠ ${escape(names[k])}: ${escape(channelData(p)[k].error)}</span>`).join('')}<h2>${escape(p.title)}</h2><span class="product-category">${escape(categories[productGroup(p)]||'Растение')}</span><span class="product-price">${money(p.price)}</span><span class="product-status">${escape(p.soldOnSite?'Раскупили':(statuses[p.status]||(p.available?'В наличии':'Под заказ')))}</span></div></button>`).join('');
+ $('#products').innerHTML=items.map(p=>`<button class="product ${p.source==='avito'?'source-avito':''} ${p.hidden||p.sourceMissing||p.deleted?'is-hidden':''}" data-id="${escape(p.id)}"><img src="${escape(imageURL(p.images?.[0]||'assets/logo-mark-roots.png'))}" alt="" loading="lazy">${p.deleted?'<span class="hidden-badge">В архиве</span>':(p.hidden||p.sourceMissing?'<span class="hidden-badge">Скрыт</span>':'')}<div class="product-body"><span class="publication-badges">${productBadges(p)}</span>${['avito','flowwow'].filter(k=>channelData(p)[k]?.error).map(k=>`<span class="product-publication-error">✕ ${escape(names[k])}: ошибка публикации</span>`).join('')}<h2>${escape(p.title)}</h2><span class="product-category">${escape(categories[productGroup(p)]||'Растение')}</span><span class="product-price">${money(p.price)}</span><span class="product-status">${escape(p.soldOnSite?'Раскупили':(statuses[p.status]||(p.available?'В наличии':'Под заказ')))}</span></div></button>`).join('');
 }
 function renderPhotos(){
  const gallery=$('#photos');
