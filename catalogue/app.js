@@ -38,13 +38,18 @@ function fwDefaultUnit(f,v){
 }
 function fwMeasureControl(f,v,id){
  const opts=fwUnitOptions(f),choice=fwDefaultUnit(f,v),single=opts.length===1;
- const unlabelled=opts.some(o=>!o.label),saved=opts.length>1&&unlabelled&&v?.measure!=null&&opts.some(o=>String(o.id)===String(v.measure));
- const blocked=opts.length===0||(opts.length>1&&unlabelled&&!saved);
+ const named=opts.filter(o=>o.label),unknown=opts.some(o=>!o.label);
+ const automatic=single||(unknown&&choice!==''&&opts.some(o=>String(o.id)===choice));
+ const blocked=opts.length===0||(!automatic&&named.length===0);
  const input=`<input id="${id}" data-fw="${escape(f.field)}" type="number" inputmode="decimal" step="any" ${blocked?'disabled':''} ${f.minValue!==undefined?'min="'+escape(f.minValue)+'"':''} ${f.maxValue!==undefined?'max="'+escape(f.maxValue)+'"':''} placeholder="Введите число" value="${escape(v?.val??'')}">`;
  let unit='';
- if(single||saved)unit=`<input type="hidden" data-fw-measure="${escape(f.field)}" value="${escape(single?opts[0].id:v.measure)}">${single&&opts[0].label?`<span class="fw-unit-suffix">${escape(opts[0].label)}</span>`:''}`;
- else if(!blocked)unit=`<select data-fw-measure="${escape(f.field)}" aria-label="Единица измерения: ${escape(fwLabel(f))}"><option value="">Выберите единицу</option>${opts.map(o=>`<option value="${escape(o.id)}" ${choice===String(o.id)?'selected':''}>${escape(o.label)}</option>`).join('')}</select>`;
- const hint=opts.length===0?'Flowwow не предоставил единицу для этого поля.':single&&!opts[0].label?'Единственная разрешённая Flowwow единица выбрана автоматически.':opts.length>1&&unlabelled?(saved?'Сохранённая единица не изменена. Названия других единиц отсутствуют в ответе Flowwow.':'Flowwow не прислал названия доступных единиц. Поле заблокировано, чтобы избежать неправильного значения.'):'';
+ if(automatic){
+  const selected=opts.find(o=>String(o.id)===(single?String(opts[0].id):choice));
+  unit=`<input type="hidden" data-fw-measure="${escape(f.field)}" value="${escape(selected.id)}">${selected.label?`<span class="fw-unit-suffix">${escape(selected.label)}</span>`:''}`;
+ }else if(!blocked){
+  unit=`<select data-fw-measure="${escape(f.field)}" aria-label="Единица измерения: ${escape(fwLabel(f))}"><option value="">Выберите единицу</option>${named.map(o=>`<option value="${escape(o.id)}" ${choice===String(o.id)?'selected':''}>${escape(o.label)}</option>`).join('')}</select>`;
+ }
+ const hint=opts.length===0?'Flowwow не предоставил единицы для этого поля.':automatic&&!opts.find(o=>String(o.id)===(single?String(opts[0].id):choice))?.label?'Единица установлена автоматически по разрешённому варианту Flowwow.':unknown&&blocked?'Flowwow не прислал названия доступных единиц. Поле заблокировано, чтобы избежать неправильного значения.':unknown?'Некоторые единицы без названий скрыты — оставлены только подтверждённые варианты.':'';
  return `<div class="measure-input">${input}${unit}</div>${hint?`<small class="field-hint">${escape(hint)}</small>`:''}`;
 }
 function publicationResults(p,host){
