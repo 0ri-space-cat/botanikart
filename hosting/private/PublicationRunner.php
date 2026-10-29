@@ -48,14 +48,14 @@ final class PublicationRunner
         if(!$lock||!flock($lock,LOCK_EX|LOCK_NB)){if($lock)fclose($lock);return ['busy'=>true];}
         $results=[];
         try {
-            $query="SELECT * FROM publication_jobs WHERE state IN ('queued','retry','awaiting_report')";$args=[];
+            $query="SELECT * FROM publication_jobs WHERE state IN ('queued','retry','awaiting_report','awaiting_confirmation')";$args=[];
             if($onlyId!==null){$query.=' AND product_id=?';$args[]=$onlyId;}
             if($onlyChannel!==null){$query.=' AND channel=?';$args[]=$onlyChannel;}
             $q=$this->store->db->prepare($query.' ORDER BY updated_at LIMIT 20');$q->execute($args);$jobs=$q->fetchAll(\PDO::FETCH_ASSOC);
             foreach($jobs as $job){
                 $products=$this->store->all(true);$found=array_values(array_filter($products,fn($p)=>$p['id']===$job['product_id']));if(!$found)continue;$p=$found[0];$channel=$job['channel'];$changes=[];
                 try {
-                    if($channel==='flowwow')$changes=$this->flowwow()->publish($p,$this->config['site_url']??'https://botanikart.ru');
+                    if($channel==='flowwow')$changes=$job['state']==='awaiting_confirmation'?$this->flowwow()->confirmPublished($p):$this->flowwow()->publish($p,$this->config['site_url']??'https://botanikart.ru');
                     else {
                         $c=$p['channels']['avito'];
                         if(!$c['enabled']||!empty($p['deleted'])){
@@ -76,7 +76,7 @@ final class PublicationRunner
                             $changes=['state'=>'awaiting_report','error'=>''];
                         }
                     }
-                    $state=$channel==='avito'&&($changes['state']??'')==='awaiting_report'?'awaiting_report':'confirmed';
+                    $state=$channel==='avito'&&($changes['state']??'')==='awaiting_report'?'awaiting_report':(($changes['state']??'')==='awaiting_confirmation'?'awaiting_confirmation':'confirmed');
                     if(!$this->recordResult($job,$changes+['error'=>''],$state))continue;
                     $results[]=['id'=>$p['id'],'channel'=>$channel,'state'=>$changes['state']];
                 }catch(\Throwable $error){
