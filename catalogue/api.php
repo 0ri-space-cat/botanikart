@@ -123,6 +123,17 @@ try {
         try { respond($runner->flowwow()->editor($p,$category)); } catch (\RuntimeException $e) {respond(['error'=>'marketplace_error','message'=>$e->getMessage()],422);}
     }
     if ($action==='sync-product' && $method==='POST') {session_write_close();set_time_limit(90);respond($runner->process((string)($input['id']??'')));}
+    if ($action==='retry-publication' && $method==='POST') {
+        $id=$input['id']??null;$channel=$input['channel']??null;
+        if(!is_string($id)||strlen($id)>100||!is_string($channel)||!in_array($channel,['avito','flowwow'],true))respond(['error'=>'invalid_request'],400);
+        $c=$store->channels($id)[$channel]??[];
+        if(($c['management']??'')!=='site'||empty($c['enabled'])||($c['state']??'')!=='error')
+            respond(['error'=>'publication_not_retryable','message'=>'Повторная отправка доступна только после ошибки публикации включённой площадки.'],409);
+        $q=$store->db->prepare('SELECT state FROM publication_jobs WHERE product_id=? AND channel=?');
+        $q->execute([$id,$channel]);
+        if($q->fetchColumn()!=='retry')respond(['error'=>'publication_not_retryable','message'=>'Задание уже обработано или ожидает подтверждения. Обновите каталог.'],409);
+        session_write_close();set_time_limit(90);respond($runner->process($id,$channel));
+    }
     if ($action==='archive' && $method==='POST') {$store->archive((string)($input['id']??''),(int)($input['version']??0),($input['restore']??false)===true,($input['hideFlowwow']??false)===true);respond(['ok'=>true]);}
     if ($action==='check-connections' && $method==='POST') {session_write_close();set_time_limit(90);$connections=$marketplaces->checkConnections();if(($connections['avito']['health']['state']??'')==='ok'){try{$runner->reports();}catch(\Throwable){}}respond(['connections'=>$connections]);}
     if ($action==='connections' && $method==='GET') respond(['connections'=>$marketplaces->connections()]);
