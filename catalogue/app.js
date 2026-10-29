@@ -41,7 +41,7 @@ function fwMeasureControl(f,v,id){
  const named=opts.filter(o=>o.label),unknown=opts.some(o=>!o.label);
  const automatic=single||(unknown&&choice!==''&&opts.some(o=>String(o.id)===choice));
  const blocked=opts.length===0||(!automatic&&named.length===0);
- const input=`<input id="${id}" data-fw="${escape(f.field)}" type="number" inputmode="decimal" step="any" ${blocked?'disabled':''} ${f.minValue!==undefined?'min="'+escape(f.minValue)+'"':''} ${f.maxValue!==undefined?'max="'+escape(f.maxValue)+'"':''} placeholder="Введите число" value="${escape(v?.val??'')}">`;
+ const input=`<input id="${id}" data-fw="${escape(f.field)}" type="number" inputmode="decimal" step="any" ${blocked?'disabled data-fw-locked="true"':''} ${f.minValue!==undefined?'min="'+escape(f.minValue)+'"':''} ${f.maxValue!==undefined?'max="'+escape(f.maxValue)+'"':''} placeholder="Введите число" value="${escape(v?.val??'')}">`;
  let unit='';
  if(automatic){
   const selected=opts.find(o=>String(o.id)===(single?String(opts[0].id):choice));
@@ -49,7 +49,7 @@ function fwMeasureControl(f,v,id){
  }else if(!blocked){
   unit=`<select data-fw-measure="${escape(f.field)}" aria-label="Единица измерения: ${escape(fwLabel(f))}"><option value="">Выберите единицу</option>${named.map(o=>`<option value="${escape(o.id)}" ${choice===String(o.id)?'selected':''}>${escape(o.label)}</option>`).join('')}</select>`;
  }
- const hint=opts.length===0?'Flowwow не предоставил единицы для этого поля.':automatic&&!opts.find(o=>String(o.id)===(single?String(opts[0].id):choice))?.label?'Единица установлена автоматически по разрешённому варианту Flowwow.':unknown&&blocked?'Flowwow не прислал названия доступных единиц. Поле заблокировано, чтобы избежать неправильного значения.':unknown?'Некоторые единицы без названий скрыты — оставлены только подтверждённые варианты.':'';
+ 
  return `<div class="measure-input">${input}${unit}</div>`;
 }
 function publicationResults(p,host){
@@ -247,7 +247,7 @@ function renderFlowwowProperties(fields,properties){
   else if(f.type==='measure')control=fwMeasureControl(f,v,id);
   else if(f.type==='consist')control=`<div class="consist" data-fw-consist="${escape(f.field)}">${(v||[]).map(row=>consistRow(f,row)).join('')}</div><button type="button" class="subtle" data-add-consist="${escape(f.field)}">＋ Добавить составляющую</button>`;
   else if(f.type==='multitext')control=`<textarea id="${id}" data-fw="${escape(f.field)}" rows="3" placeholder="${f.field==='material'?'Например, керамика':'Каждый пункт с новой строки'}">${escape((v||[]).join('\n'))}</textarea>`;
-  else {const defaultOne=!editing&&(['minOrderCount'].includes(f.field)||f.field==='stock'&&$('#edit-form').elements.status.value==='ready')&&(!f.minValue||Number(f.minValue)<=1)&&(!f.maxValue||Number(f.maxValue)>=1);control=`<input id="${id}" data-fw="${escape(f.field)}" type="${f.type==='decimal'?'number':'text'}" ${f.type==='decimal'?'step="any" inputmode="decimal"':''} ${f.minValue!==undefined?'min="'+escape(f.minValue)+'"':''} ${f.maxValue!==undefined?'max="'+escape(f.maxValue)+'"':''} placeholder="${escape(f.type==='decimal'?'Введите число':'Укажите при необходимости')}" ${defaultOne&&v===undefined?'data-fw-default="1"':''} value="${escape(v??(defaultOne?1:''))}">`;}
+  else {const defaultOne=!editing&&(['minOrderCount'].includes(f.field)||f.field==='stock'&&$('#edit-form').elements.status.value==='ready')&&(!f.minValue||Number(f.minValue)<=1)&&(!f.maxValue||Number(f.maxValue)>=1);control=`<input id="${id}" data-fw="${escape(f.field)}" type="${f.type==='decimal'?'number':'text'}" ${f.type==='decimal'?'step="any" inputmode="decimal"':''} ${f.minValue!==undefined?'min="'+escape(f.minValue)+'"':''} ${f.maxValue!==undefined?'max="'+escape(f.maxValue)+'"':''} placeholder="${escape(f.field==='material'?'Например, керамика':f.type==='decimal'?'Введите число':'Укажите при необходимости')}" ${defaultOne&&v===undefined?'data-fw-default="1"':''} value="${escape(v??(defaultOne?1:''))}">`;}
   const hint='';
   return `<div class="flowwow-property"><label for="${id}">${label}</label>${control}${hint}</div>`;
  };
@@ -268,7 +268,7 @@ function renderFlowwowProperties(fields,properties){
  container.innerHTML=essential.map(drawField).join('')+(extra.length?`<details class="marketplace-extra"><summary>Дополнительные параметры</summary>${extra.map(drawField).join('')}</details>`:'');
  for(const pair of container.querySelectorAll('[data-fw-alt-pair]')){
    const toggle=pair.querySelector('.fw-alternative-choice');
-   const update=()=>{for(const part of pair.querySelectorAll('[data-fw-alt-option]')){part.hidden=part.dataset.fwAltOption!==toggle.value;for(const el of part.querySelectorAll('input,select,textarea'))el.disabled=part.hidden||Boolean(editing?.deleted)}};
+   const update=()=>{for(const part of pair.querySelectorAll('[data-fw-alt-option]')){part.hidden=part.dataset.fwAltOption!==toggle.value;for(const el of part.querySelectorAll('input,select,textarea'))el.disabled=part.hidden||Boolean(editing?.deleted)||el.dataset.fwLocked==='true'}};
    toggle.addEventListener('change',()=>{update();dirty=true;channelTouched.flowwow=true});update();
  }
  container.onclick=e=>{const b=e.target.closest('[data-remove-consist]');if(b){b.closest('.consist-row').remove();dirty=true;channelTouched.flowwow=true}};
@@ -346,7 +346,7 @@ document.querySelectorAll('[data-channel-expand]').forEach(b=>b.addEventListener
 
 function setChannelControls(key){
  const on=$('#edit-form').elements['publish_'+key].checked;
- document.querySelector(`[data-channel-body="${key}"]`)?.querySelectorAll('input,select,textarea,button').forEach(el=>el.disabled=Boolean(editing?.deleted)||!on||el.dataset.fixed==='true'||el.classList.contains('preview-publication')&&!editing);
+ document.querySelector(`[data-channel-body="${key}"]`)?.querySelectorAll('input,select,textarea,button').forEach(el=>el.disabled=Boolean(editing?.deleted)||!on||el.dataset.fixed==='true'||el.dataset.fwLocked==='true');
 }
 $('#edit-form').addEventListener('invalid',e=>{const body=e.target.closest('[data-channel-body]');if(body){body.hidden=false;document.querySelector(`[data-channel-expand="${body.dataset.channelBody}"]`)?.setAttribute('aria-expanded','true');}},true);
 
