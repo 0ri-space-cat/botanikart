@@ -227,3 +227,93 @@
 .fw-composition-unit select{width:100%;min-width:0}
 .fw-composition-unit .fw-unit-suffix{min-height:34px}
 @media(max-width:480px){.flowwow-property .measure-input>select{min-width:96px;max-width:125px}.consist-row{gap:5px;grid-template-columns:minmax(0,1.1fr) minmax(0,.75fr) minmax(0,.85fr) 26px}.fw-unit-suffix{padding:5px 7px;min-width:29px}}
+
+
+/* A calmer, product-first editor. Existing input names and publication behavior stay intact. */
+#editor{background:#f7f9f5}
+#edit-form{padding:23px}
+#editor .editor-top{margin:0 0 15px;padding:4px 4px 2px}
+#editor .editor-top h2{margin-top:8px}
+#editor .editor-tools{width:max-content;max-width:100%;padding:5px 12px 5px 5px;background:#fff;border:1px solid #e5ebdf;border-radius:14px;margin:0 0 13px}
+#editor .editor-section{
+  margin:0 0 15px;
+  padding:22px;
+  background:#fff;
+  border:1px solid #e3eade;
+  border-radius:21px;
+  box-shadow:0 5px 22px rgba(29,67,41,.035);
+  min-width:0;
+}
+#editor .editor-section-heading{display:flex;align-items:flex-start;gap:12px;margin:0 0 18px}
+#editor .editor-section-number{display:grid;place-items:center;flex:0 0 31px;width:31px;height:31px;background:#edf3e8;color:#55745a;border-radius:10px;font-size:11px;font-weight:650}
+#editor .editor-section-heading h3{font-family:inherit;font-size:17px;font-weight:650;line-height:1.25;margin:2px 0 4px;letter-spacing:-.25px}
+#editor .editor-section-heading p{font-size:11.5px;line-height:1.5;margin:0;color:#7a8b78}
+#editor .editor-product-section>label,#editor .editor-product-section>.field-row{margin-top:16px}
+#editor .editor-product-section>.editor-section-heading + label{margin-top:0}
+#editor .editor-product-section .editor-category-hint{font-size:11px;line-height:1.55;color:#658165;background:#f4f8f0;border-radius:10px;padding:10px 12px;margin:10px 0 14px}
+#editor .editor-product-section label{line-height:1.5}
+#editor .editor-product-section [name=description]{min-height:118px}
+#editor .editor-advanced{margin-top:16px;border:1px solid #e8ece5;border-radius:13px;background:#fbfcfa;padding:12px 14px}
+#editor .editor-advanced summary{cursor:pointer;font-size:12px;color:#60755d;font-weight:550}
+#editor .editor-advanced[open] summary{margin-bottom:12px}
+#editor .editor-advanced label{font-size:12px}
+#editor .editor-photos-section .photo-heading{margin:0 0 12px}
+#editor .editor-photos-section .photo-heading strong{font-weight:550;font-size:12px;color:#6e806a}
+#editor .editor-photos-section #photo-count{font-variant-numeric:tabular-nums;font-size:12px}
+#editor .editor-photos-section #photos{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;align-items:start}
+#editor .editor-photos-section #photos .photo{border:1px solid #e5eadf;border-radius:14px;aspect-ratio:1;min-width:0}
+#editor .editor-photos-section #photos .photo img{width:100%;height:100%;aspect-ratio:auto;object-fit:cover}
+#editor .editor-photos-section #photos:not(.is-single) .photo:first-child{grid-column:span 2;grid-row:span 2}
+#editor .editor-photos-section #photos.is-single{grid-template-columns:minmax(0,1fr)}
+#editor .editor-photos-section #photos.is-single .photo:first-child{width:100%;max-height:360px;aspect-ratio:4/3}
+#editor .editor-photos-section #photos.is-empty{grid-template-columns:1fr}
+#editor .editor-photos-section .photo-empty{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:6px;min-height:174px;background:#f8faf6;border:1px dashed #cbd8c4;border-radius:16px;text-align:center;padding:24px}
+#editor .editor-photos-section .photo-empty svg{width:43px;height:43px;stroke:#95ab90;stroke-width:1.7;fill:none;stroke-linecap:round;stroke-linejoin:round;margin-bottom:5px}
+#editor .editor-photos-section .photo-empty strong{font-size:12px;font-weight:600;color:#52704f}
+#editor .editor-photos-section .photo-empty span{font-size:11px;color:#84947f}
+#editor .editor-photos-section .upload-button{background:#f4f8ef;border:1px dashed #b6caad;color:#42654c;padding:13px 15px;border-radius:12px;font-weight:550;transition:background .15s}
+#editor .editor-photos-section .upload-button:hover{background:#eaf4e3}
+#editor .editor-photos-section .field-hint{font-size:10.5px}
+#editor .editor-channels-section .publication-options{gap:10px}
+#editor .editor-channels-section .publication-option{background:#fff;border-radius:15px;box-shadow:none}
+#editor .editor-channels-section .publication-option.is-enabled{border-color:#b1c6a5}
+#editor .editor-channels-section .publication-header{padding:11px 12px;min-height:56px}
+#editor .editor-channels-section .publication-option.avito .publication-header{background:#f6f9fc}
+#editor .editor-channels-section .publication-option.flowwow .publication-header{background:#fff8f5}
+#editor .editor-channels-section .source-badge{font-size:12px}
+#editor .editor-channels-section .channel-head-aside{display:flex;flex-direction:column;gap:3px;align-items:flex-end;margin-left:auto;flex-shrink:0}
+#editor .editor-channels-section .channel-quick-status{font-size:10px;font-weight:500;color:#738672;white-space:nowrap}
+#editor .editor-channels-section .channel-quick-status[data-state=error]{color:#b25447}
+#editor .editor-channels-section .channel-quick-status[data-state=pending]{color:#a47d3d}
+#editor .editor-channels-section .channel-quick-status[data-state=published]{color:#4c8762}
+#editor .editor-channels-section .channel-expand-caption{font-size:10px;line-height:1.2}
+#editor .editor-channels-section .publication-toggle{padding:2px 0!important}
+#editor .editor-channels-section [data-channel-body]{padding:12px 13px 14px;border-top:1px solid #eef1eb}
+#editor .editor-channels-section .publication-state{font-size:11px;line-height:1.5;padding:0 13px 10px;margin:0}
+#editor .editor-channels-section .publication-help{margin:14px 2px 0;color:#84917d}
+#editor .editor-save-context{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+#editor .editor-save-context>span{color:#70846e;font-size:10.5px;line-height:1.35}
+#editor .editor-save-context .form-message{font-size:11px;line-height:1.35;margin:0;min-height:0}
+#editor .editor-save-context .form-message:empty{display:none}
+#editor .editor-footer{position:sticky;bottom:0;z-index:4;display:flex;align-items:center;gap:14px;justify-content:space-between;margin:21px -23px -23px;padding:12px 23px calc(12px + env(safe-area-inset-bottom));background:#f7f9f5ed;border-top:1px solid #dfe8d9;box-shadow:0 -8px 28px rgba(25,60,36,.06);backdrop-filter:blur(12px)}
+#editor .editor-footer #save{min-height:44px;border-radius:12px;background:#dcebc5;white-space:nowrap;padding:12px 19px;font-size:13px}
+#editor .editor-footer #save:hover{background:#cce2ab}
+@media(max-width:700px){
+ #edit-form{padding:17px 13px calc(12px + env(safe-area-inset-bottom))}
+ #editor .editor-top{padding:0 3px}
+ #editor .editor-section{padding:17px 14px;border-radius:18px;margin-bottom:12px}
+ #editor .editor-section-heading{margin-bottom:15px;gap:10px}
+ #editor .editor-section-heading h3{font-size:16px}
+ #editor .editor-section-heading p{font-size:11px}
+ #editor .editor-photos-section #photos{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+ #editor .editor-channels-section .publication-options{grid-template-columns:minmax(0,1fr);gap:9px}
+ #editor .editor-footer{margin:16px -13px calc(-12px - env(safe-area-inset-bottom));padding:10px 13px calc(10px + env(safe-area-inset-bottom));gap:9px}
+ #editor .editor-footer #save{flex:0 0 auto;min-height:44px;padding:11px 13px}
+ #editor .editor-save-context>span{font-size:10px}
+}
+@media(max-width:360px){
+ #editor .editor-channels-section .channel-head-aside{gap:1px}
+ #editor .editor-channels-section .channel-quick-status{font-size:9px}
+ #editor .editor-channels-section .publication-header{padding:10px}
+ #editor .editor-footer #save{font-size:12px;padding:10px 11px}
+}
