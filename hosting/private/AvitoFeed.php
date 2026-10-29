@@ -27,7 +27,8 @@ final class AvitoFeed
             if (!self::applicable($field,$attributes)) continue;
             $value=count($field['values'])===1?$field['values'][0]:($attributes[$field['tag']]??'');
             if (!empty($field['multiple']) && is_string($value)) $value=array_values(array_filter(array_map('trim',explode('|',$value))));
-            if ($value==='' || $value===[] || ($field['values'] && (is_array($value)?array_diff($value,$field['values']):!in_array($value,$field['values'],true)))) $warnings[]='Заполните поле «'.$field['label'].'» для Авито.';
+            if ($value==='' || $value===[]) {if(($field['required']??true)!==false)$warnings[]='Заполните поле «'.$field['label'].'» для Авито.';}
+            elseif($field['values'] && (is_array($value)?array_diff($value,$field['values']):!in_array($value,$field['values'],true)))$warnings[]='Проверьте значение «'.$field['label'].'» для Авито.';
             else $fields[$field['tag']]=$value;
         }
         if (preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F]/u',$title.$description)) $warnings[]='В тексте есть служебные символы. Удалите их.';
