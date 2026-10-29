@@ -317,3 +317,9 @@
  #editor .editor-channels-section .publication-header{padding:10px}
  #editor .editor-footer #save{font-size:12px;padding:10px 11px}
 }
+
+/* Only one publication disclosure label may be visible at a time. */
+#editor .editor-channels-section .channel-expand-caption{font-size:10px;line-height:1.2;white-space:nowrap}
+#editor .editor-channels-section .channel-expand[aria-expanded=true] .channel-expand-caption{font-size:0!important}
+#editor .editor-channels-section .channel-expand[aria-expanded=true] .channel-expand-caption::after{content:'Свернуть';font-size:10px;line-height:1.2}
+#editor .editor-channels-section .channel-head-aside{min-width:76px;align-items:flex-end}
