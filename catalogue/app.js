@@ -13,17 +13,40 @@ let channelTouched={avito:false,flowwow:false};
 let flowwowEditorSequence=0,flowwowEditorData=null;let flowwowDrafts={},avitoDrafts={};
 const fwLabels={minOrderCount:'Минимальное количество для заказа',maxOrderCount:'Максимальное количество для заказа',stock:'Количество в наличии',productionTime:'Время изготовления',height:'Высота',width:'Ширина',volume:'Объём',quantityInPackage:'Количество в упаковке',approximateWeight:'Примерный вес',manufacturerName:'Производитель',manufacturerAddress:'Адрес производителя',importerName:'Импортёр',importerAddress:'Адрес импортёра',regionOfOrigin:'Регион происхождения',isPostDelivery:'Доставка почтой',postWidth:'Ширина посылки',postHeight:'Высота посылки',postLength:'Длина посылки',postWeight:'Вес посылки',isAdultsOnly:'Товар для взрослых',material:'Материал',consist:'Составляющие товара',thematicSelections:'Тематические подборки',gender:'Для кого',textDimensions:'Размеры',kilocalories:'Калорийность',proteins:'Белки',fats:'Жиры',carbohydrates:'Углеводы',brand:'Бренд',composition:'Состав',author:'Автор',year:'Год',certificatePurpose:'Назначение сертификата',certificateType:'Тип сертификата',baloonType:'Тип воздушного шара'};
 const fwLabel=f=>fwLabels[f.field]||(/[а-яё]/i.test(f.name||'')?f.name:'Параметр Flowwow: '+String(f.name||f.field).replace(/([a-z])([A-Z])/g,'$1 $2'));
-const fwUnitOptions=f=>(Array.isArray(f.measure)?f.measure:[]).map(m=>{
- const id=m&&typeof m==='object'?(m.id??m.measureId??m.valueId):m;
- if(id===undefined||id===null||id==='')return null;
- const candidates=m&&typeof m==='object'?[m.name,m.label,m.title,m.value,m.displayName,m.fullName,m.shortName,m.unitName,m.measureName,m.measure?.name,m.unit?.name,m.unit,m.symbol,m.code,m.abbreviation]:[];
- const raw=candidates.find(x=>typeof x==='string'&&x.trim()&&!/^\\d+$/.test(x.trim())&&!/^единица(?: измерения)?$/i.test(x.trim()));
- const singleUnit=Array.isArray(f.measure)&&f.measure.length===1;
- const familiar=singleUnit?({'height':'см','width':'см','postHeight':'см','postWidth':'см','postLength':'см','approximateWeight':'г','postWeight':'г'}[f.field]):null;
- const fallback=familiar||({'productionTime':'единица времени','height':'единица длины','width':'единица длины','volume':'единица объёма','approximateWeight':'единица веса','postWeight':'единица веса','postHeight':'единица длины','postWidth':'единица длины','postLength':'единица длины'}[f.field]||'единица измерения');
- return {id,label:raw?raw.trim():fallback,unlabelled:!raw};
-}).filter(Boolean);
-function fwDefaultUnit(f,v){if(v&&v.measure!==undefined&&v.measure!==null)return String(v.measure);if(editing)return '';const opts=fwUnitOptions(f);if(opts.length===1)return String(opts[0].id);const pattern=f.field==='productionTime'?/(час|\bч\b|hour|\bhr\b)/i:['height','width','postWidth','postHeight','postLength'].includes(f.field)?/(сантиметр|см\b|centimeter|cm\b)/i:null;if(!pattern)return '';return String(opts.find(o=>pattern.test(o.label))?.id??'')}
+
+const fwUnitOptions=f=>{
+ const rows=Array.isArray(f.measure)?f.measure:Array.isArray(f.measure?.units)?f.measure.units:[];
+ const aliases={cm:'см',centimeter:'см',centimeters:'см',сантиметр:'см',mm:'мм',millimeter:'мм',миллиметр:'мм',m:'м',meter:'м',метр:'м',g:'г',gram:'г',грамм:'г',kg:'кг',kilogram:'кг',килограмм:'кг',hour:'ч',hours:'ч',hr:'ч',час:'ч',minute:'мин',minutes:'мин',min:'мин',минута:'мин',liter:'л',литр:'л',milliliter:'мл',миллилитр:'мл',pieces:'шт',piece:'шт',штука:'шт'};
+ return rows.map(m=>{
+  const id=m&&typeof m==='object'?(m.id??m.measureId??m.valueId):m;
+  if(id===null||id===undefined||id==='')return null;
+  const names=m&&typeof m==='object'?[m.name,m.label,m.title,m.text,m.displayName,m.fullName,m.full_name,m.shortName,m.short_name,m.unitName,m.measureName,m.measureTitle,m.unitTitle,m.measureSymbol,m.measure,m.measure?.name,m.measure?.title,m.unit?.name,m.unit?.title,m.unit,m.symbol,m.code,m.abbreviation]:[];
+  const meaningful=v=>typeof v==='string'&&v.trim()&&!/^\\d+(?:[.,]\\d+)?$/.test(v.trim())&&!/^(единица(?: измерения)?|единица длины|единица веса|единица времени|единица объёма)$/i.test(v.trim());
+  const raw=names.find(meaningful);
+  return {id,label:raw?(aliases[raw.trim().toLowerCase()]||raw.trim()):null};
+ }).filter(Boolean);
+};
+function fwDefaultUnit(f,v){
+ const opts=fwUnitOptions(f);
+ if(v?.measure!==undefined&&v?.measure!==null&&v.measure!=='')return String(v.measure);
+ if(opts.length===1)return String(opts[0].id);
+ const defaultId=f.measure?.defaultUnitId??f.defaultMeasureId??f.defaultUnitId;
+ if(defaultId!==undefined&&defaultId!==null&&opts.some(o=>String(o.id)===String(defaultId)))return String(defaultId);
+ if(editing)return '';
+ const pattern=f.field==='productionTime'?/^(мин|ч)$/i:['height','width','postWidth','postHeight','postLength'].includes(f.field)?/^см$/i:null;
+ return pattern?String(opts.find(o=>o.label&&pattern.test(o.label))?.id??''):'';
+}
+function fwMeasureControl(f,v,id){
+ const opts=fwUnitOptions(f),choice=fwDefaultUnit(f,v),single=opts.length===1;
+ const unlabelled=opts.some(o=>!o.label),saved=opts.length>1&&unlabelled&&v?.measure!=null&&opts.some(o=>String(o.id)===String(v.measure));
+ const blocked=opts.length===0||(opts.length>1&&unlabelled&&!saved);
+ const input=`<input id="${id}" data-fw="${escape(f.field)}" type="number" inputmode="decimal" step="any" ${blocked?'disabled':''} ${f.minValue!==undefined?'min="'+escape(f.minValue)+'"':''} ${f.maxValue!==undefined?'max="'+escape(f.maxValue)+'"':''} placeholder="Введите число" value="${escape(v?.val??'')}">`;
+ let unit='';
+ if(single||saved)unit=`<input type="hidden" data-fw-measure="${escape(f.field)}" value="${escape(single?opts[0].id:v.measure)}">${single&&opts[0].label?`<span class="fw-unit-suffix">${escape(opts[0].label)}</span>`:''}`;
+ else if(!blocked)unit=`<select data-fw-measure="${escape(f.field)}" aria-label="Единица измерения: ${escape(fwLabel(f))}"><option value="">Выберите единицу</option>${opts.map(o=>`<option value="${escape(o.id)}" ${choice===String(o.id)?'selected':''}>${escape(o.label)}</option>`).join('')}</select>`;
+ const hint=opts.length===0?'Flowwow не предоставил единицу для этого поля.':single&&!opts[0].label?'Единственная разрешённая Flowwow единица выбрана автоматически.':opts.length>1&&unlabelled?(saved?'Сохранённая единица не изменена. Названия других единиц отсутствуют в ответе Flowwow.':'Flowwow не прислал названия доступных единиц. Поле заблокировано, чтобы избежать неправильного значения.'):'';
+ return `<div class="measure-input">${input}${unit}</div>${hint?`<small class="field-hint">${escape(hint)}</small>`:''}`;
+}
 function publicationResults(p,host){
  const rows=['avito','flowwow'].map(key=>({key,c:channelData(p)[key]||{}})).filter(({c})=>c.enabled||c.error);
  host.hidden=!rows.length;
@@ -204,7 +227,7 @@ function renderFlowwowProperties(fields,properties){
   let control='';const options=(f.values||[]).map(o=>`<option value="${escape(o.id)}" ${(Array.isArray(v)?v.some(x=>String(x)===String(o.id)):String(v??'')===String(o.id))?'selected':''}>${escape(o.name)}</option>`).join('');
   if(f.type==='select'||f.type==='multiselect')control=`<select id="${id}" data-fw="${escape(f.field)}" ${f.type==='multiselect'?'multiple':''}><option value="">Не выбрано</option>${options}</select>`;
   else if(f.type==='bool')control=`<input id="${id}" data-fw="${escape(f.field)}" type="checkbox" ${v?'checked':''}>`;
-  else if(f.type==='measure'){const unit=fwDefaultUnit(f,v),units=fwUnitOptions(f);control=`<div class="measure-input"><input id="${id}" data-fw="${escape(f.field)}" type="number" inputmode="decimal" step="any" ${f.minValue!==undefined?'min="'+escape(f.minValue)+'"':''} ${f.maxValue!==undefined?'max="'+escape(f.maxValue)+'"':''} placeholder="${['width','height'].includes(f.field)?'Например, 15':'Введите число'}" value="${escape(v?.val??'')}"><select aria-label="Единица измерения: ${escape(fwLabel(f))}" data-fw-measure="${escape(f.field)}"><option value="">Выберите единицу</option>${units.map(m=>`<option value="${escape(m.id)}" ${unit===String(m.id)?'selected':''}>${escape(m.label)}</option>`).join('')}</select></div>${units.length?'':'<small class="field-hint">В схеме Flowwow нет единиц измерения для этого поля.</small>'}`;}
+  else if(f.type==='measure')control=fwMeasureControl(f,v,id);
   else if(f.type==='consist')control=`<div class="consist" data-fw-consist="${escape(f.field)}">${(v||[]).map(row=>consistRow(f,row)).join('')}</div><button type="button" class="subtle" data-add-consist="${escape(f.field)}">＋ Добавить составляющую</button>`;
   else if(f.type==='multitext')control=`<textarea id="${id}" data-fw="${escape(f.field)}" rows="3" placeholder="Каждый пункт с новой строки">${escape((v||[]).join('\n'))}</textarea>`;
   else {const defaultOne=!editing&&(['minOrderCount'].includes(f.field)||f.field==='stock'&&$('#edit-form').elements.status.value==='ready')&&(!f.minValue||Number(f.minValue)<=1)&&(!f.maxValue||Number(f.maxValue)>=1);control=`<input id="${id}" data-fw="${escape(f.field)}" type="${f.type==='decimal'?'number':'text'}" ${f.type==='decimal'?'step="any" inputmode="decimal"':''} ${f.minValue!==undefined?'min="'+escape(f.minValue)+'"':''} ${f.maxValue!==undefined?'max="'+escape(f.maxValue)+'"':''} placeholder="${escape(f.type==='decimal'?'Введите число':'Укажите при необходимости')}" ${defaultOne&&v===undefined?'data-fw-default="1"':''} value="${escape(v??(defaultOne?1:''))}">`;}
