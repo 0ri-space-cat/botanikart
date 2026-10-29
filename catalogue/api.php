@@ -13,6 +13,19 @@ function respond(array $data, int $status = 200): never {
     exit;
 }
 
+// A persistent, sliding 30-day session. Only the opaque session ID is kept
+// in an HttpOnly cookie; credentials never leave the login request.
+function renewCatalogueSessionCookie(bool $secure): void {
+    $settings = session_get_cookie_params();
+    setcookie(session_name(), session_id(), [
+        'expires' => time() + 2592000,
+        'path' => $settings['path'],
+        'secure' => $secure,
+        'httponly' => true,
+        'samesite' => 'Strict',
+    ]);
+}
+
 try {
     $private = dirname(__DIR__) . '/api/.private';
     $authFile = $private . '/catalogue-auth.php';
@@ -33,6 +46,7 @@ try {
     $_SESSION['revision'] = $auth['revision'];
     $_SESSION['lastSeen'] = time();
     $_SESSION['csrf'] ??= bin2hex(random_bytes(32));
+    if (isset($_SESSION['user'])) renewCatalogueSessionCookie($secure);
     $action = $_GET['action'] ?? 'session';
     $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
     if ($method !== 'GET' && $method !== 'POST') respond(['error'=>'method_not_allowed'],405);
@@ -78,6 +92,7 @@ try {
         $db->exec('COMMIT');
         session_regenerate_id(true);
         $_SESSION=['user'=>$auth['username'],'revision'=>$auth['revision'],'lastSeen'=>time(),'csrf'=>bin2hex(random_bytes(32))];
+        renewCatalogueSessionCookie($secure);
         respond(['authenticated'=>true,'csrf'=>$_SESSION['csrf'],'user'=>$_SESSION['user']]);
     }
     if (!isset($_SESSION['user'])) respond(['error'=>'authentication_required'],401);
