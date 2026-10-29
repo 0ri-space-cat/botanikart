@@ -54,7 +54,7 @@ try{
  verify($wrongPrice['state']==='awaiting_confirmation'&&str_contains($wrongPrice['message'],'цена ещё не совпадает'),'Readback price mismatch not reported');
  $checkedProduct['price']='480';$checkedProduct['discount']=0;$checkedProduct['isActive']=false;
  $inactive=$poller->confirmPublished($edit,'123');
- verify($inactive['state']==='awaiting_confirmation'&&str_contains($inactive['message'],'модерации'),'Hidden item not explained');
+ verify($inactive['state']==='moderation'&&$inactive['offerId']==='existing-offer','Inactive Flowwow listing must be awaiting moderation, not pending upload');
  $checkedProduct['isActive']=true;
  verify($poller->confirmPublished($edit,'123')['state']==='published','Confirmed published readback not recognized');
  verify($poller->confirmPublished($edit,'123')['offerId']==='existing-offer','Remote offerId was replaced during fallback lookup');
