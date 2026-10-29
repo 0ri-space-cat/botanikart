@@ -160,7 +160,15 @@ try {
         if($q->fetchColumn()!=='retry')respond(['error'=>'publication_not_retryable','message'=>'Задание уже обработано или ожидает подтверждения. Обновите каталог.'],409);
         session_write_close();set_time_limit(90);respond($runner->process($id,$channel));
     }
-    if ($action==='archive' && $method==='POST') {$store->archive((string)($input['id']??''),(int)($input['version']??0),($input['restore']??false)===true,($input['hideFlowwow']??false)===true);respond(['ok'=>true]);}
+    if ($action==='archive' && $method==='POST') {
+        $id=(string)($input['id']??'');$restore=($input['restore']??false)===true;
+        $store->archive($id,(int)($input['version']??0),$restore,($input['hideFlowwow']??false)===true);
+        // Stop the last feed at Avito now, rather than leaving its last successful
+        // contents active until the hourly worker handles the withdrawal job.
+        $result=[];
+        if(!$restore){session_write_close();set_time_limit(60);$result=$runner->stopEmptyAvitoFeed();}
+        respond(['ok'=>true,'avitoWithdrawal'=>$result]);
+    }
     if ($action==='check-connections' && $method==='POST') {session_write_close();set_time_limit(90);$connections=$marketplaces->checkConnections();if(($connections['avito']['health']['state']??'')==='ok'){try{$runner->reports();}catch(\Throwable){}}respond(['connections'=>$connections]);}
     if ($action==='connections' && $method==='GET') respond(['connections'=>$marketplaces->connections()]);
     if ($action==='publication-preview' && $method==='GET') respond($marketplaces->preview((string)($_GET['id']??''),(string)($_GET['channel']??'')));
@@ -174,7 +182,9 @@ try {
                 require_once $private.'/PaymentService.php';(new \BotanikArt\PaymentService(require $private.'/config.php'))->restock($p['id'],$p['saleOrderId']);break;
             }
         }
-        respond(['id'=>$store->save($input)]);
+        $id=$store->save($input);$withdrawal=[];
+        if(($input['channels']['avito']['enabled']??null)===false){session_write_close();set_time_limit(60);$withdrawal=$runner->stopEmptyAvitoFeed();}
+        respond(['id'=>$id,'avitoWithdrawal'=>$withdrawal]);
     }
     if ($action === 'upload' && $method === 'POST') {
         $file = $_FILES['image'] ?? null;

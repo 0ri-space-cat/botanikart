@@ -139,6 +139,12 @@ with tempfile.TemporaryDirectory(prefix="botanikart-catalogue-http-") as tempora
         published = json.loads(public_data.decode().removeprefix("window.BOTANIK_CATALOG=").rstrip(";"))
         changed = next(p for p in published["products"] if p["id"]==created["id"])
         assert changed["price"]==700 and not changed["available"] and changed["description"]==manual["description"]
+        local = next(p for p in call("products")[1]["products"] if p["id"]==created["id"])
+        status, archived = call("archive",{"id":local["id"],"version":local["version"]},login["csrf"])
+        assert status==200 and "avitoWithdrawal" in archived, "Archive bypassed immediate withdrawal reconciliation"
+        local = next(p for p in call("products")[1]["products"] if p["id"]==created["id"])
+        assert local["deleted"] and not local["channels"]["avito"]["enabled"], "Archive retained publication intent"
+        assert call("archive",{"id":local["id"],"version":local["version"],"restore":True},login["csrf"])[0]==200
         assert call("", path="/api/.private/catalogue/catalogue.sqlite")[0] == 403
         assert call("logout",{},login["csrf"])[0]==200
         anonymous=call("session")[1]

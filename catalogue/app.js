@@ -123,7 +123,7 @@ function openEditor(id){
  $('#source-url-label').textContent=p.source==='flowwow'?'Ссылка на Flowwow':'Ссылка на объявление Авито';$('#editor').showModal();fitTitle();$('#editor').scrollTop=0;document.body.style.overflow='hidden';
 }
 function closeEditor(){if(uploading)return;if(dirty&&!confirm('Закрыть карточку без сохранения?'))return;$('#editor').close()}
-function toast(text){$('#toast').textContent=text;$('#toast').hidden=false;setTimeout(()=>{$('#toast').hidden=true},3000)}
+function toast(text,duration=3000){$('#toast').textContent=text;$('#toast').hidden=false;setTimeout(()=>{$('#toast').hidden=true},duration)}
 $('#login-form').addEventListener('submit',async e=>{e.preventDefault();const button=e.target.querySelector('[type=submit]');button.disabled=true;message($('#login-message'));try{await api('login',{username:e.target.elements.username.value,password:e.target.elements.password.value});e.target.elements.password.value='';await showCatalog()}catch(error){message($('#login-message'),error.message,true)}finally{button.disabled=false}});
 $('#reveal').addEventListener('click',()=>{const input=$('#login-form').elements.password;const reveal=input.type==='password';input.type=reveal?'text':'password';$('#reveal').textContent=reveal?'Скрыть':'Показать';$('#reveal').setAttribute('aria-label',reveal?'Скрыть пароль':'Показать пароль')});
 $('#logout').addEventListener('click',async()=>{try{await api('logout',{});showLogin();await initialize()}catch(error){toast(error.message)}});
@@ -354,7 +354,7 @@ $('#archive-product').addEventListener('click',()=>{
 $('#delete-cancel').addEventListener('click',()=>$('#delete-dialog').close());
 $('#delete-confirm').addEventListener('click',async()=>{
  if(!editing)return;$('#delete-confirm').disabled=true;
- try{const id=editing.id;await api('archive',{id,version:editing.version,hideFlowwow:$('#delete-hide-flowwow').checked});dirty=false;$('#delete-dialog').close();$('#editor').close();await load();toast('Товар удалён с сайта. Он доступен в архиве.');await api('sync-product',{id});await load()}catch(error){message($('#delete-message'),error.message,true)}finally{$('#delete-confirm').disabled=false}
+ try{const id=editing.id;const removal=await api('archive',{id,version:editing.version,hideFlowwow:$('#delete-hide-flowwow').checked});dirty=false;$('#delete-dialog').close();$('#editor').close();await load();toast('Товар удалён с сайта. Он доступен в архиве.');if(removal.avitoWithdrawal?.pending){toast('Товар удалён. Не удалось подтвердить остановку автозагрузки Авито — выключите её в кабинете Авито перед ручным снятием объявления.',15000);}else{await api('sync-product',{id});await load()}}catch(error){message($('#delete-message'),error.message,true)}finally{$('#delete-confirm').disabled=false}
 });
 $('#restore-product').addEventListener('click',async()=>{
  if(!editing)return;

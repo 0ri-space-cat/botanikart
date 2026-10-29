@@ -42,6 +42,27 @@ final class PublicationRunner
             $this->store->db->exec('COMMIT');return true;
         }catch(\Throwable $e){try{$this->store->db->exec('ROLLBACK');}catch(\Throwable){}throw $e;}
     }
+    /** Withdrawal must also work before Avito has returned an external listing ID. */
+    public function stopEmptyAvitoFeed(): array
+    {
+        $lock=fopen($this->directory.'/catalogue/publications.lock','c');
+        if(!$lock||!flock($lock,LOCK_EX|LOCK_NB)){if($lock)fclose($lock);return ['pending'=>true];}
+        try{
+            foreach($this->store->all(true) as $p)if(empty($p['deleted'])&&!empty($p['channels']['avito']['enabled'])&&($p['channels']['avito']['management']??'')==='site')return ['needed'=>false];
+            if(!$this->avitoTransport&&(empty($this->config['avito']['client_id'])||empty($this->config['avito']['client_secret'])))return ['needed'=>false];
+            $profile=$this->avito('GET','/autoload/v2/profile');
+            $expected=rtrim($this->config['site_url']??'https://botanikart.ru','/').'/api/avito-feed.php';
+            if(array_column($profile['feeds_data']??[],'feed_url')!==[$expected])return ['pending'=>true];
+            if(!empty($profile['autoload_enabled'])){
+                $settings=array_intersect_key($profile,array_flip(['feeds_data','schedule','report_email']));
+                $settings['autoload_enabled']=false;$settings['allow_pay_over_limit']=false;
+                $this->avito('POST','/autoload/v2/profile',$settings);
+                $profile=$this->avito('GET','/autoload/v2/profile');
+            }
+            return empty($profile['autoload_enabled'])?['paused'=>true]:['pending'=>true];
+        }catch(\Throwable){return ['pending'=>true];}
+        finally{flock($lock,LOCK_UN);fclose($lock);}
+    }
     public function process(?string $onlyId=null,?string $onlyChannel=null): array
     {
         $lock=fopen($this->directory.'/catalogue/publications.lock','c');
