@@ -89,8 +89,11 @@ function render(){
  $('#products').innerHTML=items.map(p=>`<button class="product ${p.source==='avito'?'source-avito':''} ${p.hidden||p.sourceMissing||p.deleted?'is-hidden':''}" data-id="${escape(p.id)}"><img src="${escape(imageURL(p.images?.[0]||'assets/logo-mark-roots.png'))}" alt="" loading="lazy">${p.deleted?'<span class="hidden-badge">В архиве</span>':(p.hidden||p.sourceMissing?'<span class="hidden-badge">Скрыт</span>':'')}<div class="product-body"><span class="publication-badges">${productBadges(p)}</span>${['avito','flowwow'].filter(k=>channelData(p)[k]?.error).map(k=>`<span class="product-publication-error">⚠ ${escape(names[k])}: ${escape(channelData(p)[k].error)}</span>`).join('')}<h2>${escape(p.title)}</h2><span class="product-category">${escape(categories[productGroup(p)]||'Растение')}</span><span class="product-price">${money(p.price)}</span><span class="product-status">${escape(p.soldOnSite?'Раскупили':(statuses[p.status]||(p.available?'В наличии':'Под заказ')))}</span></div></button>`).join('');
 }
 function renderPhotos(){
+ const gallery=$('#photos');
  $('#photo-count').textContent=images.length+' / 20';
- $('#photos').innerHTML=images.map((path,i)=>`<div class="photo"><img src="${escape(imageURL(path))}" alt="Фото ${i+1}"><div class="photo-actions"><button type="button" data-cover="${i}" class="${i===0?'is-cover':''}" title="${i===0?'Обложка':'Сделать обложкой'}" aria-label="${i===0?'Обложка':`Сделать фото ${i+1} обложкой`}" aria-pressed="${i===0}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9Z"/></svg></button><button type="button" data-remove="${i}" aria-label="Убрать фото ${i+1}" title="Убрать фото"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg></button></div></div>`).join('');
+ gallery.classList.toggle('is-empty',images.length===0);
+ gallery.classList.toggle('is-single',images.length===1);
+ gallery.innerHTML=images.length?images.map((path,i)=>`<div class="photo"><img src="${escape(imageURL(path))}" alt="${i===0?'Обложка товара':'Фото '+(i+1)}"><div class="photo-actions"><button type="button" data-cover="${i}" class="${i===0?'is-cover':''}" title="${i===0?'Обложка':'Сделать обложкой'}" aria-label="${i===0?'Обложка':`Сделать фото ${i+1} обложкой`}" aria-pressed="${i===0}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9Z"/></svg></button><button type="button" data-remove="${i}" aria-label="Убрать фото ${i+1}" title="Убрать фото"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg></button></div></div>`).join(''):`<div class="photo-empty"><svg aria-hidden="true" viewBox="0 0 48 48"><rect x="7" y="10" width="34" height="28" rx="6"/><circle cx="18" cy="20" r="3"/><path d="m10 33 10-9 7 6 6-7 6 8"/></svg><strong>Пока нет фотографий</strong><span>Начните с главного кадра товара</span></div>`;
 }
 function openEditor(id){
  editing=products.find(p=>p.id===id)||null;const p=editing||{title:'',price:'',description:'',source:'manual',catalogGroup:$('#category').value==='all'?'plant':$('#category').value,status:'ready',url:'',images:[],hidden:false};
@@ -98,8 +101,8 @@ function openEditor(id){
  form.elements.catalogGroup.value=productGroup(p);$('#editor-category').textContent=categories[productGroup(p)]||'Растение';form.elements.purchase_mode.value=p.purchaseMode==='inquiry'?'inquiry':'direct';form.elements.visible.checked=!p.hidden;$('#product-fields').disabled=Boolean(p.deleted);
  $('#archive-product').hidden=!editing||Boolean(p.deleted);$('#restore-product').hidden=!p.deleted;$('#save').hidden=Boolean(p.deleted);
  $('#editor-heading').textContent=editing?'Карточка товара':'Новый товар';$('#editor-source').innerHTML=productBadges(p);
- updatePurchaseChoice();updateVisibility();images=[...(p.images||[])];renderPhotos();message($('#edit-message'));dirty=false;
- renderPublicationSettings(p);renderAvitoFields(channelData(p).avito);$('#publication-preview').hidden=true;form.elements.url.closest('label').hidden=p.source!=='avito';
+ updatePurchaseChoice();updateVisibility();updateCategoryHint();images=[...(p.images||[])];renderPhotos();message($('#edit-message'));dirty=false;
+ renderPublicationSettings(p);renderAvitoFields(channelData(p).avito);updateEditorSaveSummary();$('#publication-preview').hidden=true;form.elements.url.closest('label').hidden=p.source!=='avito';
  $('#source-url-label').textContent=p.source==='flowwow'?'Ссылка на Flowwow':'Ссылка на объявление Авито';$('#editor').showModal();fitTitle();$('#editor').scrollTop=0;document.body.style.overflow='hidden';
 }
 function closeEditor(){if(uploading)return;if(dirty&&!confirm('Закрыть карточку без сохранения?'))return;$('#editor').close()}
@@ -112,7 +115,7 @@ $('#editor').addEventListener('cancel',e=>{e.preventDefault();closeEditor()});$(
 $('#edit-form').addEventListener('input',e=>{dirty=true;if(e.target.matches('[data-fw-default]'))e.target.removeAttribute('data-fw-default');const key=e.target.closest('[data-channel-card]')?.dataset.channelCard;if(key)channelTouched[key]=true});
 $('#edit-form').elements.status.addEventListener('change',e=>{if(e.target.value==='preorder'){const stock=document.querySelector('[data-fw="stock"][data-fw-default]');if(stock){stock.value='';stock.removeAttribute('data-fw-default');}}});
 $('#search').addEventListener('input',render);$('#category').addEventListener('change',render);
-$('#edit-form').elements.catalogGroup.addEventListener('change',e=>{$('#editor-category').textContent=categories[e.target.value]});$('#visibility').addEventListener('change',render);
+$('#edit-form').elements.catalogGroup.addEventListener('change',e=>{$('#editor-category').textContent=categories[e.target.value];updateCategoryHint()});$('#visibility').addEventListener('change',render);
 document.querySelectorAll('[data-source]').forEach(button=>button.addEventListener('click',()=>{source=button.dataset.source;document.querySelectorAll('[data-source]').forEach(b=>{b.classList.toggle('active',b===button);b.setAttribute('aria-pressed',String(b===button))});render()}));
 $('#products').addEventListener('click',e=>{const item=e.target.closest('[data-id]');if(item)openEditor(item.dataset.id)});
 $('#photos').addEventListener('click',e=>{const remove=e.target.closest('[data-remove]'),cover=e.target.closest('[data-cover]');if(remove){images.splice(Number(remove.dataset.remove),1);dirty=true;renderPhotos()}if(cover){images.unshift(...images.splice(Number(cover.dataset.cover),1));dirty=true;renderPhotos()}});
@@ -163,7 +166,7 @@ $('#renewal-dismiss').addEventListener('click',dismissReminder);$('#renewal-dial
 for(const key of ['avito','flowwow'])$('#edit-form').elements['publish_'+key].addEventListener('change',()=>{
  channelTouched[key]=true;const form=$('#edit-form'),on=form.elements['publish_'+key].checked;
  document.querySelector(`[data-channel-body="${key}"]`).hidden=!on;document.querySelector(`[data-channel-expand="${key}"]`).setAttribute('aria-expanded',String(on));document.querySelector(`[data-channel-card="${key}"]`).classList.toggle('is-enabled',on);
- setChannelControls(key);if(key==='avito')$('#avito-fields').hidden=!on;
+ setChannelControls(key);updateEditorSaveSummary();if(key==='avito')$('#avito-fields').hidden=!on;
  if(key==='flowwow'&&on&&!flowwowEditorData)loadFlowwowEditor();
  $('#state-'+key).textContent=on?'':(key==='avito'?'Снимите объявление на Авито вручную.':'Будет скрыто на Flowwow.');
  const p={...(editing||{}),hidden:!form.elements.visible.checked,channels:structuredClone(channelData(editing||{}))};for(const k of ['avito','flowwow'])p.channels[k].enabled=form.elements['publish_'+k].checked;$('#editor-source').innerHTML=productBadges(p);
@@ -316,8 +319,32 @@ function setChannelControls(key){
 }
 $('#edit-form').addEventListener('invalid',e=>{const body=e.target.closest('[data-channel-body]');if(body){body.hidden=false;document.querySelector(`[data-channel-expand="${body.dataset.channelBody}"]`)?.setAttribute('aria-expanded','true');}},true);
 
+function updateCategoryHint(){
+ const group=$('#edit-form').elements.catalogGroup.value;
+ const hints={
+ florarium:'Для флорариума полезно описать форму, растения и уход. Размеры указывайте только если знаете их точно.',
+ composition:'Напишите, что входит в композицию и как за ней ухаживать, если рекомендации известны.',
+ potted:'Можно добавить освещение, полив и размер горшка — только проверенные характеристики.',
+ plant:'Если знаете, уточните условия освещения и полива. Необязательные сведения можно пропустить.',
+ material:'Полезно указать назначение, материал и количество в упаковке, если они известны.'
+ };
+ $('#product-category-hint').textContent=hints[group]||'Добавляйте только те характеристики, в которых уверены.';
+ const placeholders={
+ florarium:'Что внутри флорариума, как он выглядит и как за ним ухаживать…',
+ composition:'Расскажите о составе композиции и особенностях ухода…',
+ potted:'Опишите растение, его особенности и известные условия ухода…',
+ plant:'Опишите растение и условия содержания, если они известны…',
+ material:'Расскажите, для чего предназначен материал и как его использовать…'
+ };
+ $('#edit-form').elements.description.placeholder=placeholders[group]||'Расскажите о товаре. Абзацы сохранятся.';
+}
+function updateEditorSaveSummary(){
+ const form=$('#edit-form');
+ const selected=['avito','flowwow'].filter(key=>form.elements['publish_'+key].checked).map(key=>names[key]);
+ $('#editor-save-summary').textContent='Сохраняем: '+[form.elements.visible.checked?'На сайте':'Скрыт на сайте',...selected].join(' · ');
+}
 function updatePurchaseChoice(){const inquiry=$('#edit-form').elements.purchase_mode.value==='inquiry';$('#purchase-hint').textContent=inquiry?'Покупатель сначала пишет вам в Telegram, чтобы согласовать выбранный товар.':'Покупатель может сразу оплатить товар на сайте.'}
-function updateVisibility(){const visible=$('#edit-form').elements.visible.checked;$('#visibility-caption').textContent=visible?'На сайте':'Скрыт с сайта';$('.eye-control').title=visible?'Скрыть с сайта':'Показать на сайте'}
+function updateVisibility(){const visible=$('#edit-form').elements.visible.checked;$('#visibility-caption').textContent=visible?'На сайте':'Скрыт с сайта';$('.eye-control').title=visible?'Скрыть с сайта':'Показать на сайте';updateEditorSaveSummary()}
 $('#edit-form').elements.visible.addEventListener('change',updateVisibility);
 document.querySelectorAll('[name=purchase_mode]').forEach(el=>el.addEventListener('change',updatePurchaseChoice));
 let orders=[],orderFilter='open',orderLoaded=false;
