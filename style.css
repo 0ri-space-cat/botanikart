@@ -139,3 +139,15 @@ h1 em,h2 em{color:#4c8d3e}
 
 .sold-order-note{margin:18px 0 0;padding:13px 16px;border:1px solid #dce6ce;border-radius:12px;background:#edf4e3;color:#557342;font-size:12px;line-height:1.65}
 @media(max-width:760px){.catalog-main .catalog-toolbar{margin-top:12px;padding-block:12px}.catalog-main .catalog-controls{margin-top:0;gap:9px}.catalog-main .catalog-navigation{margin-bottom:8px}.catalog-main .back-link{margin-bottom:22px}.catalog-main .section-top{margin-bottom:22px}.catalog-main .catalog-meta{margin-block:15px}.sold-order-note{font-size:12px}}
+
+
+/* Catalogue backdrop belongs to the introduction, not to the product cards.
+   Fade the botanical artwork out before it reaches the shopping grid. */
+.catalog-page .botanical-bg{
+  height:720px;
+  -webkit-mask-image:linear-gradient(to bottom,#000 0%,#000 36%,transparent 86%);
+  mask-image:linear-gradient(to bottom,#000 0%,#000 36%,transparent 86%);
+}
+@media(max-width:760px){
+  .catalog-page .botanical-bg{height:min(720px,82vh)}
+}
