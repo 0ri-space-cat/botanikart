@@ -21,7 +21,7 @@ foreach (['empty','invalid','sold'] as $test) {
  if($test==='empty')$bad['channels']['avito']['enabled']=false;
  if($test==='invalid')$bad['channels']['avito']['category']='not-a-category';
  if($test==='sold')$bad['status']='sold';
- try{$feed->render([$bad],'https://botanikart.ru');throw new LogicException('Unsafe feed accepted: '.$test);}catch(RuntimeException $e){assertFeed(in_array($e->getMessage(),['empty_feed','invalid_feed_products'],true),'Unexpected error');}
+ try{$feed->render([$bad],'https://botanikart.ru');throw new LogicException('Unsafe feed accepted: '.$test);}catch(RuntimeException $e){assertFeed(($e->getMessage()==='empty_feed'||str_contains($e->getMessage(),'Авито: исправьте объявление «')),'Unexpected error');}
 }
 $p['channels']['avito']['category']='dekorativno_listvennye_rasteniya';$p['channels']['avito']['attributes']['PlantType']='НЕСУЩЕСТВУЮЩЕЕ';assertFeed(count($feed->check($p,'https://botanikart.ru')['warnings'])>0,'Invalid category enum accepted');
 assertFeed(AvitoFeed::applicable(['conditions'=>[['clause'=>'value','source_field_tag'=>'PlantType','values'=>['Орхидея']]]],['PlantType'=>'Орхидея']),'Conditional field not enabled');

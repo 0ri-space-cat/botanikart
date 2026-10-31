@@ -86,6 +86,11 @@ try{
  // Imported assortment variants update one existing Avito listing and share its settings.
  $variants=[];foreach(['one','two'] as $suffix)$variants[]=['source'=>'avito','avitoItemId'=>'8271770035','avitoVariant'=>$suffix,'title'=>'Хойя '.$suffix,'description'=>'Описание варианта','price'=>500,'catalogGroup'=>'potted','status'=>'ready','images'=>[$photo],'url'=>'https://www.avito.ru/8271770035'];
  $store->importBatch($variants,true);$group=array_values(array_filter($store->all(true),fn($p)=>($p['avitoItemId']??'')==='8271770035'));$stale=$group[1];$edit=$group[0];
+ // A website-only edit must not adopt an imported shared listing or erase its settings.
+ $untouched=$group[0];$untouched['price']=777;$untouched['channels']['avito']['configure']=false;$untouched['channels']['avito']['category']='rasteniya_drugoe';$untouched['channels']['avito']['attributes']=['AdType'=>''];$store->save($untouched);
+ $group=array_values(array_filter($store->all(true),fn($p)=>($p['avitoItemId']??'')==='8271770035'));
+ foreach($group as $row){verify($row['channels']['avito']['management']==='external','Website edit took over existing Avito listing');$q=$store->db->prepare("SELECT count(*) FROM publication_jobs WHERE product_id=? AND channel='avito'");$q->execute([$row['id']]);verify((int)$q->fetchColumn()===0,'Website edit queued old assortment for publication');}
+ $stale=$group[1];$edit=$group[0];
  $legacy=json_decode(file_get_contents(dirname(__DIR__).'/private/avito-legacy.json'),true)['8271770035'];
  $edit['channels']['avito']['configure']=true;$edit['channels']['avito']['category']=$legacy['category'];$edit['channels']['avito']['attributes']=$legacy['attributes']+['AdType'=>'Товар от производителя'];$edit['channels']['avito']['price']=555;
  $store->save($edit);$group=array_values(array_filter($store->all(true),fn($p)=>($p['avitoItemId']??'')==='8271770035'));

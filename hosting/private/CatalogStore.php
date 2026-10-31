@@ -288,6 +288,9 @@ final class CatalogStore
         foreach ($channels as $channel=>$input) {
             if (!is_array($input) || array_diff(array_keys($input),['enabled','price','title','description','management','externalId','url','state','error','message','category','attributes','properties','stock','productionMinutes','listingTitle','listingDescription','listingPrice','sharedCount','offerId','checkedAt','configure']) || !is_bool($input['enabled']??null)) throw new \InvalidArgumentException('invalid_channels');
             $p=$current[$channel];$before=$p;
+            // Merely saving website fields must not take over an imported Avito listing.
+            if($channel==='avito'&&$p['management']==='external'&&($input['configure']??false)!==true&&$input['enabled']===$p['enabled'])continue;
+
             if ($p['management']==='external' && $input['enabled']!==$p['enabled']) $p['management']='site';
             $price=$input['price']??null;$title=trim((string)($input['title']??''));$description=trim((string)($input['description']??''));
             if (($price!==null && (!is_numeric($price)||!is_finite((float)$price)||(float)$price<=0||(float)$price>10000000)) || mb_strlen($title)>250 || mb_strlen($description)>30000) throw new \InvalidArgumentException('invalid_channels');

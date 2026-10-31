@@ -71,7 +71,7 @@ final class AvitoFeed
             if (($channel['management']??'')!=='site' || empty($channel['enabled'])) continue;
             $checked=$this->check($product,$site);
             // Never silently omit a broken selected product: Avito could interpret omission as withdrawal.
-            if ($checked['warnings']) throw new \RuntimeException('invalid_feed_products');
+            if ($checked['warnings']) throw new \RuntimeException('Авито: исправьте объявление «'.$product['title'].'»: '.implode(' ', $checked['warnings']));
             $p=$checked['product'];$ad='<Ad><Id>'.$escape($p['id']).'</Id>';
             if (!empty($channel['externalId']))$ad.='<AvitoId>'.$escape($channel['externalId']).'</AvitoId>';
             foreach ($checked['fields'] as $key=>$value) {

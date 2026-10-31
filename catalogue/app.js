@@ -47,7 +47,7 @@ function fwMeasureControl(f,v,id){
 const publicationPending=c=>Boolean(c.enabled)&&['queued','awaiting_report','awaiting_confirmation','moderation','waiting_connection','publishing'].includes(c.state);
 const publicationStage=c=>{
  if(c.error||c.state==='error')return 'error';
- if(c.state==='published')return 'published';
+ if(c.state==='published'||c.state==='external')return 'published';
  if(c.state==='moderation')return 'moderation';
  return 'sending';
 };
@@ -56,7 +56,7 @@ function publicationResults(p,host){
  host.hidden=!rows.length;
  host.innerHTML=rows.map(({key,c})=>{
   const stage=publicationStage(c);
-  const status={error:'Ошибка публикации',published:'Товар опубликован',moderation:'Товар на модерации',sending:'Отправляется'}[stage];
+  const status={error:'Ошибка публикации',published:'Товар опубликован',moderation:'Товар на модерации',sending:'Отправляется'}[stage]+(stage==='sending'&&c.state==='awaiting_report'?' — ожидает обработки Авито':'');
   const icon=stage==='error'?'✕':stage==='published'?'✓✓':stage==='moderation'?'✓':'<span class="publication-spinner" aria-hidden="true"></span>';
   const details=stage==='error'&&c.error?`<details class="publication-technical"><summary>Подробнее об ошибке</summary><p>${escape(c.error)}</p></details>`:'';
   const retry=stage==='error'&&c.enabled&&c.management==='site'?`<button type="button" class="publication-action" data-retry-channel="${key}" data-product-id="${escape(p.id)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.4 6M20 4v7h-7"/></svg><span data-retry-label>Повторить попытку</span></button>`:'';
@@ -71,7 +71,8 @@ function renderPublicationTracker(){
  const currentId=host.dataset.productId;
  const current=products.find(p=>p.id===currentId);
  const recent=products.filter(p=>!p.deleted&&!active.includes(p)&&['avito','flowwow'].some(key=>{const c=channelData(p)[key]||{};const when=Date.parse(c.checkedAt||'');return c.enabled&&['published','error'].includes(c.state)&&Number.isFinite(when)&&Date.now()-when<86400000})).slice(0,3);
- const list=[...(current?[current]:[]),...active.filter(p=>p.id!==currentId),...recent.filter(p=>p.id!==currentId)];
+ const seenListings=new Set();
+ const list=[...(current?[current]:[]),...active.filter(p=>p.id!==currentId),...recent.filter(p=>p.id!==currentId)].filter(p=>{const a=channelData(p).avito||{};if(!a.externalId||!publicationPending(a)||publicationPending(channelData(p).flowwow||{}))return true;const key=a.externalId;if(seenListings.has(key))return false;seenListings.add(key);return true;});
  if(!list.length&&!current){host.hidden=true;host.innerHTML='';return}
  host.dataset.hasPending=String(active.length>0);
  host.hidden=false;
@@ -203,6 +204,8 @@ let confirmationBusy=false;
 async function refreshPublicationStates(){
  if(!authenticated||document.hidden)return;
  const pending=products.find(p=>!p.deleted&&(['awaiting_confirmation','moderation'].includes(channelData(p).flowwow?.state)));
+ const avitoPending=products.some(p=>!p.deleted&&publicationPending(channelData(p).avito||{}));
+ if(avitoPending&&!confirmationBusy){confirmationBusy=true;try{await api('confirm-avito',{})}catch{}finally{confirmationBusy=false}}
  if(pending&&!confirmationBusy){
   confirmationBusy=true;
   try{await api('confirm-flowwow',{id:pending.id})}catch{}finally{confirmationBusy=false}
