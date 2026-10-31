@@ -87,11 +87,14 @@ final class PublicationRunner
     }
     private function flushAvitoUpload(): void
     {
+        $lock=fopen($this->directory.'/catalogue/upload-trigger.lock','c');if(!$lock||!flock($lock,LOCK_EX|LOCK_NB)){if($lock)fclose($lock);return;}
+        try{
         $selected=array_filter($this->store->all(true),fn($p)=>empty($p['deleted'])&&empty($p['assortmentId'])&&!empty($p['channels']['avito']['enabled'])&&($p['channels']['avito']['management']??'')==='site');if(!$selected){$this->uploadMeta('avito:uploadPending',0);return;}
         if(!$this->uploadMeta('avito:uploadPending')||$this->uploadMeta('avito:uploadAttempt')>time()-3600)return;
         // Persist before sending: an ambiguous timeout must never cause a rapid replay.
         $this->uploadMeta('avito:uploadAttempt',time());
         try{$this->avito('POST','/autoload/v1/upload',[]);$this->uploadMeta('avito:uploadPending',0);}catch(\Throwable){/* Retain one coalesced request; daily schedule remains a fallback. */}
+        }finally{flock($lock,LOCK_UN);fclose($lock);}
     }
     public function configureAvitoDailySchedule(): array
     {
@@ -151,8 +154,8 @@ final class PublicationRunner
                     $results[]=['id'=>$p['id'],'channel'=>$channel,'state'=>'error','message'=>mb_substr($error->getMessage(),0,500)];
                 }
             }
-            $this->flushAvitoUpload();
         }finally{flock($lock,LOCK_UN);fclose($lock);}
+        $this->flushAvitoUpload();
         return ['results'=>$results];
     }
     public function reports(): array
@@ -162,7 +165,7 @@ final class PublicationRunner
             $q=$this->store->db->prepare('SELECT value FROM metadata WHERE name=?');$q->execute(['avito:reportCheckAt']);$last=(int)json_decode($q->fetchColumn()?:'0');
             if($last>time()-60)return ['cached'=>true];
             $q=$this->store->db->prepare('INSERT INTO metadata(name,value) VALUES(?,?) ON CONFLICT(name) DO UPDATE SET value=excluded.value');$q->execute(['avito:reportCheckAt',json_encode(time())]);
-            $uploadLock=fopen($this->directory.'/catalogue/publications.lock','c');if($uploadLock&&flock($uploadLock,LOCK_EX|LOCK_NB)){try{$this->flushAvitoUpload();}finally{flock($uploadLock,LOCK_UN);}}if($uploadLock)fclose($uploadLock);
+            $this->flushAvitoUpload();
             return $this->readReports();
         }finally{flock($lock,LOCK_UN);fclose($lock);}
     }
