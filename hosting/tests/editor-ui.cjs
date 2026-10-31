@@ -26,3 +26,17 @@ assert(js.includes('data-channel-quick-status=')&&js.includes('updateChannelQuic
 assert(css.includes('.editor-section-heading')&&css.includes('.photo-empty')&&css.includes('.editor-save-context'));
 assert(css.includes('env(safe-area-inset-bottom)'),'Sticky save area must account for iPhone safe area');
 console.log('Editor UI checks passed: structure, required fields, photo actions, publication controls and mobile styles.');
+// Exercise actual tracker code: an imported shared listing must be one operation.
+const vm=require('node:vm');
+const trackerSource=js.slice(js.indexOf('function renderPublicationTracker(){'),js.indexOf('\nlet connections='));
+const rendered=[];const host={dataset:{},hidden:true,innerHTML:'',querySelectorAll(){return [...this.innerHTML.matchAll(/data-tracker-product="([^"]+)"/g)].map(m=>({dataset:{trackerProduct:m[1]}}));}};
+const variants=Array.from({length:8},(_,i)=>({id:'variant-'+i,title:'Plant '+i,channels:{avito:{enabled:true,management:'site',state:'queued',externalId:'shared-id'},flowwow:{enabled:false}}}));
+const ctx={products:variants,$:()=>host,channelData:p=>p.channels,publicationPending:c=>!!c.enabled&&c.state==='queued',escape:s=>s,publicationResults:p=>rendered.push(p.id)};
+vm.runInNewContext(trackerSource+';renderPublicationTracker()',ctx);
+assert.equal(rendered.length,1,'Eight variants of one Avito listing appeared as eight uploads');
+for(const p of variants){p.channels.avito.state='external';p.channels.avito.management='external';}
+rendered.length=0;vm.runInNewContext('renderPublicationTracker()',ctx);
+assert.equal(host.hidden,true,'Imported unchanged listings appeared in publication progress');
+const stageSource=js.slice(js.indexOf('const publicationStage='),js.indexOf('\nfunction publicationResults'));
+assert.equal(vm.runInNewContext(stageSource+";publicationStage({state:'external'})"),'published','Existing listing displayed as sending');
+console.log('Publication UI checks passed: one operation per listing, no phantom imported uploads.');
