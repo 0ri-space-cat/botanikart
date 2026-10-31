@@ -64,13 +64,31 @@ function publicationResults(p,host){
   return `<div class="publication-result publication-status-${stage}"><strong><span class="publication-status-icon" aria-hidden="true">${icon}</span><span>${escape(names[key])} — ${escape(status)}</span></strong>${details}${stage==='error'?`<div class="publication-result-actions">${retry}${edit}</div>`:''}</div>`;
  }).join('');
 }
+const publicationReceipts=(()=>{try{return JSON.parse(localStorage.getItem('ba-publications-seen')||'{}')}catch{return {}}})();
+const publicationReceiptKey=p=>JSON.stringify([p.id,p.version,['avito','flowwow'].map(k=>{const c=channelData(p)[k]||{};return [k,c.enabled,c.state,c.externalId,c.error]})]);
+const publicationFinished=p=>!['avito','flowwow'].some(k=>{if(k==='avito'&&p.assortmentId)return false;const c=channelData(p)[k]||{};return publicationPending(c)||c.error||c.state==='error'});
+let publicationObserver=null,publicationTimers=[];
+function watchPublicationReceipts(list,host){
+ publicationObserver?.disconnect();publicationTimers.forEach(clearTimeout);publicationTimers=[];
+ if(typeof IntersectionObserver==='undefined')return;
+ publicationObserver=new IntersectionObserver(entries=>{for(const entry of entries){const el=entry.target;clearTimeout(el.receiptTimer);if(!entry.isIntersecting)continue;
+  const p=list.find(p=>p.id===el.dataset.receiptProduct);if(!p||!publicationFinished(p))continue;
+  const timer=setTimeout(()=>{if(document.hidden||document.querySelector('dialog[open]'))return;const r=el.getBoundingClientRect();if(r.bottom<=0||r.top>=innerHeight)return;
+   publicationReceipts[p.id]=publicationReceiptKey(p);try{localStorage.setItem('ba-publications-seen',JSON.stringify(publicationReceipts))}catch{}
+   el.classList.add('publication-dismiss');setTimeout(()=>renderPublicationTracker(),350);
+  },3000);el.receiptTimer=timer;publicationTimers.push(timer);
+ }},{threshold:.25});
+ host.querySelectorAll('[data-receipt-product]').forEach(el=>publicationObserver.observe(el));
+}
 function renderPublicationTracker(){
  const host=$('#publication-save-result');
  if(!host)return;
+ publicationObserver?.disconnect();publicationTimers.forEach(clearTimeout);
  const active=products.filter(p=>!p.deleted&&['avito','flowwow'].some(key=>(key!=='avito'||!p.assortmentId)&&publicationPending(channelData(p)[key]||{})));
  const currentId=host.dataset.productId;
- const current=products.find(p=>p.id===currentId);
- const recent=products.filter(p=>!p.deleted&&!active.includes(p)&&['avito','flowwow'].some(key=>{const c=channelData(p)[key]||{};const when=Date.parse(c.checkedAt||'');return (key!=='avito'||!p.assortmentId)&&c.enabled&&['published','error'].includes(c.state)&&Number.isFinite(when)&&Date.now()-when<86400000})).slice(0,3);
+ const unseen=p=>!publicationFinished(p)||publicationReceipts[p.id]!==publicationReceiptKey(p);
+ const current=products.find(p=>p.id===currentId&&unseen(p));
+ const recent=products.filter(p=>!p.deleted&&unseen(p)&&!active.includes(p)&&['avito','flowwow'].some(key=>{const c=channelData(p)[key]||{};const when=Date.parse(c.checkedAt||'');return (key!=='avito'||!p.assortmentId)&&c.enabled&&['published','error'].includes(c.state)&&Number.isFinite(when)&&Date.now()-when<86400000})).slice(0,3);
  const seenListings=new Set();
  const list=[...(current?[current]:[]),...active.filter(p=>p.id!==currentId),...recent.filter(p=>p.id!==currentId)].filter(p=>{const a=channelData(p).avito||{};if(!a.externalId||!publicationPending(a)||publicationPending(channelData(p).flowwow||{}))return true;const key=a.externalId;if(seenListings.has(key))return false;seenListings.add(key);return true;});
  if(!list.length&&!current){host.hidden=true;host.innerHTML='';return}
@@ -79,10 +97,10 @@ function renderPublicationTracker(){
  host.innerHTML=list.map(p=>{
   const fresh=p.id===currentId;
   const pending=['avito','flowwow'].some(key=>(key!=='avito'||!p.assortmentId)&&publicationPending(channelData(p)[key]||{}));
-  return `<section class="publication-tracker-item"><h3><span aria-hidden="true">${fresh?'✓':pending?'◷':'✓'}</span> ${fresh?'Товар добавлен на сайт':'Публикация товара'}</h3><p class="publication-tracker-title">${escape(p.title)}</p><div class="publication-tracker-channels" data-tracker-product="${escape(p.id)}"></div></section>`;
+  return `<section class="publication-tracker-item" data-receipt-product="${escape(p.id)}"><h3><span aria-hidden="true">${fresh?'✓':pending?'◷':'✓'}</span> ${fresh?'Товар добавлен на сайт':'Публикация товара'}</h3><p class="publication-tracker-title">${escape(p.title)}</p><div class="publication-tracker-channels" data-tracker-product="${escape(p.id)}"></div></section>`;
  }).join('');
  for(const p of list){const box=[...host.querySelectorAll('[data-tracker-product]')].find(el=>el.dataset.trackerProduct===p.id);if(box)publicationResults(p,box)}
- // Keep the most recently saved product until next navigation; pending jobs are always restored from the server.
+ watchPublicationReceipts(list,host);
 }
 
 let connections={},reminderId='',reminderOpen=false,authenticated=false;

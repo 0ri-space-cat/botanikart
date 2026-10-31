@@ -28,10 +28,10 @@ assert(css.includes('env(safe-area-inset-bottom)'),'Sticky save area must accoun
 console.log('Editor UI checks passed: structure, required fields, photo actions, publication controls and mobile styles.');
 // Exercise actual tracker code: an imported shared listing must be one operation.
 const vm=require('node:vm');
-const trackerSource=js.slice(js.indexOf('function renderPublicationTracker(){'),js.indexOf('\nlet connections='));
+const trackerSource=js.slice(js.indexOf('const publicationReceipts='),js.indexOf('\nlet connections='));
 const rendered=[];const host={dataset:{},hidden:true,innerHTML:'',querySelectorAll(){return [...this.innerHTML.matchAll(/data-tracker-product="([^"]+)"/g)].map(m=>({dataset:{trackerProduct:m[1]}}));}};
 const variants=Array.from({length:8},(_,i)=>({id:'variant-'+i,title:'Plant '+i,channels:{avito:{enabled:true,management:'site',state:'queued',externalId:'shared-id'},flowwow:{enabled:false}}}));
-const ctx={products:variants,$:()=>host,channelData:p=>p.channels,publicationPending:c=>!!c.enabled&&c.state==='queued',escape:s=>s,publicationResults:p=>rendered.push(p.id)};
+const ctx={clearTimeout,setTimeout,localStorage:{getItem:()=>null,setItem(){}},products:variants,$:()=>host,channelData:p=>p.channels,publicationPending:c=>!!c.enabled&&c.state==='queued',escape:s=>s,publicationResults:p=>rendered.push(p.id)};
 vm.runInNewContext(trackerSource+';renderPublicationTracker()',ctx);
 assert.equal(rendered.length,1,'Eight variants of one Avito listing appeared as eight uploads');
 for(const p of variants){p.channels.avito.state='external';p.channels.avito.management='external';}
@@ -40,3 +40,12 @@ assert.equal(host.hidden,true,'Imported unchanged listings appeared in publicati
 const stageSource=js.slice(js.indexOf('const publicationStage='),js.indexOf('\nfunction publicationResults'));
 assert.equal(vm.runInNewContext(stageSource+";publicationStage({state:'external'})"),'published','Existing listing displayed as sending');
 console.log('Publication UI checks passed: one operation per listing, no phantom imported uploads.');
+
+// Completed notices disappear per revision, while pending and failed work stays visible.
+variants[0].channels.avito.state='published';variants[0].channels.avito.checkedAt=new Date().toISOString();
+vm.runInNewContext('renderPublicationTracker()',ctx);assert.equal(host.hidden,false);
+vm.runInNewContext('publicationReceipts[products[0].id]=publicationReceiptKey(products[0]);renderPublicationTracker()',ctx);assert.equal(host.hidden,true,'Acknowledged completion reappeared');
+variants[0].channels.avito.checkedAt=new Date(Date.now()+1000).toISOString();vm.runInNewContext('renderPublicationTracker()',ctx);assert.equal(host.hidden,true,'Report refresh revived acknowledged completion');
+variants[0].version=2;vm.runInNewContext('renderPublicationTracker()',ctx);assert.equal(host.hidden,false,'New revision was hidden');
+variants[0].channels.avito.state='queued';vm.runInNewContext('renderPublicationTracker()',ctx);assert.equal(host.hidden,false,'Pending publication was hidden');
+console.log('Completion receipt checks passed.');
