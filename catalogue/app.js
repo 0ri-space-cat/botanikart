@@ -52,7 +52,7 @@ const publicationStage=c=>{
  return 'sending';
 };
 function publicationResults(p,host){
- const rows=['avito','flowwow'].map(key=>({key,c:channelData(p)[key]||{}})).filter(({c})=>c.enabled||c.error);
+ const rows=['avito','flowwow'].map(key=>({key,c:channelData(p)[key]||{}})).filter(({key,c})=>(key!=='avito'||!p.assortmentId)&&(c.enabled||c.error));
  host.hidden=!rows.length;
  host.innerHTML=rows.map(({key,c})=>{
   const stage=publicationStage(c);
@@ -67,10 +67,10 @@ function publicationResults(p,host){
 function renderPublicationTracker(){
  const host=$('#publication-save-result');
  if(!host)return;
- const active=products.filter(p=>!p.deleted&&['avito','flowwow'].some(key=>publicationPending(channelData(p)[key]||{})));
+ const active=products.filter(p=>!p.deleted&&['avito','flowwow'].some(key=>(key!=='avito'||!p.assortmentId)&&publicationPending(channelData(p)[key]||{})));
  const currentId=host.dataset.productId;
  const current=products.find(p=>p.id===currentId);
- const recent=products.filter(p=>!p.deleted&&!active.includes(p)&&['avito','flowwow'].some(key=>{const c=channelData(p)[key]||{};const when=Date.parse(c.checkedAt||'');return c.enabled&&['published','error'].includes(c.state)&&Number.isFinite(when)&&Date.now()-when<86400000})).slice(0,3);
+ const recent=products.filter(p=>!p.deleted&&!active.includes(p)&&['avito','flowwow'].some(key=>{const c=channelData(p)[key]||{};const when=Date.parse(c.checkedAt||'');return (key!=='avito'||!p.assortmentId)&&c.enabled&&['published','error'].includes(c.state)&&Number.isFinite(when)&&Date.now()-when<86400000})).slice(0,3);
  const seenListings=new Set();
  const list=[...(current?[current]:[]),...active.filter(p=>p.id!==currentId),...recent.filter(p=>p.id!==currentId)].filter(p=>{const a=channelData(p).avito||{};if(!a.externalId||!publicationPending(a)||publicationPending(channelData(p).flowwow||{}))return true;const key=a.externalId;if(seenListings.has(key))return false;seenListings.add(key);return true;});
  if(!list.length&&!current){host.hidden=true;host.innerHTML='';return}
@@ -78,7 +78,7 @@ function renderPublicationTracker(){
  host.hidden=false;
  host.innerHTML=list.map(p=>{
   const fresh=p.id===currentId;
-  const pending=['avito','flowwow'].some(key=>publicationPending(channelData(p)[key]||{}));
+  const pending=['avito','flowwow'].some(key=>(key!=='avito'||!p.assortmentId)&&publicationPending(channelData(p)[key]||{}));
   return `<section class="publication-tracker-item"><h3><span aria-hidden="true">${fresh?'✓':pending?'◷':'✓'}</span> ${fresh?'Товар добавлен на сайт':'Публикация товара'}</h3><p class="publication-tracker-title">${escape(p.title)}</p><div class="publication-tracker-channels" data-tracker-product="${escape(p.id)}"></div></section>`;
  }).join('');
  for(const p of list){const box=[...host.querySelectorAll('[data-tracker-product]')].find(el=>el.dataset.trackerProduct===p.id);if(box)publicationResults(p,box)}
@@ -104,7 +104,7 @@ function render(){
  const query=$('#search').value.toLocaleLowerCase('ru-RU').replace(/ё/g,'е').trim();const visibility=$('#visibility').value;const category=$('#category').value;
  const items=products.filter(p=>(visibility==='archive'?p.deleted:!p.deleted)&&(category==='all'||productGroup(p)===category)&&matchesChannel(p,source)&&(!query||(p.title+' '+p.description).toLocaleLowerCase('ru-RU').replace(/ё/g,'е').includes(query))&&(visibility==='all'||visibility==='archive'||visibility==='hidden'&&(p.hidden||p.sourceMissing)||visibility==='visible'&&!p.hidden&&!p.sourceMissing||visibility==='ready'&&p.available&&!p.soldOnSite||visibility==='sold'&&(p.status==='sold'||p.soldOnSite)));
  $('#total').textContent=products.length;$('#empty').hidden=items.length!==0;
- $('#products').innerHTML=items.map(p=>`<button class="product ${p.source==='avito'?'source-avito':''} ${p.hidden||p.sourceMissing||p.deleted?'is-hidden':''}" data-id="${escape(p.id)}"><img src="${escape(imageURL(p.images?.[0]||'assets/logo-mark-roots.png'))}" alt="" loading="lazy">${p.deleted?'<span class="hidden-badge">В архиве</span>':(p.hidden||p.sourceMissing?'<span class="hidden-badge">Скрыт</span>':'')}<div class="product-body"><span class="publication-badges">${productBadges(p)}</span>${['avito','flowwow'].filter(k=>channelData(p)[k]?.error).map(k=>`<span class="product-publication-error">✕ ${escape(names[k])}: ошибка публикации</span>`).join('')}<h2>${escape(p.title)}</h2><span class="product-category">${escape(categories[productGroup(p)]||'Растение')}</span><span class="product-price">${money(p.price)}</span><span class="product-status">${escape(p.soldOnSite?'Раскупили':(statuses[p.status]||(p.available?'В наличии':'Под заказ')))}</span></div></button>`).join('');
+ $('#products').innerHTML=items.map(p=>`<button class="product ${p.source==='avito'?'source-avito':''} ${p.hidden||p.sourceMissing||p.deleted?'is-hidden':''}" data-id="${escape(p.id)}"><img src="${escape(imageURL(p.images?.[0]||'assets/logo-mark-roots.png'))}" alt="" loading="lazy">${p.deleted?'<span class="hidden-badge">В архиве</span>':(p.hidden||p.sourceMissing?'<span class="hidden-badge">Скрыт</span>':'')}<div class="product-body"><span class="publication-badges">${productBadges(p)}${p.assortmentId?'<span class="assortment-badge" title="В составе ассортимента Авито">▦</span>':''}</span>${['avito','flowwow'].filter(k=>channelData(p)[k]?.error).map(k=>`<span class="product-publication-error">✕ ${escape(names[k])}: ошибка публикации</span>`).join('')}<h2>${escape(p.title)}</h2><span class="product-category">${escape(categories[productGroup(p)]||'Растение')}</span><span class="product-price">${money(p.price)}</span><span class="product-status">${escape(p.soldOnSite?'Раскупили':(statuses[p.status]||(p.available?'В наличии':'Под заказ')))}</span></div></button>`).join('');
 }
 function renderPhotos(){
  const gallery=$('#photos');

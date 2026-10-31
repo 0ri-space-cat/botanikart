@@ -48,7 +48,7 @@ final class PublicationRunner
         $lock=fopen($this->directory.'/catalogue/publications.lock','c');
         if(!$lock||!flock($lock,LOCK_EX|LOCK_NB)){if($lock)fclose($lock);return ['pending'=>true];}
         try{
-            foreach($this->store->all(true) as $p)if(empty($p['deleted'])&&!empty($p['channels']['avito']['enabled'])&&($p['channels']['avito']['management']??'')==='site')return ['needed'=>false];
+            foreach($this->store->all(true) as $p)if(empty($p['assortmentId'])&&empty($p['deleted'])&&!empty($p['channels']['avito']['enabled'])&&($p['channels']['avito']['management']??'')==='site')return ['needed'=>false];
             if(!$this->avitoTransport&&(empty($this->config['avito']['client_id'])||empty($this->config['avito']['client_secret'])))return ['needed'=>false];
             $profile=$this->avito('GET','/autoload/v2/profile');
             $expected=rtrim($this->config['site_url']??'https://botanikart.ru','/').'/api/avito-feed.php';
@@ -83,12 +83,12 @@ final class PublicationRunner
                             :$this->flowwow()->publish($p,$this->config['site_url']??'https://botanikart.ru');
                     }
                     else {
-                        $c=$p['channels']['avito'];
+                        $c=$p['channels']['avito'];if(!empty($p['assortmentId']))continue;
                         if($job['state']==='awaiting_report'&&in_array(($c['state']??''),['awaiting_report','moderation'],true)){
                             $results[]=['id'=>$p['id'],'channel'=>'avito','state'=>$c['state']];continue;
                         }
                         if(!$c['enabled']||!empty($p['deleted'])){
-                            $active=array_filter($products,fn($q)=>!empty($q['channels']['avito']['enabled'])&&($q['channels']['avito']['management']??'')==='site'&&empty($q['deleted']));
+                            $active=array_filter($products,fn($q)=>empty($q['assortmentId'])&&!empty($q['channels']['avito']['enabled'])&&($q['channels']['avito']['management']??'')==='site'&&empty($q['deleted']));
                             if(!$active){$profile=$this->avito('GET','/autoload/v2/profile');$expected=rtrim($this->config['site_url']??'https://botanikart.ru','/').'/api/avito-feed.php';if(array_column($profile['feeds_data']??[],'feed_url')===[$expected]&&!empty($profile['autoload_enabled'])){$settings=array_intersect_key($profile,array_flip(['feeds_data','schedule','report_email']));$settings['autoload_enabled']=false;$settings['allow_pay_over_limit']=false;$this->avito('POST','/autoload/v2/profile',$settings);}}
                             $changes=['state'=>'manual_removal','error'=>'Отправка выключена. Снимите объявление на Авито вручную.'];
                         }

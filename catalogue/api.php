@@ -50,7 +50,7 @@ try {
     $action = $_GET['action'] ?? 'session';
     $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
     if ($method !== 'GET' && $method !== 'POST') respond(['error'=>'method_not_allowed'],405);
-    if ($method === 'GET' && !in_array($action,['session','products','connections','publication-preview','flowwow-editor','orders'],true)) respond(['error'=>'method_not_allowed'],405);
+    if ($method === 'GET' && !in_array($action,['session','products','connections','publication-preview','flowwow-editor','orders','assortments'],true)) respond(['error'=>'method_not_allowed'],405);
     if ($method === 'POST') {
         $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
         $expected = ($secure ? 'https://' : 'http://') . ($_SERVER['HTTP_HOST'] ?? '');
@@ -131,6 +131,17 @@ try {
     $marketplaces=new \BotanikArt\MarketplaceService($store,$private);
     require_once $private.'/PublicationRunner.php';
     $runner=new \BotanikArt\PublicationRunner($store,$private);
+    require_once $private.'/Assortments.php';$assortments=new \BotanikArt\Assortments($store);
+    if(in_array($action,['products','save','assortments','assortment-create','assortment-save','assortment-publish'],true))$assortments->migrate();
+    if($action==='assortments')respond(['groups'=>$assortments->list()]);
+    if($action==='assortment-create'&&$method==='POST')respond(['id'=>$assortments->create((string)($input['title']??''))]);
+    if($action==='assortment-member'&&$method==='POST'){$assortments->setMember((string)($input['productId']??''),(string)($input['groupId']??''),(int)($input['version']??0));respond(['ok'=>true]);}
+    if($action==='assortment-save'&&$method==='POST'){$assortments->save($input);respond(['ok'=>true]);}
+    if($action==='assortment-disable'&&$method==='POST'){$id=(string)($input['id']??'');$assortments->disable($id);session_write_close();set_time_limit(60);respond(['withdrawal'=>$runner->stopEmptyAvitoFeed(),'publication'=>$runner->process($id,'avito')]);}
+    if($action==='assortment-publish'&&$method==='POST'){
+        try{$result=$assortments->publish((string)($input['id']??''),(int)($input['version']??0));}catch(\UnexpectedValueException){respond(['error'=>'edit_conflict'],409);}catch(\RuntimeException $e){respond(['error'=>'marketplace_error','message'=>$e->getMessage()],422);}
+        session_write_close();set_time_limit(60);if(empty($result['unchanged']))$result['publication']=$runner->process($result['id'],'avito');respond($result);
+    }
     if ($action==='flowwow-editor' && $method==='GET') {
         $id=(string)($_GET['id']??'');$all=$store->all(true);$found=array_values(array_filter($all,fn($p)=>$p['id']===$id));
         $p=$found[0]??['channels'=>['flowwow'=>['externalId'=>'']]];
@@ -175,7 +186,7 @@ try {
     if ($action==='publication-preview' && $method==='GET') respond($marketplaces->preview((string)($_GET['id']??''),(string)($_GET['channel']??'')));
     if ($action==='renewal-date' && $method==='POST') { $marketplaces->saveRenewalDate($input['date']??null);respond(['connections'=>$marketplaces->connections()]); }
     if ($action==='reminder-seen' && $method==='POST') { $marketplaces->acknowledgeReminder($input['id']??null);respond(['ok'=>true]); }
-    if ($action === 'products' && $method === 'GET') respond(['products'=>array_map(fn($p)=>$marketplaces->productStatus($p),$store->all(true)),'connections'=>$marketplaces->connections()]);
+    if ($action === 'products' && $method === 'GET') respond(['products'=>array_map(fn($p)=>$marketplaces->productStatus($p),array_values(array_filter($store->all(true),fn($p)=>empty($p['assortmentContainer'])))),'connections'=>$marketplaces->connections()]);
     if ($action === 'save' && $method === 'POST') {
         if(($input['status']??'')==='ready'&&is_file($private.'/config.php')){
             foreach($store->all(true) as $p)if($p['id']===($input['id']??'')&&!empty($p['soldOnSite'])&&!empty($p['saleOrderId'])){

@@ -55,12 +55,14 @@ final class AvitoFeed
         $ads=[];$groups=[];
         foreach ($products as $product) {
             $c=$product['channels']['avito']??[];
+            if(!empty($product['assortmentId']))continue;
             if (($c['management']??'')!=='site'||empty($c['enabled'])||!empty($product['deleted']))continue;
             $group=!empty($c['externalId'])?'avito:'.$c['externalId']:'local:'.$product['id'];$groups[$group][]=$product;
         }
         foreach ($groups as $variants) {
             $product=$variants[0];$channel=$product['channels']['avito'];$base=$this->legacy[(string)($channel['externalId']??'')]??null;
-            if ($base) {
+            if($base&&!empty($product['assortmentContainer']))$product['exportId']=$base['id'];
+            if ($base && empty($product['assortmentContainer'])) {
                 $product['exportId']=$base['id'];if(($base['variants']??1)>1){$product['title']=$base['title'];$product['description']=$base['description'];$product['price']=$base['price'];}
                 $product['images']=array_slice(array_values(array_unique(array_merge(...array_column($variants,'images')))),0,10);
                 $product['channels']['avito']['category']=($channel['category']??'')?:$base['category'];

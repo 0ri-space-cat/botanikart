@@ -84,7 +84,7 @@ def main() -> None:
         target.write_text(html, encoding="utf-8")
 
     # Keep public and installed-catalog UI assets in sync after every release.
-    for asset in ('style.css','script.js','payment-result.js','catalogue/app.css','catalogue/app.js'):
+    for asset in ('style.css','script.js','payment-result.js','catalogue/app.css','catalogue/app.js','catalogue/assortments.js'):
         version = hashlib.sha256((output / asset).read_bytes()).hexdigest()[:16]
         directory = Path(asset).parent
         targets = (list(output.glob('*.html')) if str(directory)=='.' else [output/'catalogue/index.php'])

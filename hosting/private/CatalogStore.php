@@ -90,8 +90,10 @@ final class CatalogStore
         foreach ($this->db->query('SELECT * FROM products ORDER BY rowid') as $row) {
             if (!$administrative && ($row['hidden'] || $row['missing'] || $row['deleted'])) continue;
             $product = json_decode($row['document'], true, 512, JSON_THROW_ON_ERROR);
+            if(!$administrative&&!empty($product['assortmentContainer']))continue;
             if ($administrative) {
                 $product['channels'] = $this->channels($product['id']);
+                if($this->db->query("SELECT name FROM sqlite_master WHERE type='table' AND name='assortment_members'")->fetchColumn()){$q=$this->db->prepare('SELECT assortment_id FROM assortment_members WHERE product_id=?');$q->execute([$product['id']]);$product['assortmentId']=$q->fetchColumn()?:'';}
                 $product['deleted'] = (bool) $row['deleted'];
                 $product['managed'] = (bool) $row['managed'];
                 $product['hidden'] = (bool) $row['hidden'];
@@ -121,6 +123,7 @@ final class CatalogStore
         try {
             $id=$this->saveProduct($input);
             $this->seedChannels($id);
+            if(array_key_exists('assortmentId',$input)){require_once __DIR__.'/Assortments.php';(new Assortments($this))->attach($id,(string)$input['assortmentId']);}
             if (array_key_exists('channels',$input)) $this->saveChannels($id,$input['channels']);
             $this->queuePublications($id);
             $this->db->exec('RELEASE SAVEPOINT product_save');
@@ -288,6 +291,7 @@ final class CatalogStore
         foreach ($channels as $channel=>$input) {
             if (!is_array($input) || array_diff(array_keys($input),['enabled','price','title','description','management','externalId','url','state','error','message','category','attributes','properties','stock','productionMinutes','listingTitle','listingDescription','listingPrice','sharedCount','offerId','checkedAt','configure']) || !is_bool($input['enabled']??null)) throw new \InvalidArgumentException('invalid_channels');
             $p=$current[$channel];$before=$p;
+            if($channel==='avito'&&$this->db->query("SELECT name FROM sqlite_master WHERE type='table' AND name='assortment_members'")->fetchColumn()){ $q=$this->db->prepare('SELECT 1 FROM assortment_members WHERE product_id=?');$q->execute([$id]);if($q->fetchColumn())continue;}
             // Merely saving website fields must not take over an imported Avito listing.
             if($channel==='avito'&&$p['management']==='external'&&($input['configure']??false)!==true&&$input['enabled']===$p['enabled'])continue;
 
@@ -342,13 +346,14 @@ final class CatalogStore
         $delete=$this->db->prepare('DELETE FROM publication_jobs WHERE product_id=? AND channel=?');
         foreach ($this->channels($id) as $channel=>$settings) {
             if ($onlyChannel!==null && $channel!==$onlyChannel)continue;
+            if($channel==='avito'&&$this->db->query("SELECT name FROM sqlite_master WHERE type='table' AND name='assortment_members'")->fetchColumn()){$q=$this->db->prepare('SELECT 1 FROM assortment_members WHERE product_id=?');$q->execute([$id]);if($q->fetchColumn())continue;}
             if ($settings['management']!=='site') continue;
             if (!$settings['enabled'] && $settings['externalId']==='') { $delete->execute([$id,$channel]);$settings['state']='off';$settings['error']='';$u=$this->db->prepare('UPDATE product_channels SET document=? WHERE product_id=? AND channel=?');$u->execute([json_encode($settings,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),$id,$channel]);continue; }
             // Queue only intent. A configured connector must validate it before any external write.
             $intent=$this->channelIntent($settings);$content=$raw;
             if($channel==='avito'&&!empty($settings['externalId'])) {
                 $legacyFile=__DIR__.'/avito-legacy.json';$legacy=is_file($legacyFile)?json_decode(file_get_contents($legacyFile),true):[];
-                if(($legacy[(string)$settings['externalId']]['variants']??0)>1){
+                if(empty(json_decode($raw,true)['assortmentContainer'])&&($legacy[(string)$settings['externalId']]['variants']??0)>1){
                     $q=$this->db->prepare("SELECT document FROM products WHERE json_extract(document,'$.avitoItemId')=? ORDER BY id");$q->execute([(string)$settings['externalId']]);$photos=[];
                     foreach($q as $row)$photos[]=json_decode($row['document'],true)['images'];$content=json_encode($photos);
                 }

@@ -21,7 +21,7 @@ with tempfile.TemporaryDirectory(prefix="botanikart-catalogue-http-") as tempora
     private = public / "api/.private"
     private.mkdir(mode=0o700)
     shutil.copy2(ROOT / "hosting/private/CatalogStore.php", private / "CatalogStore.php")
-    for name in ['CatalogPhoto.php','PaymentService.php','MarketplaceService.php','PublicationRunner.php','FlowwowPublisher.php','AvitoFeed.php','avito-legacy.json','flowwow-fields.json']:
+    for name in ['Assortments.php','CatalogPhoto.php','PaymentService.php','MarketplaceService.php','PublicationRunner.php','FlowwowPublisher.php','AvitoFeed.php','avito-legacy.json','flowwow-fields.json']:
         shutil.copy2(ROOT / 'hosting/private' / name, private / name)
     password_hash = subprocess.check_output([PHP, "-r", "echo password_hash('fixture-admin-password',PASSWORD_DEFAULT);"]).decode()
     auth = private / "catalogue-auth.php"
