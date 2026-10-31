@@ -54,6 +54,7 @@ jobs:
           php hosting/tests/publications.php
           php hosting/tests/avito-feed.php
           php hosting/tests/avito-withdrawal.php
+          php hosting/tests/avito-removals.php
           php hosting/tests/assortments.php
           php hosting/tests/publication-editing.php
           python3 hosting/tests/check_api.py

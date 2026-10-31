@@ -23,7 +23,7 @@ final class PublicationRunner
         };
         $token=$send('POST','/token',http_build_query(['grant_type'=>'client_credentials','client_id'=>$cfg['client_id'],'client_secret'=>$cfg['client_secret']]),['Content-Type: application/x-www-form-urlencoded']);
         if(empty($token['access_token']))throw new \RuntimeException('Авито: авторизация не выполнена.');
-        return $send($method,$path,$data===null?null:json_encode($data,JSON_THROW_ON_ERROR),['Authorization: Bearer '.$token['access_token'],'Content-Type: application/json','Accept: application/json']);
+        return $send($method,$path,$data===null?null:json_encode($data?:new \stdClass(),JSON_THROW_ON_ERROR),['Authorization: Bearer '.$token['access_token'],'Content-Type: application/json','Accept: application/json']);
     }
     private function setState(string $id,string $channel,array $changes): void
     {
@@ -62,6 +62,43 @@ final class PublicationRunner
             return empty($profile['autoload_enabled'])?['paused'=>true]:['pending'=>true];
         }catch(\Throwable){return ['pending'=>true];}
         finally{flock($lock,LOCK_UN);fclose($lock);}
+    }
+    /** Read authoritative removals before exporting; never infer removal from absence or a failed request. */
+    public function reconcileAvitoRemovals(): array
+    {
+        $eligible=[];foreach($this->store->all(true) as $p){$c=$p['channels']['avito'];if(empty($p['deleted'])&&empty($p['assortmentId'])&&!empty($c['enabled'])&&ctype_digit((string)$c['externalId'])&&in_array($c['state']??'',['published','external'],true))$eligible[$p['id']]=['id'=>(string)$c['externalId'],'version'=>$p['version']];}
+        if(!$eligible)return ['checked'=>0,'disabled'=>0];
+        $lock=fopen($this->directory.'/catalogue/publications.lock','c');if(!$lock||!flock($lock,LOCK_EX|LOCK_NB)){if($lock)fclose($lock);throw new \RuntimeException('Авито: проверка статусов уже выполняется.');}
+        try{
+            $removed=[];$page=1;
+            do{$result=$this->avito('GET','/core/v1/items?status=removed,old&per_page=100&page='.$page);if(!isset($result['resources'])||!is_array($result['resources']))throw new \RuntimeException('Авито: не удалось проверить снятые объявления.');foreach($result['resources'] as $item)if(in_array($item['status']??'',['removed','old'],true)&&isset($item['id']))$removed[(string)$item['id']]=true;$more=count($result['resources'])===100;if($more&&$page>=100)throw new \RuntimeException('Авито: список снятых объявлений слишком большой.');$page++;}while($more);
+            $disabled=0;$handled=[];$db=$this->store->db;$db->exec('BEGIN IMMEDIATE');
+            try{foreach($this->store->all(true) as $p){$expected=$eligible[$p['id']]??null;$c=$p['channels']['avito'];if(!$expected||isset($handled[$expected['id']])||!isset($removed[$expected['id']])||$p['version']!==$expected['version']||!$c['enabled']||(string)$c['externalId']!==$expected['id'])continue;
+                // Include assortment members, without touching website visibility or Flowwow.
+                foreach($this->store->all(true) as $member){$mc=$member['channels']['avito'];if((string)$mc['externalId']!==$expected['id'])continue;$this->setState($member['id'],'avito',['enabled'=>false,'state'=>'removed_external','error'=>'','message'=>'Снято на Авито. Отправка отключена.']);$q=$db->prepare("UPDATE publication_jobs SET state='confirmed' WHERE product_id=? AND channel='avito'");$q->execute([$member['id']]);$db->prepare('UPDATE products SET version=version+1,updated_at=? WHERE id=?')->execute([gmdate('c'),$member['id']]);}$handled[$expected['id']]=true;$disabled++;
+            }$db->exec('COMMIT');}catch(\Throwable $e){$db->exec('ROLLBACK');throw $e;}
+            return ['checked'=>count($eligible),'disabled'=>$disabled];
+        }finally{flock($lock,LOCK_UN);fclose($lock);}
+    }
+    private function uploadMeta(string $name,?int $value=null): int
+    {
+        if($value!==null){$q=$this->store->db->prepare('INSERT INTO metadata(name,value) VALUES(?,?) ON CONFLICT(name) DO UPDATE SET value=excluded.value');$q->execute([$name,json_encode($value)]);return $value;}
+        $q=$this->store->db->prepare('SELECT value FROM metadata WHERE name=?');$q->execute([$name]);return (int)json_decode($q->fetchColumn()?:'0');
+    }
+    private function flushAvitoUpload(): void
+    {
+        $selected=array_filter($this->store->all(true),fn($p)=>empty($p['deleted'])&&empty($p['assortmentId'])&&!empty($p['channels']['avito']['enabled'])&&($p['channels']['avito']['management']??'')==='site');if(!$selected){$this->uploadMeta('avito:uploadPending',0);return;}
+        if(!$this->uploadMeta('avito:uploadPending')||$this->uploadMeta('avito:uploadAttempt')>time()-3600)return;
+        // Persist before sending: an ambiguous timeout must never cause a rapid replay.
+        $this->uploadMeta('avito:uploadAttempt',time());
+        try{$this->avito('POST','/autoload/v1/upload',[]);$this->uploadMeta('avito:uploadPending',0);}catch(\Throwable){/* Retain one coalesced request; daily schedule remains a fallback. */}
+    }
+    public function configureAvitoDailySchedule(): array
+    {
+        $profile=$this->avito('GET','/autoload/v2/profile');$expected=rtrim($this->config['site_url']??'https://botanikart.ru','/').'/api/avito-feed.php';
+        if(array_column($profile['feeds_data']??[],'feed_url')!==[$expected])throw new \RuntimeException('Авито: подключена другая ссылка автозагрузки.');
+        $settings=array_intersect_key($profile,array_flip(['feeds_data','report_email','autoload_enabled']));$settings['schedule']=[['rate'=>-1,'weekdays'=>[0,1,2,3,4,5,6],'time_slots'=>[23]]];$settings['allow_pay_over_limit']=false;
+        $this->avito('POST','/autoload/v2/profile',$settings);return $this->avito('GET','/autoload/v2/profile');
     }
     public function process(?string $onlyId=null,?string $onlyChannel=null): array
     {
@@ -102,6 +139,7 @@ final class PublicationRunner
                                 $settings=array_intersect_key($profile,array_flip(['feeds_data','schedule','report_email']));$settings['autoload_enabled']=true;$settings['allow_pay_over_limit']=false;
                                 $this->avito('POST','/autoload/v2/profile',$settings);
                             }
+                            $this->uploadMeta('avito:uploadPending',time());
                             $changes=['state'=>'awaiting_report','error'=>''];
                         }
                     }
@@ -113,6 +151,7 @@ final class PublicationRunner
                     $results[]=['id'=>$p['id'],'channel'=>$channel,'state'=>'error','message'=>mb_substr($error->getMessage(),0,500)];
                 }
             }
+            $this->flushAvitoUpload();
         }finally{flock($lock,LOCK_UN);fclose($lock);}
         return ['results'=>$results];
     }
@@ -123,6 +162,7 @@ final class PublicationRunner
             $q=$this->store->db->prepare('SELECT value FROM metadata WHERE name=?');$q->execute(['avito:reportCheckAt']);$last=(int)json_decode($q->fetchColumn()?:'0');
             if($last>time()-60)return ['cached'=>true];
             $q=$this->store->db->prepare('INSERT INTO metadata(name,value) VALUES(?,?) ON CONFLICT(name) DO UPDATE SET value=excluded.value');$q->execute(['avito:reportCheckAt',json_encode(time())]);
+            $uploadLock=fopen($this->directory.'/catalogue/publications.lock','c');if($uploadLock&&flock($uploadLock,LOCK_EX|LOCK_NB)){try{$this->flushAvitoUpload();}finally{flock($uploadLock,LOCK_UN);}}if($uploadLock)fclose($uploadLock);
             return $this->readReports();
         }finally{flock($lock,LOCK_UN);fclose($lock);}
     }

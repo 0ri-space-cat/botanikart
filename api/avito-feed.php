@@ -10,6 +10,8 @@ try {
     require_once $private.'/AvitoFeed.php';
     $schema=json_decode(file_get_contents(dirname(__DIR__).'/catalogue/avito-schema.json'),true,512,JSON_THROW_ON_ERROR);
     $store=new \BotanikArt\CatalogStore($private.'/catalogue',dirname(__DIR__).'/data/catalog.json');
+    require_once $private.'/PublicationRunner.php';
+    $runner=new \BotanikArt\PublicationRunner($store,$private);$removed=$runner->reconcileAvitoRemovals();if($removed['disabled']>0)$runner->stopEmptyAvitoFeed();
     echo (new \BotanikArt\AvitoFeed($schema))->render($store->all(true),'https://botanikart.ru');
 } catch (\Throwable $error) {
     http_response_code(503);
