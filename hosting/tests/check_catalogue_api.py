@@ -32,7 +32,7 @@ with tempfile.TemporaryDirectory(prefix="botanikart-catalogue-http-") as tempora
         sock.bind(("127.0.0.1", 0))
         port = sock.getsockname()[1]
     origin = f"http://127.0.0.1:{port}"
-    server = subprocess.Popen([PHP, "-S", f"127.0.0.1:{port}", "-t", str(public), str(router)],
+    server = subprocess.Popen([PHP, "-d", "opcache.enable_cli=0", "-S", f"127.0.0.1:{port}", "-t", str(public), str(router)],
                               env={**os.environ, "CATALOGUE_LOCAL_TEST":"1"}, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     cookies = http.cookiejar.CookieJar()
     client = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cookies))
