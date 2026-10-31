@@ -65,6 +65,7 @@ function publicationResults(p,host){
  }).join('');
 }
 const publicationReceipts=(()=>{try{return JSON.parse(localStorage.getItem('ba-publications-seen')||'{}')}catch{return {}}})();
+const publicationClosedPending={};
 const publicationReceiptKey=p=>JSON.stringify([p.id,p.version,['avito','flowwow'].map(k=>{const c=channelData(p)[k]||{};return [k,c.enabled,c.state,c.externalId,c.error]})]);
 const publicationFinished=p=>!['avito','flowwow'].some(k=>{if(k==='avito'&&p.assortmentId)return false;const c=channelData(p)[k]||{};return publicationPending(c)||c.error||c.state==='error'});
 let publicationObserver=null,publicationTimers=[];
@@ -84,9 +85,9 @@ function renderPublicationTracker(){
  const host=$('#publication-save-result');
  if(!host)return;
  publicationObserver?.disconnect();publicationTimers.forEach(clearTimeout);
- const active=products.filter(p=>!p.deleted&&['avito','flowwow'].some(key=>(key!=='avito'||!p.assortmentId)&&publicationPending(channelData(p)[key]||{})));
+ const active=products.filter(p=>!p.deleted&&publicationClosedPending[p.id]!==p.version&&['avito','flowwow'].some(key=>(key!=='avito'||!p.assortmentId)&&publicationPending(channelData(p)[key]||{})));
  const currentId=host.dataset.productId;
- const unseen=p=>!publicationFinished(p)||publicationReceipts[p.id]!==publicationReceiptKey(p);
+ const unseen=p=>{if(['avito','flowwow'].some(k=>(k!=='avito'||!p.assortmentId)&&publicationPending(channelData(p)[k]||{})))return publicationClosedPending[p.id]!==p.version;return publicationReceipts[p.id]!==publicationReceiptKey(p)};
  const current=products.find(p=>p.id===currentId&&unseen(p));
  const recent=products.filter(p=>!p.deleted&&unseen(p)&&!active.includes(p)&&['avito','flowwow'].some(key=>{const c=channelData(p)[key]||{};const when=Date.parse(c.checkedAt||'');return (key!=='avito'||!p.assortmentId)&&c.enabled&&['published','error'].includes(c.state)&&Number.isFinite(when)&&Date.now()-when<86400000})).slice(0,3);
  const seenListings=new Set();
@@ -97,7 +98,7 @@ function renderPublicationTracker(){
  host.innerHTML=list.map(p=>{
   const fresh=p.id===currentId;
   const pending=['avito','flowwow'].some(key=>(key!=='avito'||!p.assortmentId)&&publicationPending(channelData(p)[key]||{}));
-  return `<section class="publication-tracker-item" data-receipt-product="${escape(p.id)}"><h3><span aria-hidden="true">${fresh?'✓':pending?'◷':'✓'}</span> ${fresh?'Товар добавлен на сайт':'Публикация товара'}</h3><p class="publication-tracker-title">${escape(p.title)}</p><div class="publication-tracker-channels" data-tracker-product="${escape(p.id)}"></div></section>`;
+  return `<section class="publication-tracker-item" data-receipt-product="${escape(p.id)}"><button class="notice-close" type="button" data-close-publication="${escape(p.id)}" aria-label="Закрыть уведомление">×</button><h3><span aria-hidden="true">${fresh?'✓':pending?'◷':'✓'}</span> ${fresh?'Товар добавлен на сайт':'Публикация товара'}</h3><p class="publication-tracker-title">${escape(p.title)}</p><div class="publication-tracker-channels" data-tracker-product="${escape(p.id)}"></div></section>`;
  }).join('');
  for(const p of list){const box=[...host.querySelectorAll('[data-tracker-product]')].find(el=>el.dataset.trackerProduct===p.id);if(box)publicationResults(p,box)}
  watchPublicationReceipts(list,host);
@@ -106,7 +107,9 @@ function renderPublicationTracker(){
 let connections={},reminderId='',reminderOpen=false,authenticated=false;
 let csrf='',products=[],source='all',editing=null,images=[],dirty=false,uploading=false;
 const errors={active_payment_exists:'По этому товару уже оформляется другая покупка.',sale_confirmation_required:'Сначала подтвердите продажу.',invalid_channels:'Проверьте настройки площадок и цены.',external_channel:'Существующее объявление пока управляется на своей площадке.',invalid_date:'Укажите корректную дату продления.',duplicate_source:'Товар с этой ссылкой Авито уже есть в каталоге. Найдите и отредактируйте его.',setup_required:'Вход ещё не настроен.',invalid_credentials:'Проверьте логин и пароль.',too_many_attempts:'Слишком много попыток. Попробуйте через 15 минут.',service_unavailable:'Не удалось связаться с каталогом. Попробуйте ещё раз.',invalid_product:'Проверьте название, цену и фотографии.',edit_conflict:'Товар уже изменился. Закройте карточку, обновите список и откройте её снова.',upload_failed:'Не удалось загрузить фото. Выберите JPEG, PNG или WebP.',invalid_image:'Этот формат фотографии не поддерживается. Сохраните её как JPEG или PNG.',image_too_large:'Фото слишком большое. Выберите изображение поменьше.',request_too_large:'Слишком много данных. Уменьшите описание.',https_required:'Откройте каталог по защищённому адресу https://.'};
-function message(element,text='',error=false){element.textContent=text;element.classList.toggle('error',error)}
+const closedNotices=new Map();
+function noticeClose(element,remember=false){const text=element.textContent;if(!text.trim())return;if(remember&&closedNotices.get(element.id)===text){element.hidden=true;return}const b=document.createElement('button');b.type='button';b.className='notice-close';b.setAttribute('aria-label','Закрыть уведомление');b.textContent='×';b.onclick=()=>{element.hidden=true;if(remember)closedNotices.set(element.id,text)};element.classList.add('dismissible-notice');element.append(b);}
+function message(element,text='',error=false){element.textContent=text;element.hidden=false;element.classList.toggle('error',error);noticeClose(element)}
 async function api(action,body,params={}){
  const options={credentials:'same-origin',cache:'no-store'};
  if(body!==undefined){options.method='POST';options.headers={'X-CSRF-Token':csrf};if(body instanceof FormData)options.body=body;else{options.headers['Content-Type']='application/json';options.body=JSON.stringify(body)}}
@@ -142,7 +145,7 @@ function openEditor(id){
  $('#source-url-label').textContent=p.source==='flowwow'?'Ссылка на Flowwow':'Ссылка на объявление Авито';$('#editor').showModal();fitTitle();$('#editor').scrollTop=0;document.body.style.overflow='hidden';
 }
 function closeEditor(){if(uploading)return;if(dirty&&!confirm('Закрыть карточку без сохранения?'))return;$('#editor').close()}
-function toast(text,duration=3000){$('#toast').textContent=text;$('#toast').hidden=false;setTimeout(()=>{$('#toast').hidden=true},duration)}
+function toast(text,duration=3000){$('#toast').textContent=text;$('#toast').hidden=false;noticeClose($('#toast'));setTimeout(()=>{$('#toast').hidden=true},duration)}
 $('#login-form').addEventListener('submit',async e=>{e.preventDefault();const button=e.target.querySelector('[type=submit]');button.disabled=true;message($('#login-message'));try{await api('login',{username:e.target.elements.username.value,password:e.target.elements.password.value});e.target.elements.password.value='';await showCatalog()}catch(error){message($('#login-message'),error.message,true)}finally{button.disabled=false}});
 $('#reveal').addEventListener('click',()=>{const input=$('#login-form').elements.password;const reveal=input.type==='password';input.type=reveal?'text':'password';$('#reveal').textContent=reveal?'Скрыть':'Показать';$('#reveal').setAttribute('aria-label',reveal?'Скрыть пароль':'Показать пароль')});
 $('#logout').addEventListener('click',async()=>{try{await api('logout',{});showLogin();await initialize()}catch(error){toast(error.message)}});
@@ -196,7 +199,8 @@ function renderPublicationSettings(p){
 function renderConnections(){
  const avito=connections.avito||{},health=avito.health||{};const denied=health.state==='access_denied';const network=['unreachable','rate_limited'].includes(health.state);const alert=$('#connection-alert');alert.hidden=!denied&&!network;alert.classList.toggle('warning',network);
  alert.textContent=denied?'Нет доступа к отчётам Авито. Проверьте, активен ли тариф.':(health.state==='rate_limited'?'Авито временно ограничило частоту запросов. Повторим проверку позже.':'Не удаётся связаться с Авито. Это может быть временный сбой соединения.');
- const reminder=avito.reminder;$('#renewal-banner').hidden=!reminder;$('#renewal-banner').textContent=reminder?.text||'';
+ if(!alert.hidden)noticeClose(alert,true);
+ const reminder=avito.reminder;$('#renewal-banner').hidden=!reminder;$('#renewal-banner').textContent=reminder?.text||'';if(reminder)noticeClose($('#renewal-banner'),true);
  $('#connections-summary').innerHTML=['avito','flowwow'].map(k=>`<div class="connection-summary"><span class="source-badge ${k}">${sourceLabel(k)}</span><p>${escape(connections[k]?.message||'Ожидает подключения')}</p></div>`).join('');
  if(reminder&&!reminder.seen&&!reminderOpen&&!$('#editor').open&&!$('#connections-dialog').open){reminderId=reminder.id;reminderOpen=true;$('#renewal-message').textContent=reminder.text;$('#renewal-dialog').showModal();}
 }
@@ -470,3 +474,5 @@ setInterval(()=>{if(authenticated&&document.visibilityState==='visible')loadOrde
 function fitTitle(){const field=$('#edit-form').elements.title;field.style.height='auto';const height=field.scrollHeight+2;field.style.height=Math.min(height,120)+'px';field.style.overflowY=height>120?'auto':'hidden'}
 $('#edit-form').elements.title.addEventListener('input',fitTitle);
 window.addEventListener('resize',()=>{if($('#editor').open)fitTitle()});
+
+$('#publication-save-result').addEventListener('click',e=>{const b=e.target.closest('[data-close-publication]');if(!b)return;const p=products.find(p=>p.id===b.dataset.closePublication);if(!p)return;const pending=['avito','flowwow'].some(k=>(k!=='avito'||!p.assortmentId)&&publicationPending(channelData(p)[k]||{}));if(pending)publicationClosedPending[p.id]=p.version;else{publicationReceipts[p.id]=publicationReceiptKey(p);try{localStorage.setItem('ba-publications-seen',JSON.stringify(publicationReceipts))}catch{}}renderPublicationTracker()});

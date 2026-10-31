@@ -49,3 +49,6 @@ variants[0].channels.avito.checkedAt=new Date(Date.now()+1000).toISOString();vm.
 variants[0].version=2;vm.runInNewContext('renderPublicationTracker()',ctx);assert.equal(host.hidden,false,'New revision was hidden');
 variants[0].channels.avito.state='queued';vm.runInNewContext('renderPublicationTracker()',ctx);assert.equal(host.hidden,false,'Pending publication was hidden');
 console.log('Completion receipt checks passed.');
+
+vm.runInNewContext('publicationClosedPending[products[0].id]=products[0].version;renderPublicationTracker()',ctx);assert.equal(host.hidden,true,'Manually dismissed pending notice returned');
+variants[0].channels.avito.state='published';vm.runInNewContext('renderPublicationTracker()',ctx);assert.equal(host.hidden,false,'Completion did not reappear after closing pending notice');
