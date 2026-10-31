@@ -85,9 +85,9 @@ function renderPublicationTracker(){
  const host=$('#publication-save-result');
  if(!host)return;
  publicationObserver?.disconnect();publicationTimers.forEach(clearTimeout);
- const active=products.filter(p=>!p.deleted&&publicationClosedPending[p.id]!==p.version&&['avito','flowwow'].some(key=>(key!=='avito'||!p.assortmentId)&&publicationPending(channelData(p)[key]||{})));
+ const active=products.filter(p=>!p.deleted&&(!Object.hasOwn(publicationClosedPending,p.id)||publicationClosedPending[p.id]!==p.version)&&['avito','flowwow'].some(key=>(key!=='avito'||!p.assortmentId)&&publicationPending(channelData(p)[key]||{})));
  const currentId=host.dataset.productId;
- const unseen=p=>{if(['avito','flowwow'].some(k=>(k!=='avito'||!p.assortmentId)&&publicationPending(channelData(p)[k]||{})))return publicationClosedPending[p.id]!==p.version;return publicationReceipts[p.id]!==publicationReceiptKey(p)};
+ const unseen=p=>{if(['avito','flowwow'].some(k=>(k!=='avito'||!p.assortmentId)&&publicationPending(channelData(p)[k]||{})))return (!Object.hasOwn(publicationClosedPending,p.id)||publicationClosedPending[p.id]!==p.version);return publicationReceipts[p.id]!==publicationReceiptKey(p)};
  const current=products.find(p=>p.id===currentId&&unseen(p));
  const recent=products.filter(p=>!p.deleted&&unseen(p)&&!active.includes(p)&&['avito','flowwow'].some(key=>{const c=channelData(p)[key]||{};const when=Date.parse(c.checkedAt||'');return (key!=='avito'||!p.assortmentId)&&c.enabled&&['published','error'].includes(c.state)&&Number.isFinite(when)&&Date.now()-when<86400000})).slice(0,3);
  const seenListings=new Set();
@@ -476,3 +476,4 @@ $('#edit-form').elements.title.addEventListener('input',fitTitle);
 window.addEventListener('resize',()=>{if($('#editor').open)fitTitle()});
 
 $('#publication-save-result').addEventListener('click',e=>{const b=e.target.closest('[data-close-publication]');if(!b)return;const p=products.find(p=>p.id===b.dataset.closePublication);if(!p)return;const pending=['avito','flowwow'].some(k=>(k!=='avito'||!p.assortmentId)&&publicationPending(channelData(p)[k]||{}));if(pending)publicationClosedPending[p.id]=p.version;else{publicationReceipts[p.id]=publicationReceiptKey(p);try{localStorage.setItem('ba-publications-seen',JSON.stringify(publicationReceipts))}catch{}}renderPublicationTracker()});
+const renewalClose=document.createElement('button');renewalClose.type='button';renewalClose.className='notice-close';renewalClose.setAttribute('aria-label','Закрыть напоминание');renewalClose.textContent='×';renewalClose.onclick=()=>$('#renewal-dismiss').click();$('#renewal-dialog').append(renewalClose);
