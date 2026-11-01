@@ -25,6 +25,9 @@ PAGES = (
     "payment-result.js",
 )
 PUBLIC_ASSETS = (
+    "category-florarium.png",
+    "category-plants.png",
+    "category-material.png",
     "catalog/florarium-s-kryshkoy-tam-gde-c-1.jpg",
     "catalog/florarium-shepot-lesa-1.jpg",
     "aglaonema.jpg",

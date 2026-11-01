@@ -53,7 +53,7 @@ final class CatalogStore
     private function normalizeProduct(array $p): array
     {
         foreach(['source','url','avitoItemId','avitoVariant','flowwowProductId','flowwowOfferId','assortmentId','assortmentContainer','assortmentSignature','channels','sourceMissing','managed','deleted','version','updatedAt'] as $key)unset($p[$key]);
-        $p['purchaseMode']=in_array($p['purchaseMode']??'direct',['direct','inquiry'],true)?$p['purchaseMode']:'direct';
+        $p['purchaseMode']=in_array($p['purchaseMode']??'direct',['direct','inquiry'],true)?($p['purchaseMode']??'direct'):'direct';
         $p['catalogGroup']=$p['catalogGroup']??$p['category']??'potted';
         if(!in_array($p['catalogGroup'],['florarium','composition','potted','plant','material'],true))$p['catalogGroup']='potted';
         $p['category']=$p['catalogGroup'];
@@ -136,7 +136,7 @@ final class CatalogStore
             $images=$input['images']??[];if(!is_array($images)||!array_is_list($images)||!$images||count($images)>20)throw new \InvalidArgumentException('invalid_images');
             foreach($images as $image){$uploaded=is_string($image)&&preg_match('~^assets/uploads/catalogue/[a-f0-9]{32}\.jpg$~D',$image)&&is_file(dirname($this->snapshot,2).'/'.$image);if(!$uploaded&&!in_array($image,$prior['images']??[],true))throw new \InvalidArgumentException('invalid_images');}
             $soldOnSite=!empty($prior['soldOnSite'])&&$status==='sold';if($soldOnSite)$status=$prior['status']??'ready';
-            $product=array_merge($prior,['id'=>$id?:'local-'.bin2hex(random_bytes(12)),'title'=>$title,'description'=>$description,'price'=>round((float)$price,2),'category'=>$group,'catalogGroup'=>$group,'images'=>array_values(array_unique($images)),'available'=>$status==='ready','status'=>$status,'purchaseMode'=>$purchaseMode,'soldOnSite'=>$soldOnSite]);
+            $product=array_merge($prior,['id'=>$id?:'local-'.bin2hex(random_bytes(12)),'title'=>$title,'description'=>$description,'price'=>round((float)$price,2),'category'=>$group,'catalogGroup'=>$group,'potType'=>($group==='potted'&&in_array($input['potType']??'', ['technical','cachepot'],true)?$input['potType']:'unspecified'),'images'=>array_values(array_unique($images)),'available'=>$status==='ready','status'=>$status,'purchaseMode'=>$purchaseMode,'soldOnSite'=>$soldOnSite]);
             $product=$this->normalizeProduct($product);$id=$product['id'];$doc=json_encode($product,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
             if($existing){$update=$this->db->prepare('UPDATE products SET source=\'manual\',document=?,hidden=?,missing=0,managed=1,version=version+1,updated_at=? WHERE id=? AND version=?');$update->execute([$doc,(int)$hidden,gmdate('c'),$id,$version]);}
             else{$update=$this->db->prepare('INSERT INTO products(id,source,document,hidden,missing,managed,deleted,updated_at) VALUES(?,\'manual\',?,?,0,1,0,?)');$update->execute([$id,$doc,(int)$hidden,gmdate('c')]);}
