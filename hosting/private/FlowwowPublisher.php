@@ -3,6 +3,7 @@ declare(strict_types=1);
 namespace BotanikArt;
 require_once __DIR__.'/CatalogPhoto.php';
 
+final class FlowwowRejectedException extends \RuntimeException {}
 final class FlowwowPublisher
 {
     private array $cache=[];
@@ -150,7 +151,7 @@ final class FlowwowPublisher
     {
         if(!empty($response['errors'])||($response['summary']['failed']??0)>0||($response['success']??true)===false){
             $details=$response['errors'][0]['message']??$response['errors'][0]['error']??$response['message']??'товар не принят';
-            throw new \RuntimeException('Flowwow: '.$this->safeError(is_string($details)?$details:'товар не принят'));
+            throw new FlowwowRejectedException('Flowwow: '.$this->safeError(is_string($details)?$details:'товар не принят'));
         }
     }
     /** Check a previously accepted write without repeating create/update/unhide. */
@@ -221,12 +222,15 @@ final class FlowwowPublisher
             $this->ensureSuccess($result);
             $knownId=$remoteId ?: (string)($result['data'][0]['productId']??$result['items'][0]['productId']??'');
         }catch(\Throwable $writeError){
+            // Explicit application-level rejections are actionable; do not
+            // disguise them as a product still being uploaded.
+            if($writeError instanceof FlowwowRejectedException)throw $writeError;
             // A timeout or a partial API response can arrive AFTER Flowwow
             // created the product. Verify its stable offerId before reporting
             // an error or attempting another write.
             $observed=$this->confirmPublished($forCheck,$knownId);
             if(in_array($observed['state']??'', ['published','moderation'],true))return $observed;
-            if($writeError instanceof \RuntimeException && in_array($writeError->getCode(),[0,408,429,500,502,503,504],true)){
+            if(!($writeError instanceof \RuntimeException)||in_array($writeError->getCode(),[0,408,429,500,502,503,504],true)){
                 // A transient/ambiguous result must not lead to an automatic duplicate.
                 return ['state'=>'awaiting_confirmation','offerId'=>$offer,'externalId'=>$knownId,
                     'message'=>'Flowwow: проверяем, приняла ли площадка товар после сбоя связи.'];
