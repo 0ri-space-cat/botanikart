@@ -12,7 +12,11 @@ mkdir($root.'/data',0700,true);
 mkdir($root.'/catalogue',0700,true);
 mkdir($root.'/assets/uploads/catalogue',0700,true);
 copy(dirname(__DIR__,2).'/catalogue/avito-schema.json',$root.'/catalogue/avito-schema.json');
-file_put_contents($root.'/data/catalog.json',json_encode(['products'=>[]]));
+file_put_contents($root.'/data/catalog.json',json_encode(['products'=>[[
+    'id'=>'fixture-seed','source'=>'manual','title'=>'Fixture seed','description'=>'Fixture seed',
+    'price'=>500,'catalogGroup'=>'plant','status'=>'ready','available'=>true,
+    'images'=>['assets/uploads/catalogue/'.str_repeat('d',32).'.jpg']
+]]]));
 $photo='assets/uploads/catalogue/'.str_repeat('d',32).'.jpg';
 file_put_contents($root.'/'.$photo,'fixture');
 try{
