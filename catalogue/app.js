@@ -46,6 +46,14 @@ function fwMeasureControl(f,v,id){
  const unit=selected?`<input type="hidden" data-fw-measure="${escape(f.field)}" value="${escape(selected.id)}">`:'';
  return `<div class="measure-input">${input}${unit}</div>`;
 }
+// A source-platform badge is informational; only explicitly managed channels
+// should create publication receipts or display publication errors.
+function publicationOwned(p,key){
+ const c=channelData(p)[key]||{};
+ if(key==='avito'&&p.assortmentId)return false;
+ return c.management==='site'&&(c.publicationRequested===true||p.source!==key||
+   c.price!==null&&c.price!==undefined||Boolean(c.title)||Boolean(c.description));
+}
 const publicationPending=c=>Boolean(c.enabled)&&['queued','awaiting_report','awaiting_confirmation','moderation','waiting_connection','publishing','blocked_by_feed'].includes(c.state);
 const publicationStage=c=>{
  if(c.error||c.state==='error')return 'error';
@@ -54,7 +62,7 @@ const publicationStage=c=>{
  return 'sending';
 };
 function publicationResults(p,host){
- const rows=['avito','flowwow'].map(key=>({key,c:channelData(p)[key]||{}})).filter(({key,c})=>(key!=='avito'||!p.assortmentId)&&(c.enabled||c.error));
+ const rows=['avito','flowwow'].map(key=>({key,c:channelData(p)[key]||{}})).filter(({key,c})=>publicationOwned(p,key)&&(c.enabled||c.error));
  host.hidden=!rows.length;
  host.innerHTML=rows.map(({key,c})=>{
   const stage=publicationStage(c);
@@ -67,9 +75,19 @@ function publicationResults(p,host){
  }).join('');
 }
 const publicationReceipts=(()=>{try{return JSON.parse(localStorage.getItem('ba-publications-seen')||'{}')}catch{return {}}})();
-const publicationClosedPending={};
-const publicationReceiptKey=p=>JSON.stringify([p.id,p.version,['avito','flowwow'].map(k=>{const c=channelData(p)[k]||{};return [k,c.enabled,c.state,c.externalId,c.error]})]);
-const publicationFinished=p=>!['avito','flowwow'].some(k=>{if(k==='avito'&&p.assortmentId)return false;const c=channelData(p)[k]||{};return publicationPending(c)||c.error||c.state==='error'});
+const publicationClosedPending=(()=>{try{return JSON.parse(localStorage.getItem('ba-publications-closed')||'{}')}catch{return {}}})();
+const publicationWatching=(()=>{try{return JSON.parse(localStorage.getItem('ba-publications-watching')||'{}')}catch{return {}}})();
+const publicationReceiptKey=p=>JSON.stringify([p.id,['avito','flowwow'].map(k=>{const c=channelData(p)[k]||{};return [k,c.enabled,c.state,c.externalId,c.error]})]);
+const publicationFinished=p=>!['avito','flowwow'].some(k=>publicationOwned(p,k)&&publicationPending(channelData(p)[k]||{}));
+function publicationWasClosed(p){return Boolean(publicationClosedPending[p.id])}
+function rememberPublicationSave(id){
+ publicationWatching[id]=Date.now();delete publicationClosedPending[id];
+ try{localStorage.setItem('ba-publications-watching',JSON.stringify(publicationWatching));localStorage.setItem('ba-publications-closed',JSON.stringify(publicationClosedPending))}catch{}
+}
+function closePublicationReceipt(id){
+ publicationClosedPending[id]=Date.now();delete publicationWatching[id];
+ try{localStorage.setItem('ba-publications-closed',JSON.stringify(publicationClosedPending));localStorage.setItem('ba-publications-watching',JSON.stringify(publicationWatching))}catch{}
+}
 let publicationObserver=null,publicationTimers=[];
 function watchPublicationReceipts(list,host){
  publicationObserver?.disconnect();publicationTimers.forEach(clearTimeout);publicationTimers=[];
@@ -77,7 +95,7 @@ function watchPublicationReceipts(list,host){
  publicationObserver=new IntersectionObserver(entries=>{for(const entry of entries){const el=entry.target;clearTimeout(el.receiptTimer);if(!entry.isIntersecting)continue;
   const p=list.find(p=>p.id===el.dataset.receiptProduct);if(!p||!publicationFinished(p))continue;
   const timer=setTimeout(()=>{if(document.hidden||document.querySelector('dialog[open]'))return;const r=el.getBoundingClientRect();if(r.bottom<=0||r.top>=innerHeight)return;
-   publicationReceipts[p.id]=publicationReceiptKey(p);try{localStorage.setItem('ba-publications-seen',JSON.stringify(publicationReceipts))}catch{}
+   publicationReceipts[p.id]=publicationReceiptKey(p);delete publicationWatching[p.id];try{localStorage.setItem('ba-publications-seen',JSON.stringify(publicationReceipts));localStorage.setItem('ba-publications-watching',JSON.stringify(publicationWatching))}catch{}
    el.classList.add('publication-dismiss');setTimeout(()=>renderPublicationTracker(),350);
   },3000);el.receiptTimer=timer;publicationTimers.push(timer);
  }},{threshold:.25});
@@ -87,11 +105,15 @@ function renderPublicationTracker(){
  const host=$('#publication-save-result');
  if(!host)return;
  publicationObserver?.disconnect();publicationTimers.forEach(clearTimeout);
- const active=products.filter(p=>!p.deleted&&(!Object.hasOwn(publicationClosedPending,p.id)||publicationClosedPending[p.id]!==p.version)&&['avito','flowwow'].some(key=>(key!=='avito'||!p.assortmentId)&&publicationPending(channelData(p)[key]||{})));
+ const active=products.filter(p=>!p.deleted&&!publicationWasClosed(p)&&['avito','flowwow'].some(key=>publicationOwned(p,key)&&publicationPending(channelData(p)[key]||{})));
  const currentId=host.dataset.productId;
- const unseen=p=>{if(['avito','flowwow'].some(k=>(k!=='avito'||!p.assortmentId)&&publicationPending(channelData(p)[k]||{})))return (!Object.hasOwn(publicationClosedPending,p.id)||publicationClosedPending[p.id]!==p.version);return publicationReceipts[p.id]!==publicationReceiptKey(p)};
+ const unseen=p=>!publicationWasClosed(p)&&publicationReceipts[p.id]!==publicationReceiptKey(p);
  const current=products.find(p=>p.id===currentId&&unseen(p));
- const recent=products.filter(p=>!p.deleted&&unseen(p)&&!active.includes(p)&&['avito','flowwow'].some(key=>{const c=channelData(p)[key]||{};const when=Date.parse(c.checkedAt||'');return (key!=='avito'||!p.assortmentId)&&c.enabled&&['published','error'].includes(c.state)&&Number.isFinite(when)&&Date.now()-when<86400000})).slice(0,3);
+ // Never turn 24 hours of historical/imported status updates into notifications.
+ // A completed result reappears only if this browser actually saved the product.
+ const recent=products.filter(p=>!p.deleted&&!active.includes(p)&&!publicationWasClosed(p)&&
+   Boolean(publicationWatching[p.id])&&unseen(p)&&['avito','flowwow'].some(key=>
+     publicationOwned(p,key)&&['published','error'].includes((channelData(p)[key]||{}).state))).slice(0,3);
  const seenListings=new Set();
  const list=[...(current?[current]:[]),...active.filter(p=>p.id!==currentId),...recent.filter(p=>p.id!==currentId)].filter(p=>{const a=channelData(p).avito||{};if(!a.externalId||!publicationPending(a)||publicationPending(channelData(p).flowwow||{}))return true;const key=a.externalId;if(seenListings.has(key))return false;seenListings.add(key);return true;});
  if(!list.length&&!current){host.hidden=true;host.innerHTML='';return}
@@ -99,7 +121,7 @@ function renderPublicationTracker(){
  host.hidden=false;
  host.innerHTML=list.map(p=>{
   const fresh=p.id===currentId;
-  const pending=['avito','flowwow'].some(key=>(key!=='avito'||!p.assortmentId)&&publicationPending(channelData(p)[key]||{}));
+  const pending=['avito','flowwow'].some(key=>publicationOwned(p,key)&&publicationPending(channelData(p)[key]||{}));
   return `<section class="publication-tracker-item" data-receipt-product="${escape(p.id)}"><button class="notice-close" type="button" data-close-publication="${escape(p.id)}" aria-label="Закрыть уведомление">×</button><h3><span aria-hidden="true">✓</span> ${fresh?'Товар добавлен на сайт':'Товар сохранён в каталоге'}</h3><p class="publication-tracker-title">${escape(p.title)}</p><div class="publication-tracker-channels" data-tracker-product="${escape(p.id)}"></div></section>`;
  }).join('');
  for(const p of list){const box=[...host.querySelectorAll('[data-tracker-product]')].find(el=>el.dataset.trackerProduct===p.id);if(box)publicationResults(p,box)}
@@ -176,7 +198,7 @@ $('#edit-form').addEventListener('submit',async e=>{
  if(true){for(const key of ['title','description','catalogGroup','status','url'])payload[key]=form.elements[key].value;payload.source=editing?.source||'manual';payload.purchaseMode=form.elements.purchase_mode.value;payload.price=Number(form.elements.price.value);payload.images=images;if(!images.length){message($('#edit-message'),'Добавьте хотя бы одну фотографию.',true);return}}
  payload.channels={};for(const key of ['avito','flowwow'])payload.channels[key]=form.elements['publish_'+key].checked?{configure:channelTouched[key],enabled:true,price:form.elements['price_'+key].value===''?null:Number(form.elements['price_'+key].value),title:form.elements['title_'+key].value,description:descriptionInherited(key)?'':form.elements['description_'+key].value}:{configure:channelTouched[key],enabled:false,price:channelData(editing||{})[key].price??null,title:channelData(editing||{})[key].title||'',description:channelData(editing||{})[key].description||''};payload.channels.avito.category=payload.channels.avito.enabled?form.elements.avito_category.value:(channelData(editing||{}).avito.category||'');payload.channels.avito.attributes=payload.channels.avito.enabled?readAvitoAttributes():(channelData(editing||{}).avito.attributes||{});payload.channels.flowwow.category=$('#flowwow-category')?.value||channelData(editing||{}).flowwow.category||'';payload.channels.flowwow.properties=payload.channels.flowwow.enabled?readFlowwowProperties():(channelData(editing||{}).flowwow.properties||{});
  $('#save').disabled=true;message($('#edit-message'),'Сохраняем…');let savedId=null;
- try{const saved=await api('save',payload);savedId=saved.id;dirty=false;$('#editor').close();$('#publication-save-result').dataset.productId=saved.id;await load();const sync=await api('sync-product',{id:saved.id});await load();if(sync.busy)toast('Публикация выполняется. Статусы обновятся автоматически.')}catch(error){if(savedId){$('#publication-save-result').dataset.productId=savedId;try{await load()}catch{};toast('Товар сохранён. Статус публикации обновится автоматически.')}else message($('#edit-message'),error.message,true)}finally{$('#save').disabled=false}
+ try{const saved=await api('save',payload);savedId=saved.id;rememberPublicationSave(saved.id);dirty=false;$('#editor').close();$('#publication-save-result').dataset.productId=saved.id;await load();const sync=await api('sync-product',{id:saved.id});await load();if(sync.busy)toast('Публикация выполняется. Статусы обновятся автоматически.')}catch(error){if(savedId){$('#publication-save-result').dataset.productId=savedId;try{await load()}catch{};toast('Товар сохранён. Статус публикации обновится автоматически.')}else message($('#edit-message'),error.message,true)}finally{$('#save').disabled=false}
 });
 window.addEventListener('beforeunload',e=>{if(dirty&&$('#editor').open){e.preventDefault();e.returnValue=''}});
 async function initialize(){try{const session=await api('session');message($('#login-message'));$('#login-form [type=submit]').disabled=false;if(session.authenticated)await showCatalog();else showLogin()}catch(error){showLogin();message($('#login-message'),error.message,true)}}
