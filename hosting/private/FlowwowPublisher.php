@@ -20,11 +20,13 @@ final class FlowwowPublisher
         $h=curl_init('https://apis.flowwow.com'.$path);
         curl_setopt_array($h,[CURLOPT_RETURNTRANSFER=>true,CURLOPT_CUSTOMREQUEST=>$method,CURLOPT_CONNECTTIMEOUT=>5,CURLOPT_TIMEOUT=>18,CURLOPT_FOLLOWLOCATION=>false,
             CURLOPT_HTTPHEADER=>['Authorization: Bearer '.$this->config['token'],'Content-Type: application/json','Accept: application/json'],CURLOPT_POSTFIELDS=>json_encode($payload,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR)]);
-        $raw=curl_exec($h);$status=(int)curl_getinfo($h,CURLINFO_RESPONSE_CODE);curl_close($h);
+        $raw=curl_exec($h);$status=(int)curl_getinfo($h,CURLINFO_RESPONSE_CODE);
+        $networkError=curl_error($h);curl_close($h);
         if($status<200||$status>=300||!is_string($raw)){
             $decoded=is_string($raw)?json_decode($raw,true):null;
             $details=is_array($decoded)?($decoded['errors'][0]['message']??$decoded['message']??null):null;
-            $reason=is_string($details)?$this->safeError($details):'запрос не выполнен';
+            $reason=is_string($details)?$this->safeError($details):
+                ($status===0?'нет ответа от Flowwow ('.$this->safeError($networkError).')':'запрос отклонён');
             throw new \RuntimeException('Flowwow: '.$reason.' (HTTP '.$status.').',$status);
         }
         $data=json_decode($raw,true,512,JSON_THROW_ON_ERROR);
