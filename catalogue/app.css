@@ -439,3 +439,10 @@
 
 #editor .description-assortment-note{margin:0 0 12px;padding:10px 12px;border:1px solid #dae7d4;background:#f6faf2;border-radius:11px;color:#58705a;font-size:11px;line-height:1.55}
 #editor .description-assortment-note[hidden]{display:none!important}
+
+
+/* A failed listing must explain its cause immediately, without giant action text. */
+.publication-result .publication-error-reason{font-size:11px;line-height:1.55;margin:7px 0 3px;color:#a4473e;overflow-wrap:anywhere;white-space:pre-wrap}
+.publication-result-actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}
+.publication-result-actions .publication-action{font-size:11px;line-height:1.35;min-height:33px;padding:7px 9px}
+@media(max-width:520px){.publication-result .publication-error-reason{font-size:11px}.publication-result-actions .publication-action{font-size:10.5px}}
