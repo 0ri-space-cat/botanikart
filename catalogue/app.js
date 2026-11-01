@@ -105,7 +105,7 @@ function renderPublicationTracker(){
  const host=$('#publication-save-result');
  if(!host)return;
  publicationObserver?.disconnect();publicationTimers.forEach(clearTimeout);
- const active=products.filter(p=>!p.deleted&&!publicationWasClosed(p)&&['avito','flowwow'].some(key=>publicationOwned(p,key)&&publicationPending(channelData(p)[key]||{})));
+ const active=products.filter(p=>!p.deleted&&!publicationWasClosed(p)&&Boolean(publicationWatching[p.id])&&['avito','flowwow'].some(key=>publicationOwned(p,key)&&publicationPending(channelData(p)[key]||{})));
  const currentId=host.dataset.productId;
  const unseen=p=>!publicationWasClosed(p)&&publicationReceipts[p.id]!==publicationReceiptKey(p);
  const current=products.find(p=>p.id===currentId&&unseen(p));
