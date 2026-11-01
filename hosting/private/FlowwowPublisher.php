@@ -13,7 +13,7 @@ final class FlowwowPublisher
     }
     public function request(string $path,array $payload=[],string $method='POST'): array
     {
-        if(empty($this->config['token'])||empty($this->config['shop_id']))throw new \RuntimeException('Flowwow: доступ не настроен.');
+        if(!$this->transport&&(empty($this->config['token'])||empty($this->config['shop_id'])))throw new \RuntimeException('Flowwow: доступ не настроен.');
         $path.=(str_contains($path,'?')?'&':'?').'shopId='.(int)$this->config['shop_id'];
         if($this->transport)return ($this->transport)($method,$path,$payload);
         $h=curl_init('https://apis.flowwow.com'.$path);
