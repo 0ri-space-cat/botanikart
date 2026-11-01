@@ -109,7 +109,7 @@ final class PublicationRunner
         if(!$lock||!flock($lock,LOCK_EX|LOCK_NB)){if($lock)fclose($lock);return ['busy'=>true];}
         $results=[];
         try {
-            $query="SELECT * FROM publication_jobs WHERE state IN ('queued','retry','awaiting_report','awaiting_confirmation','moderation')";$args=[];
+            $query="SELECT * FROM publication_jobs WHERE state IN ('queued','retry','awaiting_report','awaiting_confirmation','moderation','blocked_by_feed')";$args=[];
             if($onlyId!==null){$query.=' AND product_id=?';$args[]=$onlyId;}
             if($onlyChannel!==null){$query.=' AND channel=?';$args[]=$onlyChannel;}
             $q=$this->store->db->prepare($query.' ORDER BY updated_at LIMIT 20');$q->execute($args);$jobs=$q->fetchAll(\PDO::FETCH_ASSOC);
@@ -134,7 +134,18 @@ final class PublicationRunner
                         }
                         else {
                             $schema=json_decode(file_get_contents(dirname($this->directory,2).'/catalogue/avito-schema.json'),true,512,JSON_THROW_ON_ERROR);
-                            $feed=new AvitoFeed($schema);$feed->render($products,$this->config['site_url']??'https://botanikart.ru');
+                            $feed=new AvitoFeed($schema);
+                            try{$feed->render($products,$this->config['site_url']??'https://botanikart.ru');}
+                            catch(AvitoFeedValidationException $blocked){
+                                if($blocked->productId===$p['id'])throw $blocked;
+                                // Preserve the complete feed: do not withdraw valid listings
+                                // because another selected product has invalid fields.
+                                $hold=['state'=>'blocked_by_feed','error'=>'',
+                                    'message'=>'Авито: ждём исправления объявления «'.mb_substr($blocked->getMessage(),0,260).'».'];
+                                if($this->recordResult($job,$hold,'blocked_by_feed'))
+                                    $results[]=['id'=>$p['id'],'channel'=>'avito','state'=>'blocked_by_feed'];
+                                continue;
+                            }
                             $profile=$this->avito('GET','/autoload/v2/profile');$urls=array_column($profile['feeds_data']??[],'feed_url');
                             $expected=rtrim($this->config['site_url']??'https://botanikart.ru','/').'/api/avito-feed.php';
                             if($urls!==[$expected])throw new \RuntimeException('Авито: в кабинете должна быть подключена ссылка нашего каталога.');
