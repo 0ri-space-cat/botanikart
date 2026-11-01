@@ -292,8 +292,12 @@ final class CatalogStore
             if (!is_array($input) || array_diff(array_keys($input),['enabled','price','title','description','management','externalId','url','state','error','message','category','attributes','properties','stock','productionMinutes','listingTitle','listingDescription','listingPrice','sharedCount','offerId','checkedAt','configure']) || !is_bool($input['enabled']??null)) throw new \InvalidArgumentException('invalid_channels');
             $p=$current[$channel];$before=$p;
             if($channel==='avito'&&$this->db->query("SELECT name FROM sqlite_master WHERE type='table' AND name='assortment_members'")->fetchColumn()){ $q=$this->db->prepare('SELECT 1 FROM assortment_members WHERE product_id=?');$q->execute([$id]);if($q->fetchColumn())continue;}
-            // Merely saving website fields must not take over an imported Avito listing.
-            if($channel==='avito'&&$p['management']==='external'&&($input['configure']??false)!==true&&$input['enabled']===$p['enabled'])continue;
+            // Editing the WEBSITE product must never silently claim ownership of an
+            // imported listing on either marketplace. Only explicit channel configuration
+            // or a deliberate enable/disable toggle may switch to site management.
+            $explicit=(($input['configure']??false)===true);
+            $toggled=($input['enabled']!==$p['enabled']);
+            if($p['management']==='external'&&!$explicit&&!$toggled)continue;
 
             if ($p['management']==='external' && $input['enabled']!==$p['enabled']) $p['management']='site';
             $price=$input['price']??null;$title=trim((string)($input['title']??''));$description=trim((string)($input['description']??''));
@@ -313,8 +317,14 @@ final class CatalogStore
                 $p['properties']=$properties;
             }
             $changed=$input['enabled']!==$p['enabled']||$price!==($p['price']??null)||$title!==($p['title']??'')||$description!==($p['description']??'');
-            $managed=(bool)$this->db->query('SELECT managed FROM products WHERE id='.$this->db->quote($id))->fetchColumn();
-            if ($changed || ($input['configure']??false)===true || ($managed && $p['enabled'])) $p['management']='site';
+            // Keep provenance explicit: website edits never mean "republish on Flowwow".
+            if($toggled||$explicit){
+                $p['management']='site';
+                $p['publicationRequested']=true;
+            } elseif($p['management']==='site'&&$changed) {
+                // Site-owned listings keep syncing their chosen description/price.
+                $p['publicationRequested']=true;
+            }
             $p['enabled']=$input['enabled'];$p['price']=$price===null?null:round((float)$price,2);$p['title']=$title;$p['description']=$description;
 
             $update->execute([json_encode($p,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),$id,$channel]);
