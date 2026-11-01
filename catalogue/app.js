@@ -46,7 +46,7 @@ function fwMeasureControl(f,v,id){
  const unit=selected?`<input type="hidden" data-fw-measure="${escape(f.field)}" value="${escape(selected.id)}">`:'';
  return `<div class="measure-input">${input}${unit}</div>`;
 }
-const publicationPending=c=>Boolean(c.enabled)&&['queued','awaiting_report','awaiting_confirmation','moderation','waiting_connection','publishing'].includes(c.state);
+const publicationPending=c=>Boolean(c.enabled)&&['queued','awaiting_report','awaiting_confirmation','moderation','waiting_connection','publishing','blocked_by_feed'].includes(c.state);
 const publicationStage=c=>{
  if(c.error||c.state==='error')return 'error';
  if(c.state==='published'||c.state==='external')return 'published';
@@ -58,7 +58,7 @@ function publicationResults(p,host){
  host.hidden=!rows.length;
  host.innerHTML=rows.map(({key,c})=>{
   const stage=publicationStage(c);
-  const status={error:'Ошибка публикации',published:'Товар опубликован',moderation:'Товар на модерации',sending:'Отправляется'}[stage]+(stage==='sending'&&c.state==='awaiting_report'?' — ожидает обработки Авито':'');
+  const status={error:'Ошибка публикации',published:'Товар опубликован',moderation:'Товар на модерации',sending:'Отправляется'}[stage]+(stage==='sending'&&c.state==='awaiting_report'?' — ожидает обработки Авито':stage==='sending'&&c.state==='blocked_by_feed'?' — ждёт исправления другого товара':'');
   const icon=stage==='error'?'✕':stage==='published'?'✓✓':stage==='moderation'?'✓':'<span class="publication-spinner" aria-hidden="true"></span>';
   const details=stage==='error'&&c.error?`<details class="publication-technical"><summary>Подробнее об ошибке</summary><p>${escape(c.error)}</p></details>`:'';
   const retry=stage==='error'&&c.enabled&&c.management==='site'?`<button type="button" class="publication-action" data-retry-channel="${key}" data-product-id="${escape(p.id)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.4 6M20 4v7h-7"/></svg><span data-retry-label>Повторить попытку</span></button>`:'';
@@ -183,11 +183,11 @@ async function initialize(){try{const session=await api('session');message($('#l
 function channelData(p){return p.channels||Object.fromEntries(['avito','flowwow'].map(k=>[k,{enabled:p.source===k,management:p.source===k?'external':'site',price:null,title:'',description:'',state:p.source===k?'external':'off'}]))}
 function selectedChannels(p){return ['avito','flowwow'].filter(k=>channelData(p)[k]?.enabled)}
 function matchesChannel(p,key){const selected=selectedChannels(p);return key==='all'||(key==='site'?!selected.length&&!p.hidden&&!p.sourceMissing:selected.includes(key))}
-function productBadges(p){const keys=selectedChannels(p);if(!keys.length)return !p.hidden&&!p.sourceMissing?`<span class="source-badge manual">${sourceLabel('manual')}</span>`:'<span class="unpublished-badge">Не опубликован</span>';return keys.map(k=>`<span class="source-badge ${k}" title="${escape(channelData(p)[k]?.message||'Выбранная площадка')}">${sourceLabel(k)}${channelData(p)[k]?.state==='error'?'<span class="pending-mark error" aria-label="Ошибка площадки">!</span>':(['queued','awaiting_report','awaiting_confirmation','waiting_connection'].includes(channelData(p)[k]?.state)?'<span class="pending-mark" aria-label="Ожидает обработки">…</span>':'')}</span>`).join('')}
+function productBadges(p){const keys=selectedChannels(p);if(!keys.length)return !p.hidden&&!p.sourceMissing?`<span class="source-badge manual">${sourceLabel('manual')}</span>`:'<span class="unpublished-badge">Не опубликован</span>';return keys.map(k=>`<span class="source-badge ${k}" title="${escape(channelData(p)[k]?.message||'Выбранная площадка')}">${sourceLabel(k)}${channelData(p)[k]?.state==='error'?'<span class="pending-mark error" aria-label="Ошибка площадки">!</span>':(['queued','awaiting_report','awaiting_confirmation','waiting_connection','moderation','blocked_by_feed'].includes(channelData(p)[k]?.state)?'<span class="pending-mark" aria-label="Ожидает обработки">…</span>':'')}</span>`).join('')}
 function updateChannelQuickStatus(key,c,on=c.enabled){
  const badge=document.querySelector(`[data-channel-quick-status="${key}"]`);
  if(!badge)return;
- const pending=['queued','awaiting_report','awaiting_confirmation','waiting_connection'].includes(c.state);
+ const pending=['queued','awaiting_report','awaiting_confirmation','waiting_connection','moderation','blocked_by_feed'].includes(c.state);
  const problem=on&&(c.state==='error'||Boolean(c.error));
  badge.textContent=!on?'Не выбрано':problem?'Ошибка':pending?'В обработке':c.state==='published'?'Опубликовано':c.management==='external'?'На площадке':'Выбрано';
  badge.dataset.state=!on?'off':problem?'error':pending?'pending':c.state==='published'?'published':'selected';
