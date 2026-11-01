@@ -2,6 +2,15 @@
 declare(strict_types=1);
 namespace BotanikArt;
 
+/** Identifies which product is preventing safe publication of the shared Avito feed. */
+final class AvitoFeedValidationException extends \RuntimeException
+{
+    public function __construct(public readonly string $productId, string $message)
+    {
+        parent::__construct($message);
+    }
+}
+
 /** Read-only export: never calls a marketplace API or writes product identities. */
 final class AvitoFeed
 {
@@ -73,7 +82,7 @@ final class AvitoFeed
             if (($channel['management']??'')!=='site' || empty($channel['enabled'])) continue;
             $checked=$this->check($product,$site);
             // Never silently omit a broken selected product: Avito could interpret omission as withdrawal.
-            if ($checked['warnings']) throw new \RuntimeException('Авито: исправьте объявление «'.$product['title'].'»: '.implode(' ', $checked['warnings']));
+            if ($checked['warnings']) throw new AvitoFeedValidationException((string)$product['id'],'Авито: исправьте объявление «'.$product['title'].'»: '.implode(' ', $checked['warnings']));
             $p=$checked['product'];$ad='<Ad><Id>'.$escape($p['id']).'</Id>';
             if (!empty($channel['externalId']))$ad.='<AvitoId>'.$escape($channel['externalId']).'</AvitoId>';
             foreach ($checked['fields'] as $key=>$value) {
