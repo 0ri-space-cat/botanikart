@@ -113,6 +113,13 @@ const flowwowProduct={id:'f1',source:'manual',channels:{
  flowwow:{enabled:true,management:'site',state:'moderation'}
 }};
 assert.equal(settled(flowwowProduct),true,'Flowwow moderation must not leave a permanent notification');
+assert(js.includes("if(!stillModerating)delete publicationWatching[p.id]"),
+ 'Moderation should dismiss its receipt without losing the later green publication receipt');
+assert(js.includes('publicationReceipts[p.id]!==publicationReceiptKey(p)'),
+ 'A repeated moderation check must not recreate the dismissed receipt');
+assert(js.includes('class="pending-mark accepted"'),
+ 'Moderation must remain visible as a small blue check in the product card');
+
 flowwowProduct.channels.flowwow.state='awaiting_confirmation';
 assert.equal(settled(flowwowProduct),false,'Missing acceptance must continue showing progress');
 flowwowProduct.channels.flowwow.state='error';
