@@ -50,6 +50,7 @@ jobs:
           node hosting/tests/payment-result.cjs
           node hosting/tests/flowwow-units.cjs
           node hosting/tests/editor-ui.cjs
+          node hosting/tests/public-catalog-categories.cjs
           php hosting/tests/catalogue.php
           php hosting/tests/publications.php
           php hosting/tests/avito-feed.php
