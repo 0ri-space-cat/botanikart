@@ -78,7 +78,14 @@ const publicationReceipts=(()=>{try{return JSON.parse(localStorage.getItem('ba-p
 const publicationClosedPending=(()=>{try{return JSON.parse(localStorage.getItem('ba-publications-closed')||'{}')}catch{return {}}})();
 const publicationWatching=(()=>{try{return JSON.parse(localStorage.getItem('ba-publications-watching')||'{}')}catch{return {}}})();
 const publicationReceiptKey=p=>JSON.stringify([p.id,['avito','flowwow'].map(k=>{const c=channelData(p)[k]||{};return [k,c.enabled,c.state,c.externalId,c.error]})]);
-const publicationFinished=p=>!['avito','flowwow'].some(k=>publicationOwned(p,k)&&publicationPending(channelData(p)[k]||{}));
+// A listing accepted by the marketplace is a completed receipt even if the
+// marketplace still hasn't made it public. Continue read-only status polling.
+const publicationFinished=p=>!['avito','flowwow'].some(k=>{
+ if(!publicationOwned(p,k))return false;
+ const c=channelData(p)[k]||{};
+ return Boolean(c.error)||c.state==='error'||(publicationPending(c)&&c.state!=='moderation');
+});
+// Dismissing a receipt never cancels background verification or a real publication job.
 function publicationWasClosed(p){return Boolean(publicationClosedPending[p.id])}
 function rememberPublicationSave(id){
  publicationWatching[id]=Date.now();delete publicationClosedPending[id];
@@ -105,10 +112,10 @@ function renderPublicationTracker(){
  const host=$('#publication-save-result');
  if(!host)return;
  publicationObserver?.disconnect();publicationTimers.forEach(clearTimeout);
- const active=products.filter(p=>!p.deleted&&!publicationWasClosed(p)&&Boolean(publicationWatching[p.id])&&['avito','flowwow'].some(key=>publicationOwned(p,key)&&publicationPending(channelData(p)[key]||{})));
+ const active=products.filter(p=>!p.deleted&&!publicationWasClosed(p)&&Boolean(publicationWatching[p.id])&&publicationReceipts[p.id]!==publicationReceiptKey(p)&&['avito','flowwow'].some(key=>publicationOwned(p,key)&&publicationPending(channelData(p)[key]||{})));
  const currentId=host.dataset.productId;
  const unseen=p=>!publicationWasClosed(p)&&publicationReceipts[p.id]!==publicationReceiptKey(p);
- const current=products.find(p=>p.id===currentId&&unseen(p));
+ const current=products.find(p=>p.id===currentId&&Boolean(publicationWatching[p.id])&&unseen(p));
  // Never turn 24 hours of historical/imported status updates into notifications.
  // A completed result reappears only if this browser actually saved the product.
  const recent=products.filter(p=>!p.deleted&&!active.includes(p)&&!publicationWasClosed(p)&&
