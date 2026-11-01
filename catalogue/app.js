@@ -280,16 +280,30 @@ for(const key of ['avito','flowwow'])$('#edit-form').elements['publish_'+key].ad
 document.querySelectorAll('[data-preview]').forEach(b=>b.addEventListener('click',async()=>{if(!editing)return;const output=$('#publication-preview');output.hidden=false;if(dirty){output.textContent='Сначала сохраните изменения, затем проверьте данные в карточке.';return}b.disabled=true;try{const result=await api('publication-preview',undefined,{id:editing.id,channel:b.dataset.preview});output.innerHTML=`<strong>${escape(result.product.title)} · ${money(result.product.price)}</strong><p>Фотографий: ${result.product.images.length}</p><ul>${result.warnings.map(w=>`<li>${escape(w)}</li>`).join('')}</ul>`}catch(error){output.textContent=error.message}finally{b.disabled=false}}));
 setInterval(()=>{if(authenticated&&!document.hidden)checkConnections()},300000);
 let confirmationBusy=false;
+const flowwowReadbackChecked=new Set();
+let publicationCheckTurn=0;
 async function refreshPublicationStates(){
- if(!authenticated||document.hidden)return;
- const pending=products.find(p=>!p.deleted&&(['awaiting_confirmation','moderation'].includes(channelData(p).flowwow?.state)));
- const avitoPending=products.some(p=>!p.deleted&&publicationPending(channelData(p).avito||{}));
- if(avitoPending&&!confirmationBusy){confirmationBusy=true;try{await api('confirm-avito',{})}catch{}finally{confirmationBusy=false}}
- if(pending&&!confirmationBusy){
-  confirmationBusy=true;
-  try{await api('confirm-flowwow',{id:pending.id})}catch{}finally{confirmationBusy=false}
- }
- await load();
+ if(!authenticated||document.hidden||confirmationBusy)return;
+ confirmationBusy=true;
+ try{
+  const avitoPending=products.some(p=>!p.deleted&&publicationPending(channelData(p).avito||{}));
+  if(avitoPending)try{await api('confirm-avito',{})}catch{}
+  const pending=products.find(p=>!p.deleted&&['awaiting_confirmation','moderation'].includes(channelData(p).flowwow?.state));
+  const failed=products.find(p=>{
+    if(p.deleted)return false;
+    const c=channelData(p).flowwow||{};
+    return c.enabled&&c.management==='site'&&c.state==='error'&&
+      !flowwowReadbackChecked.has([p.id,p.version,c.checkedAt||'',c.error||''].join(':'));
+  });
+  if(failed&&(!pending||publicationCheckTurn++%2===0)){
+   const c=channelData(failed).flowwow;
+   flowwowReadbackChecked.add([failed.id,failed.version,c.checkedAt||'',c.error||''].join(':'));
+   try{await api('reconcile-flowwow',{id:failed.id})}catch{}
+  }else if(pending){
+   try{await api('confirm-flowwow',{id:pending.id})}catch{}
+  }
+  await load();
+ }finally{confirmationBusy=false}
 }
 setInterval(()=>{refreshPublicationStates().catch(()=>{})},12000);
 document.addEventListener('visibilitychange',()=>{if(authenticated&&!document.hidden)refreshPublicationStates().catch(()=>{})});
