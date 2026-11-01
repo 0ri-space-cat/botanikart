@@ -238,6 +238,8 @@ function updateDescriptionControls(key){
  preview.hidden=!inherit;
  const site=form.elements.description.value.trim();
  preview.textContent=site||'Описание сайта пока не заполнено.';
+ // The preview is intentionally read-only; platform-specific text stays in
+ // its own field and is never overwritten when the website description changes.
 }
 function selectDescriptionTab(key){
  const available=[...document.querySelectorAll('[data-description-tab]')].filter(tab=>!tab.hidden).map(tab=>tab.dataset.descriptionTab);
@@ -274,7 +276,12 @@ for(const key of ['avito','flowwow']){
  const input=$('#edit-form').elements['description_'+key];
  check.addEventListener('change',()=>{
   if(check.checked){descriptionDrafts[key]=input.value;input.value='';}
-  else input.value=descriptionDrafts[key]||'';
+  else {
+   // Start from the website wording for a new override; afterwards remember
+   // the marketplace draft even if the seller deliberately empties it.
+   input.value=descriptionDrafts[key]===null?$('#edit-form').elements.description.value:descriptionDrafts[key];
+   input.focus();
+  }
   channelTouched[key]=true;dirty=true;updateDescriptionControls(key);
  });
  input.addEventListener('input',()=>{descriptionDrafts[key]=input.value;channelTouched[key]=true;dirty=true});
@@ -282,7 +289,7 @@ for(const key of ['avito','flowwow']){
 $('#edit-form').elements.description.addEventListener('input',()=>{for(const key of ['avito','flowwow'])if(descriptionInherited(key))updateDescriptionControls(key)});
 
 function renderPublicationSettings(p){
- const form=$('#edit-form');publicationResults(p,$('#editor-publication-results'));for(const key of ['avito','flowwow']){const c=channelData(p)[key];form.elements['publish_'+key].checked=Boolean(c.enabled);form.elements['publish_'+key].disabled=Boolean(p.deleted);for(const f of ['price','title','description']){form.elements[f+'_'+key].value=c[f]??'';form.elements[f+'_'+key].disabled=Boolean(p.deleted)}descriptionDrafts[key]=c.description||'';document.querySelector(`[data-description-inherit="${key}"]`).checked=!c.description;$('#state-'+key).textContent=c.error?'Ошибка публикации':publicationPending(c)?'Публикуется…':c.state==='published'?'Опубликовано':c.state==='moderation'?'На модерации':'';document.querySelector(`[data-channel-body="${key}"]`).hidden=!c.error;document.querySelector(`[data-channel-expand="${key}"]`).setAttribute('aria-expanded',String(Boolean(c.error)));document.querySelector(`[data-channel-card="${key}"]`).classList.toggle('is-enabled',Boolean(c.enabled));updateChannelQuickStatus(key,c);}
+ const form=$('#edit-form');publicationResults(p,$('#editor-publication-results'));for(const key of ['avito','flowwow']){const c=channelData(p)[key];form.elements['publish_'+key].checked=Boolean(c.enabled);form.elements['publish_'+key].disabled=Boolean(p.deleted);for(const f of ['price','title','description']){form.elements[f+'_'+key].value=c[f]??'';form.elements[f+'_'+key].disabled=Boolean(p.deleted)}descriptionDrafts[key]=c.description||null;document.querySelector(`[data-description-inherit="${key}"]`).checked=!c.description;$('#state-'+key).textContent=c.error?'Ошибка публикации':publicationPending(c)?'Публикуется…':c.state==='published'?'Опубликовано':c.state==='moderation'?'На модерации':'';document.querySelector(`[data-channel-body="${key}"]`).hidden=!c.error;document.querySelector(`[data-channel-expand="${key}"]`).setAttribute('aria-expanded',String(Boolean(c.error)));document.querySelector(`[data-channel-card="${key}"]`).classList.toggle('is-enabled',Boolean(c.enabled));updateChannelQuickStatus(key,c);}
  const av=channelData(p).avito;$('#avito-shared').hidden=!(av.sharedCount>1);$('#avito-shared').textContent=`На Авито это одно общее объявление для ${av.sharedCount||1} товаров. Изменения Авито затронут все товары этого общего объявления.`;
  if(av.listingTitle){form.elements.title_avito.placeholder=av.listingTitle;form.elements.description_avito.placeholder=av.listingDescription;form.elements.price_avito.placeholder=money(av.listingPrice);}
  flowwowEditorSequence++;flowwowEditorData=null;flowwowDrafts={};if(publicationOwned(p,'flowwow')&&channelData(p).flowwow.error)loadFlowwowEditor();for(const k of ['avito','flowwow'])setChannelControls(k);updateDescriptionTabs();selectDescriptionTab('site');
