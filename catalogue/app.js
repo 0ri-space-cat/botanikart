@@ -100,7 +100,7 @@ function renderPublicationTracker(){
  host.innerHTML=list.map(p=>{
   const fresh=p.id===currentId;
   const pending=['avito','flowwow'].some(key=>(key!=='avito'||!p.assortmentId)&&publicationPending(channelData(p)[key]||{}));
-  return `<section class="publication-tracker-item" data-receipt-product="${escape(p.id)}"><button class="notice-close" type="button" data-close-publication="${escape(p.id)}" aria-label="Закрыть уведомление">×</button><h3><span aria-hidden="true">${fresh?'✓':pending?'◷':'✓'}</span> ${fresh?'Товар добавлен на сайт':'Публикация товара'}</h3><p class="publication-tracker-title">${escape(p.title)}</p><div class="publication-tracker-channels" data-tracker-product="${escape(p.id)}"></div></section>`;
+  return `<section class="publication-tracker-item" data-receipt-product="${escape(p.id)}"><button class="notice-close" type="button" data-close-publication="${escape(p.id)}" aria-label="Закрыть уведомление">×</button><h3><span aria-hidden="true">✓</span> ${fresh?'Товар добавлен на сайт':'Товар сохранён в каталоге'}</h3><p class="publication-tracker-title">${escape(p.title)}</p><div class="publication-tracker-channels" data-tracker-product="${escape(p.id)}"></div></section>`;
  }).join('');
  for(const p of list){const box=[...host.querySelectorAll('[data-tracker-product]')].find(el=>el.dataset.trackerProduct===p.id);if(box)publicationResults(p,box)}
  watchPublicationReceipts(list,host);
