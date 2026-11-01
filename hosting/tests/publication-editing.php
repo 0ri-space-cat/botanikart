@@ -37,6 +37,39 @@ try{
   $textUnitSchema=$identitySchema;foreach($textUnitSchema as &$unitField)if(($unitField['field']??'')==='height')$unitField['measure']=[['id'=>'2','name'=>'см']];unset($unitField);
   $textUnitBody=$fw->payload($newOffer,null,$textUnitSchema,'https://botanikart.ru');
   verify($textUnitBody['height']['measure']==='2','Flowwow numeric form value was rejected or not normalized to schema unit ID');
+
+ // Remote create may succeed despite a lost HTTP response: never create twice.
+ $created=false;$createCalls=0;$createdOffer='';
+ $ambiguousTransport=function($method,$path,$payload)use(&$created,&$createCalls,&$createdOffer,$newOffer,$schema){
+  if(str_starts_with($path,'/apiseller/categories/subCategoryProperties'))return ['data'=>$schema];
+  if(str_starts_with($path,'/apiseller/products?')){
+   if(!$created)return ['items'=>[]];
+   return ['items'=>[['productId'=>987,'offerId'=>$createdOffer,'type'=>1,
+    'subCategoryId'=>9,'name'=>$newOffer['title'],'price'=>$newOffer['price'],
+    'discount'=>0,'isActive'=>false]]];
+  }
+  if(str_starts_with($path,'/apiseller/products/create')){
+   ++$createCalls;$created=true;$createdOffer=$payload['products'][0]['offerId'];
+   throw new RuntimeException('Timeout after remote create',0);
+  }
+  throw new RuntimeException('Unintended Flowwow write: '.$path);
+ };
+ $ambiguousPublisher=new FlowwowPublisher(['token'=>'fixture','shop_id'=>1],$root.'/api/.private',$ambiguousTransport);
+ $found=$ambiguousPublisher->publish($newOffer,'https://botanikart.ru');
+ verify($found['state']==='moderation'&&$createCalls===1,'Lost response produced a false error or duplicate Flowwow create');
+ // A rejected payload must still show the real error; it cannot be silently
+ // downgraded to perpetual "waiting for confirmation".
+ $rejectTransport=function($method,$path,$payload)use($schema){
+  if(str_starts_with($path,'/apiseller/categories/subCategoryProperties'))return ['data'=>$schema];
+  if(str_starts_with($path,'/apiseller/products?'))return ['items'=>[]];
+  if(str_starts_with($path,'/apiseller/products/create'))return ['errors'=>[['message'=>'Недопустимое значение высоты']]];
+  throw new RuntimeException('Unexpected write: '.$path);
+ };
+ $rejected=new FlowwowPublisher(['token'=>'fixture','shop_id'=>1],$root.'/api/.private',$rejectTransport);
+ try{$rejected->publish($newOffer,'https://botanikart.ru');throw new LogicException('Rejected product unexpectedly accepted');}
+ catch(\BotanikArt\FlowwowRejectedException $e){
+  verify(str_contains($e->getMessage(),'Недопустимое значение высоты'),'Real Flowwow rejection detail was hidden');
+ }
  $result=$fw->publish($edit,'https://botanikart.ru');verify($result['state']==='published','Update not verified');
  $writes=array_values(array_filter($calls,fn($c)=>str_starts_with($c[1],'/apiseller/products/update')));$body=$writes[0][2]['products'][0];
  verify($body['offerId']==='existing-offer'&&$body['productType']===1&&$body['subCategoryId']===9,'Existing identity/type changed');
