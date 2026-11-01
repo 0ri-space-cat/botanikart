@@ -506,7 +506,7 @@ function readFlowwowProperties(){
   const el=document.querySelector(`[data-fw="${f.field}"]`);
   if(f.type==='consist'){
    const rows=[...document.querySelectorAll(`[data-fw-consist="${f.field}"] .consist-row`)];
-   result[f.field]=rows.filter(r=>r.querySelector('[data-consist-name]').value.trim()).map(r=>({name:r.querySelector('[data-consist-name]').value.trim(),quantity:Number(r.querySelector('[data-consist-count]').value),measure:fwUnitOptions(f).find(m=>String(m.id)===r.querySelector('[data-consist-measure]').value)?.id??null}));
+   result[f.field]=rows.filter(r=>r.querySelector('[data-consist-name]').value.trim()).map(r=>({name:r.querySelector('[data-consist-name]').value.trim(),quantity:Number(r.querySelector('[data-consist-count]').value),measure:fwUnitOptions(f).find(m=>String(m.id)===String(r.querySelector('[data-consist-measure]')?.value??''))?.id??null}));
    continue;
   }
   if(!el)continue;
@@ -516,7 +516,7 @@ function readFlowwowProperties(){
   if(f.type==='multitext'){result[f.field]=el.value.split('\n').map(s=>s.trim()).filter(Boolean);continue}
   if(el.value===''){if(result[f.field]!==undefined)result[f.field]=null;else delete result[f.field];continue;}
   if(f.type==='select')result[f.field]=f.values.find(v=>String(v.id)===el.value)?.id;
-  else if(f.type==='measure')result[f.field]={val:Number(el.value),measure:fwUnitOptions(f).find(m=>String(m.id)===document.querySelector(`[data-fw-measure="${f.field}"]`).value)?.id??null};
+  else if(f.type==='measure')result[f.field]={val:Number(el.value),measure:fwUnitOptions(f).find(m=>String(m.id)===String(document.querySelector(`[data-fw-measure="${f.field}"]`)?.value??''))?.id??null};
   else if(f.type==='decimal')result[f.field]=Number(el.value);
   else result[f.field]=el.value;
  }
