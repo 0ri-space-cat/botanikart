@@ -25,7 +25,49 @@ final class CatalogStore
         $this->db->exec('CREATE TABLE IF NOT EXISTS publication_jobs (product_id TEXT NOT NULL, channel TEXT NOT NULL, revision TEXT NOT NULL, state TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY(product_id,channel))');
         $this->refresh();
         $this->seedChannels();
+        $this->repairAccidentalImportedPublications();
         $this->refreshExternalFlowwowChannels();
+    }
+
+    /**
+     * A previous editor bug converted imported Flowwow products to locally managed
+     * publication jobs whenever their WEBSITE description or price was saved.
+     * Repair only unrequested, still-failing/queued tasks tied to the original
+     * remote product. Never change the product itself or write to Flowwow.
+     */
+    private function repairAccidentalImportedPublications(): void
+    {
+        $rows=$this->db->query("SELECT p.id,p.document,c.document AS channel_document
+            FROM products p JOIN product_channels c ON c.product_id=p.id
+            WHERE p.source='flowwow' AND c.channel='flowwow'
+              AND json_extract(c.document,'$.management')='site'")->fetchAll(\PDO::FETCH_ASSOC);
+        if(!$rows)return;
+        $update=$this->db->prepare("UPDATE product_channels SET document=? WHERE product_id=? AND channel='flowwow'");
+        $delete=$this->db->prepare("DELETE FROM publication_jobs WHERE product_id=? AND channel='flowwow'");
+        $this->db->exec('BEGIN IMMEDIATE');
+        try{
+            foreach($rows as $row){
+                $p=json_decode($row['document'],true,512,JSON_THROW_ON_ERROR);
+                $c=json_decode($row['channel_document'],true,512,JSON_THROW_ON_ERROR);
+                $state=(string)($c['state']??'');
+                if(!in_array($state,['error','queued','awaiting_confirmation','waiting_connection'],true))continue;
+                if(!empty($c['publicationRequested']))continue;
+                $remoteId=(string)($p['flowwowProductId']??'');
+                if($remoteId===''||$remoteId!==(string)($c['externalId']??''))continue;
+                // Marketplace-specific title, price or description overrides are
+                // evidence of intentional publication, so preserve these jobs.
+                if(($c['price']??null)!==null||trim((string)($c['title']??''))!==''||trim((string)($c['description']??''))!=='')continue;
+                $c['management']='external';
+                $c['state']='external';
+                $c['error']='';
+                unset($c['message'],$c['checkedAt']);
+                $update->execute([json_encode($c,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),$row['id']]);
+                $delete->execute([$row['id']]);
+            }
+            $this->db->exec('COMMIT');
+        }catch(\Throwable $error){
+            $this->db->exec('ROLLBACK');throw $error;
+        }
     }
 
     private function refreshExternalFlowwowChannels(): void
