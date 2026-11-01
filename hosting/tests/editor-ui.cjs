@@ -38,6 +38,13 @@ for(const key of ['avito','flowwow']){
  assert.equal(count,1,'Duplicated platform description editor: '+key);
 }
 assert.equal([...editor.matchAll(/name="description"/g)].length,1,'Site description should be editable only once');
+for(const key of ['avito','flowwow']){
+ const start=editor.indexOf('id="description-panel-'+key+'"');
+ const panel=editor.slice(start,editor.indexOf('</div>',start));
+ assert(panel.includes('textarea name="description_'+key+'"'),'Marketplace tab has no editable textarea: '+key);
+}
+assert(js.includes("input.value=descriptionDrafts[key]===null?$('#edit-form').elements.description.value:descriptionDrafts[key]"),
+ 'An independent description must initially copy website text');
 assert(js.includes('function updateDescriptionTabs()')&&js.includes('function selectDescriptionTab('));
 assert(js.includes("description:descriptionInherited(key)?'':form.elements['description_'+key].value"),'Inherited descriptions must store an empty marketplace override');
 assert(js.includes("descriptionDrafts[key]=input.value"),'Switching back from inherited description must restore the independent draft');
