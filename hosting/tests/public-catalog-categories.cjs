@@ -1,0 +1,31 @@
+'use strict';
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
+const root=path.join(__dirname,'../..');
+const home=fs.readFileSync(path.join(root,'index.html'),'utf8');
+const catalog=fs.readFileSync(path.join(root,'catalog.html'),'utf8');
+const script=fs.readFileSync(path.join(root,'script.js'),'utf8');
+const css=fs.readFileSync(path.join(root,'style.css'),'utf8');
+new Function(script);
+assert.match(home,/<nav aria-label="Основная навигация"><a href="catalog\.html">Каталог<\/a>/);
+for(const url of ['catalog.html?section=florarium','catalog.html?section=plants','catalog.html?section=plants&pot=technical','catalog.html?section=plants&pot=cachepot','catalog.html?section=material']){
+ assert(home.includes('href="'+url+'"'),'Homepage category link missing: '+url);
+}
+const start=script.indexOf('const plantPotKind=');
+const end=script.indexOf('const shortTitle=',start);
+assert(start>=0&&end>start,'Public plant presentation classifier missing');
+const productGroup=p=>p.catalogGroup||p.category;
+const classify=new Function('productGroup','categoryNames',script.slice(start,end)+';return plantPotKind;')(productGroup,{potted:'Комнатное растение',plant:'Растение для флорариума'});
+assert.equal(classify({catalogGroup:'potted',title:'Маранта в тех.горшке'}),'technical');
+assert.equal(classify({catalogGroup:'potted',title:'Растение в техническом горшке'}),'technical');
+assert.equal(classify({catalogGroup:'potted',title:'Аглаонема в декоративном кашпо'}),'cachepot');
+assert.equal(classify({catalogGroup:'potted',title:'Бегония в горшке',description:'Керамический горшок с узором'}),'cachepot');
+assert.equal(classify({catalogGroup:'potted',title:'Фиалка в горшке'}),'unspecified');
+assert.equal(classify({catalogGroup:'potted',potType:'technical',title:'Цветок в кашпо'}),'technical');
+assert.equal(classify({catalogGroup:'plant',title:'Растение для флорариума'}),'plant');
+for(const category of ['all','technical','cachepot','plant'])assert(catalog.includes('data-plant-category="'+category+'"'),'Plant tab missing: '+category);
+assert(script.includes("url.searchParams.get('pot')")&&script.includes("next.searchParams.set('pot',plantCategory)"),'Direct plant-filter URLs must remain stable');
+assert(script.includes("plantPotKind(p)===plantCategory"),'Public plant filters must use the product classifier');
+assert(css.includes('.home-category-grid')&&css.includes('@media(max-width:650px)'), 'Responsive category chooser CSS is missing');
+console.log('Public category navigation checks passed: direct routes, technical pots, cachepots and safe unknowns.');
