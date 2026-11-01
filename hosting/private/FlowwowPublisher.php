@@ -123,7 +123,17 @@ final class FlowwowPublisher
             $number=$f['type']==='measure'?($value['val']??null):$value;
             if(in_array($f['type'],['decimal','measure'],true)){
                 if(!is_numeric($number)||!is_finite((float)$number)||isset($f['minValue'])&&(float)$number<$f['minValue']||isset($f['maxValue'])&&(float)$number>$f['maxValue'])throw new \RuntimeException('Flowwow: проверьте значение «'.$f['name'].'».');
-                if($f['type']==='measure'&&!in_array($value['measure']??null,array_column($f['measure']??[],'id'),true))throw new \RuntimeException('Flowwow: выберите единицу для «'.$f['name'].'».');
+                if($f['type']==='measure'){
+                    $provided=$value['measure']??null;$valid=false;
+                    foreach($f['measure']??[] as $unit){
+                        if($provided!==null&&$provided!==''&&(string)($unit['id']??'')===(string)$provided){
+                            // IDs may be strings in the schema and numbers in the browser.
+                            // Retain the type the Flowwow schema actually supplies.
+                            $body[$key]['measure']=$unit['id'];$valid=true;break;
+                        }
+                    }
+                    if(!$valid)throw new \RuntimeException('Flowwow: не определена единица для «'.$f['name'].'».');
+                }
             }
             if($f['type']==='select'&&!in_array($value,array_column($f['values']??[],'id'),true))throw new \RuntimeException('Flowwow: выберите значение «'.$f['name'].'».');
         }
