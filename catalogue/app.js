@@ -68,7 +68,7 @@ function publicationResults(p,host){
   const stage=publicationStage(c);
   const status={error:'Ошибка публикации',published:'Товар опубликован',moderation:'Товар на модерации',sending:'Отправляется'}[stage]+(stage==='sending'&&c.state==='awaiting_report'?' — ожидает обработки Авито':stage==='sending'&&c.state==='blocked_by_feed'?' — ждёт исправления другого товара':'');
   const icon=stage==='error'?'✕':stage==='published'?'✓✓':stage==='moderation'?'✓':'<span class="publication-spinner" aria-hidden="true"></span>';
-  const details=stage==='error'&&c.error?`<details class="publication-technical"><summary>Подробнее об ошибке</summary><p>${escape(c.error)}</p></details>`:'';
+  const details=stage==='error'&&c.error?`<p class="publication-error-reason">${escape(c.error)}</p>`:'';
   const retry=stage==='error'&&c.enabled&&c.management==='site'?`<button type="button" class="publication-action" data-retry-channel="${key}" data-product-id="${escape(p.id)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.4 6M20 4v7h-7"/></svg><span data-retry-label>Повторить попытку</span></button>`:'';
   const edit=stage==='error'?`<button type="button" class="publication-action" data-open-channel="${key}" data-product-id="${escape(p.id)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5 4 4M4 20l-4.5-.9L19.4 8.2a2.1 2.1 0 0 0-3-3L5.5 16.1 4 20Z"/></svg><span>Редактировать публикацию</span></button>`:'';
   return `<div class="publication-result publication-status-${stage}"><strong><span class="publication-status-icon" aria-hidden="true">${icon}</span><span>${escape(names[key])} — ${escape(status)}</span></strong>${details}${stage==='error'?`<div class="publication-result-actions">${retry}${edit}</div>`:''}</div>`;
@@ -205,10 +205,50 @@ $('#photo-input').addEventListener('change',async e=>{
  uploading=true;$('#save').disabled=true;$('#photo-input').disabled=true;
  try{let padded=false;for(let i=0;i<files.length;i++){message($('#edit-message'),`Загружаем фото ${i+1} из ${files.length}…`);const form=new FormData();form.append('image',await preparePhoto(files[i]),'photo.jpg');const result=await api('upload',form);images.push(result.path);padded=padded||result.padded;dirty=true;renderPhotos()}message($('#edit-message'),padded?'Фото подготовлены для Flowwow: добавлены светлые поля без обрезки.':'')}catch(error){message($('#edit-message'),error.message,true)}finally{uploading=false;$('#save').disabled=false;$('#photo-input').disabled=false;e.target.value=''}
 });
+// Verify Flowwow fields before saving when this editor will actually publish.
+function flowwowDraftIssue(){
+ const form=$('#edit-form');
+ if(!form.elements.publish_flowwow.checked)return '';
+ const existing=channelData(editing||{}).flowwow||{};
+ const publishes=!editing||existing.management!=='external'||channelTouched.flowwow;
+ if(!publishes)return '';
+ const category=$('#flowwow-category')?.value||existing.category||'';
+ if(!flowwowEditorData)return 'Настройки Flowwow ещё не загружены. Откройте площадку и дождитесь загрузки.';
+ if(!category)return 'Выберите категорию Flowwow.';
+ const properties=readFlowwowProperties();
+ if(form.elements.status.value==='ready'&&!(Number(properties.stock)>0))return 'Для товара в наличии укажите количество Flowwow.';
+ if(form.elements.status.value==='preorder'&&!properties.productionTime?.val)return 'Для товара под заказ укажите время изготовления Flowwow.';
+ for(const f of flowwowEditorData.fields||[]){
+  const key=f.field;
+  if(['name','price','description','images','offerId','productType','subCategoryId','stock','productionTime'].includes(key))continue;
+  const value=properties[key];
+  const present=x=>x!==undefined&&x!==null&&x!==''&&(!Array.isArray(x)||x.length>0);
+  if(f.required&&!present(value)&&!(f.dependsOn||[]).some(other=>present(properties[other])))
+   return 'Flowwow: заполните «'+(fwLabels[key]||f.name||key)+'».';
+  if(f.type==='measure'&&present(value)&&!fwUnitOptions(f).some(m=>String(m.id)===String(value?.measure)))
+   return 'Flowwow: не удалось определить единицу для «'+(fwLabels[key]||f.name||key)+'».';
+ }
+ return '';
+}
+function showFlowwowDraftIssue(problem){
+ const body=document.querySelector('[data-channel-body="flowwow"]');
+ if(body){body.hidden=false;document.querySelector('[data-channel-expand="flowwow"]')?.setAttribute('aria-expanded','true')}
+ message($('#edit-message'),problem,true);
+ const m=problem.match(/«([^»]+)»/);
+ const field=m?(flowwowEditorData?.fields||[]).find(f=>(fwLabels[f.field]||f.name||f.field)===m[1]):null;
+ const el=field?document.querySelector('[data-fw="'+field.field+'"]'):$('#flowwow-category');
+ el?.closest('details')?.setAttribute('open','');
+ el?.focus({preventScroll:false});
+}
 $('#edit-form').addEventListener('submit',async e=>{
  e.preventDefault();if(uploading)return;const form=e.target;const payload={id:editing?.id||'',version:editing?.version||0,hidden:!form.elements.visible.checked};
  if(true){for(const key of ['title','description','catalogGroup','status','url'])payload[key]=form.elements[key].value;payload.source=editing?.source||'manual';payload.purchaseMode=form.elements.purchase_mode.value;payload.price=Number(form.elements.price.value);payload.images=images;if(!images.length){message($('#edit-message'),'Добавьте хотя бы одну фотографию.',true);return}}
  payload.channels={};for(const key of ['avito','flowwow'])payload.channels[key]=form.elements['publish_'+key].checked?{configure:channelTouched[key],enabled:true,price:form.elements['price_'+key].value===''?null:Number(form.elements['price_'+key].value),title:form.elements['title_'+key].value,description:descriptionInherited(key)?'':form.elements['description_'+key].value}:{configure:channelTouched[key],enabled:false,price:channelData(editing||{})[key].price??null,title:channelData(editing||{})[key].title||'',description:channelData(editing||{})[key].description||''};payload.channels.avito.category=payload.channels.avito.enabled?form.elements.avito_category.value:(channelData(editing||{}).avito.category||'');payload.channels.avito.attributes=payload.channels.avito.enabled?readAvitoAttributes():(channelData(editing||{}).avito.attributes||{});payload.channels.flowwow.category=$('#flowwow-category')?.value||channelData(editing||{}).flowwow.category||'';payload.channels.flowwow.properties=payload.channels.flowwow.enabled?readFlowwowProperties():(channelData(editing||{}).flowwow.properties||{});
+ if(form.elements.publish_flowwow.checked&&(!editing||channelTouched.flowwow)&&!flowwowEditorData){
+   await loadFlowwowEditor();
+  }
+ const draftProblem=flowwowDraftIssue();
+ if(draftProblem){showFlowwowDraftIssue(draftProblem);return;}
  $('#save').disabled=true;message($('#edit-message'),'Сохраняем…');let savedId=null;
  try{const saved=await api('save',payload);savedId=saved.id;rememberPublicationSave(saved.id);dirty=false;$('#editor').close();$('#publication-save-result').dataset.productId=saved.id;await load();const sync=await api('sync-product',{id:saved.id});await load();if(sync.busy)toast('Публикация выполняется. Статусы обновятся автоматически.')}catch(error){if(savedId){$('#publication-save-result').dataset.productId=savedId;try{await load()}catch{};toast('Товар сохранён. Статус публикации обновится автоматически.')}else message($('#edit-message'),error.message,true)}finally{$('#save').disabled=false}
 });
