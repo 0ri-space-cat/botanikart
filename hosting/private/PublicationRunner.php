@@ -198,7 +198,7 @@ final class PublicationRunner
                 return ['skipped'=>true];
             $check=$this->flowwow()->confirmPublished($p);
             if(!in_array($check['state']??'', ['published','moderation'],true))
-                return ['verified'=>false];
+                return ['verified'=>false,'reason'=>$check['message']??'No confirmation'];
             if(!$this->recordResult($job,$check+['error'=>''],$check['state']==='published'?'confirmed':'moderation'))
                 return ['skipped'=>true];
             return ['verified'=>true,'state'=>$check['state']];
