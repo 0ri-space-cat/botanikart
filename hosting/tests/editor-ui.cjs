@@ -107,7 +107,7 @@ const host={dataset:{},hidden:true,innerHTML:'',querySelectorAll(){
 }};
 const variants=Array.from({length:8},(_,i)=>({id:'variant-'+i,source:'manual',version:1,title:'Plant '+i,
  channels:{avito:{enabled:true,management:'site',state:'queued',externalId:'shared-id'},flowwow:{enabled:false}}}));
-const ctx={clearTimeout,setTimeout,localStorage,products:variants,$:()=>host,channelData:p=>p.channels,
+const ctx={clearTimeout,setTimeout,localStorage,products:variants,source:'all',$:()=>host,channelData:p=>p.channels,
  publicationPending:c=>!!c.enabled&&['queued','awaiting_report'].includes(c.state),
  publicationOwned:owned,escape:s=>s,publicationResults:p=>rendered.push(p.id)};
 vm.runInNewContext(trackerSource+";rememberPublicationSave('variant-0');renderPublicationTracker()",ctx);
