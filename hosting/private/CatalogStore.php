@@ -20,6 +20,7 @@ final class CatalogStore
         $this->db->exec('CREATE TABLE IF NOT EXISTS login_attempts (address TEXT PRIMARY KEY, attempts INTEGER NOT NULL, started INTEGER NOT NULL)');
         $this->initializeEmptyCatalogue();
         $this->migrateStandaloneOnce();
+        $this->migratePlantCategoriesOnce();
     }
 
     private function marker(string $name): bool
@@ -56,6 +57,11 @@ final class CatalogStore
         $p['purchaseMode']=in_array($p['purchaseMode']??'direct',['direct','inquiry'],true)?($p['purchaseMode']??'direct'):'direct';
         $p['catalogGroup']=$p['catalogGroup']??$p['category']??'potted';
         if(!in_array($p['catalogGroup'],['florarium','composition','potted','plant','material'],true))$p['catalogGroup']='potted';
+        if($p['catalogGroup']==='plant'){$p['catalogGroup']='potted';$p['potType']='technical';}
+        if($p['catalogGroup']==='potted'&&!in_array($p['potType']??'', ['technical','cachepot'],true)){
+            $text=mb_strtolower(($p['title']??'').' '.($p['description']??''));
+            $p['potType']=preg_match('/тех(?:ническ[а-я]*|\.?)[\s.-]*горш|транспортировочн[а-я]*\s+горш|без\s+(?:декоративного\s+)?кашпо/u',$text)?'technical':(preg_match('/кашпо|керамическ[а-я]*\s+горш|декоративн[а-я]*\s+горш/u',$text)?'cachepot':'technical');
+        }
         $p['category']=$p['catalogGroup'];
         if(($p['status']??'')==='order')$p['status']='preorder';
         if(!in_array($p['status']??'',['ready','preorder','sold'],true))$p['status']=!empty($p['available'])?'ready':'preorder';
@@ -91,11 +97,26 @@ final class CatalogStore
         }catch(\Throwable $e){$this->db->exec('ROLLBACK');throw $e;}
     }
 
+    private function migratePlantCategoriesOnce(): void
+    {
+        if($this->marker('plant_categories:v2'))return;
+        $this->backup();$this->db->exec('BEGIN IMMEDIATE');
+        try{
+            $update=$this->db->prepare('UPDATE products SET document=?,version=version+1 WHERE id=?');
+            foreach($this->db->query('SELECT id,document FROM products') as $row){
+                $p=json_decode($row['document'],true,512,JSON_THROW_ON_ERROR);
+                if(!in_array($p['catalogGroup']??'', ['plant','potted'],true))continue;
+                $update->execute([json_encode($this->normalizeProduct($p),JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),$row['id']]);
+            }
+            $this->db->exec("INSERT INTO metadata(name,value) VALUES('plant_categories:v2','done')");$this->db->exec('COMMIT');
+        }catch(\Throwable $e){$this->db->exec('ROLLBACK');throw $e;}
+    }
+
     public function all(bool $administrative=false): array
     {
-        $sql=$administrative?'SELECT * FROM products ORDER BY rowid':'SELECT * FROM products WHERE hidden=0 AND missing=0 AND deleted=0 ORDER BY rowid';
+        $sql=$administrative?'SELECT *,rowid AS catalogue_order FROM products ORDER BY rowid':'SELECT *,rowid AS catalogue_order FROM products WHERE hidden=0 AND missing=0 AND deleted=0 ORDER BY rowid';
         $result=[];
-        foreach($this->db->query($sql) as $row){$p=json_decode($row['document'],true,512,JSON_THROW_ON_ERROR);
+        foreach($this->db->query($sql) as $row){$p=json_decode($row['document'],true,512,JSON_THROW_ON_ERROR);$p['catalogueOrder']=(int)$row['catalogue_order'];
             if($administrative){$p['deleted']=(bool)$row['deleted'];$p['hidden']=(bool)$row['hidden'];$p['version']=(int)$row['version'];$p['updatedAt']=$row['updated_at'];}
             $result[]=$p;
         }

@@ -20,7 +20,7 @@ const publicProductCategory=p=>{
  return kind==='technical'?'Растение в техническом горшке':kind==='cachepot'?'Растение в готовом кашпо':names[p.catalogGroup]||'Растение';
 };
 
-function editorGroup(p){const kind=plantPotKind(p||{});return p?.catalogGroup==='potted'&&['technical','cachepot'].includes(kind)?'potted-'+kind:p?.catalogGroup||'florarium';}
+function editorGroup(p){if(p?.catalogGroup==='plant')return 'potted-technical';const kind=plantPotKind(p||{});return p?.catalogGroup==='potted'&&['technical','cachepot'].includes(kind)?'potted-'+kind:p?.catalogGroup||'florarium';}
 async function api(action,body){const opt={method:body instanceof FormData?'POST':body?'POST':'GET',credentials:'same-origin',headers:{}};if(body instanceof FormData){body.append('csrf',csrf);opt.headers['X-CSRF-Token']=csrf;opt.body=body;}else if(body){opt.headers={'Content-Type':'application/json','X-CSRF-Token':csrf};opt.body=JSON.stringify(body);}const r=await fetch(`api.php?action=${encodeURIComponent(action)}`,opt);let d={};try{d=await r.json()}catch{}if(!r.ok)throw Error(d.error||`Ошибка ${r.status}`);return d;}
 function message(el,text,error=false){el.textContent=text||'';el.classList.toggle('error',Boolean(error));}
 function toast(text){const t=$('#toast');t.textContent=text;t.hidden=false;clearTimeout(toast.timer);toast.timer=setTimeout(()=>t.hidden=true,3200);}

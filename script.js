@@ -51,7 +51,7 @@ function productCard(p){
  return `<button class="product-card ${p.available?'':'is-unavailable'}" data-product="${escapeHTML(p.id)}" aria-label="Открыть ${escapeHTML(p.title)}"><span class="product-image"><img src="${escapeHTML(p.images[0])}" alt="${escapeHTML(p.title)}" loading="lazy"><span class="product-badge ${p.available?'':'muted'}" ${p.canOrder?'title="Можем сделать похожий на заказ"':''}>${availabilityLabel(p)}</span></span><span class="product-name">${escapeHTML(shortTitle(p))}</span><span class="product-card-meta">${escapeHTML(publicProductCategory(p))}${size}</span><span class="product-price">${money(p.price)}</span></button>`;
 }
 const featured=document.querySelector('[data-featured]');
-if(featured)featured.innerHTML=data.featured.map(id=>data.products.find(p=>p.id===id)).filter(p=>p?.available).slice(0,4).map(productCard).join('');
+if(featured)featured.innerHTML=data.products.map((p,index)=>({p,index})).filter(({p})=>productGroup(p)==='florarium'&&p.available).sort((a,b)=>(b.p.catalogueOrder??b.index)-(a.p.catalogueOrder??a.index)).slice(0,4).map(({p})=>productCard(p)).join('');
 const dialog=document.querySelector('.product-dialog');
 const lightbox=document.querySelector('.lightbox');
 let previousFocus=null;
