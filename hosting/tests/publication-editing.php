@@ -76,7 +76,7 @@ try{
   $beforePolls=count($pollCalls);
   $onlyRead=new PublicationRunner($store,$root.'/api/.private',$pollTransport);
   $reconciled=$onlyRead->reconcileFlowwowError('flowwow-1');
-  verify($reconciled['verified']===true&&$reconciled['state']==='published','Existing published Flowwow listing kept a false error');
+  verify($reconciled['verified']===true&&($reconciled['state']??'')==='published','Existing published Flowwow listing kept a false error: '.json_encode(['result'=>$reconciled,'channel'=>$store->channels('flowwow-1')['flowwow']],JSON_UNESCAPED_UNICODE));
   verify($store->channels('flowwow-1')['flowwow']['error']===''&&$store->channels('flowwow-1')['flowwow']['state']==='published','Read-only reconciliation did not clear stale error');
   verify(count($pollCalls)>$beforePolls&&count(array_filter($pollCalls,fn($path)=>!str_starts_with($path,'/apiseller/products?')))===0,'Reconciliation issued a new marketplace write');
 
