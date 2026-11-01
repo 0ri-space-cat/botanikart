@@ -52,6 +52,38 @@ assert(groupJs.includes('updateDescriptionTabs();'),'Assortment mode must update
 assert(groupJs.includes('id="ag-create-member"'),'Assortments must allow creating a separate website product');
 assert(groupJs.includes("await openEditor(undefined,id)"),'New assortment item must be linked to selected group');
 assert(css.includes('.description-tabs')&&css.includes('.description-inherited-preview'),'Tab presentation styles missing');
+
+const guardStart=js.indexOf('function flowwowDraftIssue()');
+const guardEnd=js.indexOf('function showFlowwowDraftIssue(',guardStart);
+assert(guardStart>=0&&guardEnd>guardStart,'Flowwow publication preflight missing');
+const guardCode=js.slice(guardStart,guardEnd);
+const guardForm={elements:{publish_flowwow:{checked:true},status:{value:'ready'}}};
+const guardCategory={value:'9'};
+let guardProperties={stock:1,height:{val:12,measure:2}};
+let guardSchema={fields:[{field:'height',name:'Высота',type:'measure',required:true,measure:[{id:2,name:'см'}]}]};
+const guardScope={
+ $:()=>guardForm,
+ document:{querySelector:selector=>selector==='#flowwow-category'?guardCategory:null},
+ editing:null,
+ channelData:()=>({flowwow:{management:'site',category:'9'}}),
+ channelTouched:{flowwow:true},
+ flowwowEditorData:guardSchema,
+ readFlowwowProperties:()=>guardProperties,
+ fwLabels:{height:'Высота'},
+ fwUnitOptions:f=>(f.measure||[]).map(x=>({id:x.id,label:x.name}))
+};
+const preflight=require('node:vm').runInNewContext(guardCode+';flowwowDraftIssue',guardScope);
+assert.equal(preflight(),'','Valid Flowwow fields were rejected before publication');
+guardProperties={stock:0,height:{val:12,measure:2}};
+assert.match(preflight(),/количество/i,'Missing Flowwow stock was sent to the marketplace');
+guardProperties={stock:1,height:null};
+assert.match(preflight(),/Высота/i,'Missing required height was not caught before saving');
+guardProperties={stock:1,height:{val:12,measure:null}};
+assert.match(preflight(),/единицу/i,'Missing API unit caused a silent crash instead of a clear validation message');
+guardScope.flowwowEditorData=null;
+assert.match(preflight(),/загружены/i,'Platform settings must load before product publication');
+assert(js.includes('const details=stage===\'error\'&&c.error?\x60<p class="publication-error-reason">'),
+ 'Actual marketplace rejection must be visible without opening a disclosure');
 console.log('Editor UI checks passed: structure, required fields, photo actions, publication controls and mobile styles.');
 // Test imported-vs-explicit ownership using the real status classifier.
 const vm=require('node:vm');
