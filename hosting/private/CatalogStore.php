@@ -331,7 +331,7 @@ final class CatalogStore
         $current=$this->channels($id);
         $update=$this->db->prepare('UPDATE product_channels SET document=? WHERE product_id=? AND channel=?');
         foreach ($channels as $channel=>$input) {
-            if (!is_array($input) || array_diff(array_keys($input),['enabled','price','title','description','management','externalId','url','state','error','message','category','attributes','properties','stock','productionMinutes','listingTitle','listingDescription','listingPrice','sharedCount','offerId','checkedAt','configure']) || !is_bool($input['enabled']??null)) throw new \InvalidArgumentException('invalid_channels');
+            if (!is_array($input) || array_diff(array_keys($input),['enabled','price','title','description','management','externalId','url','state','error','message','category','attributes','properties','stock','productionMinutes','listingTitle','listingDescription','listingPrice','sharedCount','offerId','checkedAt','publicationRequested','configure']) || !is_bool($input['enabled']??null)) throw new \InvalidArgumentException('invalid_channels');
             $p=$current[$channel];$before=$p;
             if($channel==='avito'&&$this->db->query("SELECT name FROM sqlite_master WHERE type='table' AND name='assortment_members'")->fetchColumn()){ $q=$this->db->prepare('SELECT 1 FROM assortment_members WHERE product_id=?');$q->execute([$id]);if($q->fetchColumn())continue;}
             // Editing the WEBSITE product must never silently claim ownership of an
