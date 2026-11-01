@@ -66,6 +66,20 @@ try{
  $emptyTransport=fn($method,$path,$payload)=>['items'=>[]];
  $notFound=(new FlowwowPublisher(['token'=>'fixture','shop_id'=>1],$root.'/api/.private',$emptyTransport))->confirmPublished($edit,'123');
  verify($notFound['state']==='awaiting_confirmation'&&str_contains($notFound['message'],'offerId'),'Missing Flowwow readback reason not reported');
+  // A historical red error must be cleared using read-only Flowwow verification.
+  $existing=$store->channels('flowwow-1')['flowwow'];
+  $existing=array_replace($existing,['management'=>'site','enabled'=>true,'state'=>'error','error'=>'Flowwow: отправка могла завершиться']);
+  $existing['offerId']='existing-offer';$existing['externalId']='123';
+  $set=$store->db->prepare("UPDATE product_channels SET document=? WHERE product_id='flowwow-1' AND channel='flowwow'");
+  $set->execute([json_encode($existing,JSON_UNESCAPED_UNICODE)]);
+  $store->db->exec("INSERT OR REPLACE INTO publication_jobs(product_id,channel,revision,state,updated_at) VALUES('flowwow-1','flowwow','readback-test','retry','2026-01-01T00:00:00Z')");
+  $beforePolls=count($pollCalls);
+  $onlyRead=new PublicationRunner($store,$root.'/api/.private',$pollTransport);
+  $reconciled=$onlyRead->reconcileFlowwowError('flowwow-1');
+  verify($reconciled['verified']===true&&$reconciled['state']==='published','Existing published Flowwow listing kept a false error');
+  verify($store->channels('flowwow-1')['flowwow']['error']===''&&$store->channels('flowwow-1')['flowwow']['state']==='published','Read-only reconciliation did not clear stale error');
+  verify(count($pollCalls)>$beforePolls&&count(array_filter($pollCalls,fn($path)=>!str_starts_with($path,'/apiseller/products?')))===0,'Reconciliation issued a new marketplace write');
+
  $edit['channels']['flowwow']['enabled']=false;$result=$fw->publish($edit,'https://botanikart.ru');verify($result['state']==='hidden'&&!$remote['isActive'],'Hide not confirmed');
  $edit['channels']['flowwow']['enabled']=true;$raw2=$raw;$raw2['type']=2;
  try{$fw->payload($edit,$raw2,$schema,'https://botanikart.ru');throw new LogicException('Unsupported type accepted');}catch(RuntimeException){}
