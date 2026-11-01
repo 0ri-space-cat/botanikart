@@ -21,6 +21,7 @@ header("Content-Security-Policy: default-src 'self'; script-src 'self'; style-sr
 <button type="button" id="description-tab-avito" class="description-tab" data-description-tab="avito" role="tab" aria-controls="description-panel-avito" aria-selected="false" hidden>Авито</button>
 <button type="button" id="description-tab-flowwow" class="description-tab" data-description-tab="flowwow" role="tab" aria-controls="description-panel-flowwow" aria-selected="false" hidden>Flowwow</button>
 </div>
+<p id="description-assortment-note" class="description-assortment-note" hidden>Для общего объявления Авито описание редактируется в настройках ассортимента. Там можно отключить «Взять описание первого товара» и написать отдельный текст.</p>
 <div class="description-panel" id="description-panel-site" data-description-panel="site" role="tabpanel" aria-labelledby="description-tab-site"><label>Описание<textarea name="description" rows="8" maxlength="30000" placeholder="Расскажите о товаре. Абзацы сохранятся."></textarea></label></div>
 <div class="description-panel" id="description-panel-avito" data-description-panel="avito" role="tabpanel" aria-labelledby="description-tab-avito" hidden>
 <label class="description-inherit"><input type="checkbox" data-description-inherit="avito" checked> Использовать описание с сайта</label>
