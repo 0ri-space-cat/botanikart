@@ -118,9 +118,19 @@ final class PublicationRunner
                 try {
                     if($channel==='flowwow'){
                         $oldConfirmationError=$job['state']==='retry'&&str_contains((string)($p['channels']['flowwow']['error']??''),'не подтвердил изменения');
-                        $changes=(in_array($job['state'],['awaiting_confirmation','moderation'],true)||$oldConfirmationError)
-                            ?$this->flowwow()->confirmPublished($p)
-                            :$this->flowwow()->publish($p,$this->config['site_url']??'https://botanikart.ru');
+                        $fw=$this->flowwow();
+                        if($job['state']==='retry'){
+                            // An earlier create/update may already have reached Flowwow even
+                            // when the response was lost. Check the remote listing first.
+                            $observed=$fw->confirmPublished($p);
+                            $changes=in_array($observed['state']??'', ['published','moderation'],true)||$oldConfirmationError
+                                ?$observed
+                                :$fw->publish($p,$this->config['site_url']??'https://botanikart.ru');
+                        }else{
+                            $changes=in_array($job['state'],['awaiting_confirmation','moderation'],true)
+                                ?$fw->confirmPublished($p)
+                                :$fw->publish($p,$this->config['site_url']??'https://botanikart.ru');
+                        }
                     }
                     else {
                         $c=$p['channels']['avito'];if(!empty($p['assortmentId']))continue;
@@ -141,7 +151,7 @@ final class PublicationRunner
                                 // Preserve the complete feed: do not withdraw valid listings
                                 // because another selected product has invalid fields.
                                 $hold=['state'=>'blocked_by_feed','error'=>'',
-                                    'message'=>'Авито: ждём исправления объявления «'.mb_substr($blocked->getMessage(),0,260).'».'];
+                                    'message'=>mb_substr($blocked->getMessage(),0,260)];
                                 if($this->recordResult($job,$hold,'blocked_by_feed'))
                                     $results[]=['id'=>$p['id'],'channel'=>'avito','state'=>'blocked_by_feed'];
                                 continue;
