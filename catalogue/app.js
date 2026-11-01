@@ -102,7 +102,12 @@ function watchPublicationReceipts(list,host){
  publicationObserver=new IntersectionObserver(entries=>{for(const entry of entries){const el=entry.target;clearTimeout(el.receiptTimer);if(!entry.isIntersecting)continue;
   const p=list.find(p=>p.id===el.dataset.receiptProduct);if(!p||!publicationFinished(p))continue;
   const timer=setTimeout(()=>{if(document.hidden||document.querySelector('dialog[open]'))return;const r=el.getBoundingClientRect();if(r.bottom<=0||r.top>=innerHeight)return;
-   publicationReceipts[p.id]=publicationReceiptKey(p);delete publicationWatching[p.id];try{localStorage.setItem('ba-publications-seen',JSON.stringify(publicationReceipts));localStorage.setItem('ba-publications-watching',JSON.stringify(publicationWatching))}catch{}
+   publicationReceipts[p.id]=publicationReceiptKey(p);
+   // Acknowledged moderation may continue for days; dismiss its blue receipt,
+   // but show a fresh green receipt if Flowwow later confirms publication.
+   const stillModerating=['avito','flowwow'].some(k=>publicationOwned(p,k)&&(channelData(p)[k]||{}).state==='moderation');
+   if(!stillModerating)delete publicationWatching[p.id];
+   try{localStorage.setItem('ba-publications-seen',JSON.stringify(publicationReceipts));localStorage.setItem('ba-publications-watching',JSON.stringify(publicationWatching))}catch{}
    el.classList.add('publication-dismiss');setTimeout(()=>renderPublicationTracker(),350);
   },3000);el.receiptTimer=timer;publicationTimers.push(timer);
  }},{threshold:.25});
@@ -212,7 +217,7 @@ async function initialize(){try{const session=await api('session');message($('#l
 function channelData(p){return p.channels||Object.fromEntries(['avito','flowwow'].map(k=>[k,{enabled:p.source===k,management:p.source===k?'external':'site',price:null,title:'',description:'',state:p.source===k?'external':'off'}]))}
 function selectedChannels(p){return ['avito','flowwow'].filter(k=>channelData(p)[k]?.enabled)}
 function matchesChannel(p,key){const selected=selectedChannels(p);return key==='all'||(key==='site'?!selected.length&&!p.hidden&&!p.sourceMissing:selected.includes(key))}
-function productBadges(p){const keys=selectedChannels(p);if(!keys.length)return !p.hidden&&!p.sourceMissing?`<span class="source-badge manual">${sourceLabel('manual')}</span>`:'<span class="unpublished-badge">Не опубликован</span>';return keys.map(k=>`<span class="source-badge ${k}" title="${escape(channelData(p)[k]?.message||'Выбранная площадка')}">${sourceLabel(k)}${publicationOwned(p,k)&&channelData(p)[k]?.state==='error'?'<span class="pending-mark error" aria-label="Ошибка площадки">!</span>':(publicationOwned(p,k)&&['queued','awaiting_report','awaiting_confirmation','waiting_connection','moderation','blocked_by_feed'].includes(channelData(p)[k]?.state)?'<span class="pending-mark" aria-label="Ожидает обработки">…</span>':'')}</span>`).join('')}
+function productBadges(p){const keys=selectedChannels(p);if(!keys.length)return !p.hidden&&!p.sourceMissing?`<span class="source-badge manual">${sourceLabel('manual')}</span>`:'<span class="unpublished-badge">Не опубликован</span>';return keys.map(k=>`<span class="source-badge ${k}" title="${escape(channelData(p)[k]?.message||'Выбранная площадка')}">${sourceLabel(k)}${publicationOwned(p,k)&&channelData(p)[k]?.state==='error'?'<span class="pending-mark error" aria-label="Ошибка площадки">!</span>':(publicationOwned(p,k)&&channelData(p)[k]?.state==='moderation'?'<span class="pending-mark accepted" aria-label="Принято площадкой, ожидает публикации">✓</span>':publicationOwned(p,k)&&['queued','awaiting_report','awaiting_confirmation','waiting_connection','blocked_by_feed'].includes(channelData(p)[k]?.state)?'<span class="pending-mark" aria-label="Ожидает обработки">…</span>':'')}</span>`).join('')}
 function updateChannelQuickStatus(key,c,on=c.enabled){
  const badge=document.querySelector(`[data-channel-quick-status="${key}"]`);
  if(!badge)return;
