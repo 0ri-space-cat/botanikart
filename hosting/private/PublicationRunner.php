@@ -109,7 +109,14 @@ final class PublicationRunner
         if(!$lock||!flock($lock,LOCK_EX|LOCK_NB)){if($lock)fclose($lock);return ['busy'=>true];}
         $results=[];
         try {
-            $query="SELECT * FROM publication_jobs WHERE state IN ('queued','retry','awaiting_report','awaiting_confirmation','moderation','blocked_by_feed')";$args=[];
+            // A failed Flowwow write must never be replayed automatically by
+            // cron or an unrelated website save. Only the explicit retry action
+            // (id + channel) may re-send, after its remote readback check.
+            $allowFlowwowRetry=$onlyId!==null&&$onlyChannel==='flowwow';
+            $states=$allowFlowwowRetry
+                ? "state IN ('queued','retry','awaiting_report','awaiting_confirmation','moderation','blocked_by_feed')"
+                : "(state IN ('queued','awaiting_report','awaiting_confirmation','moderation','blocked_by_feed') OR (state='retry' AND channel='avito'))";
+            $query="SELECT * FROM publication_jobs WHERE ".$states;$args=[];
             if($onlyId!==null){$query.=' AND product_id=?';$args[]=$onlyId;}
             if($onlyChannel!==null){$query.=' AND channel=?';$args[]=$onlyChannel;}
             $q=$this->store->db->prepare($query.' ORDER BY updated_at LIMIT 20');$q->execute($args);$jobs=$q->fetchAll(\PDO::FETCH_ASSOC);
