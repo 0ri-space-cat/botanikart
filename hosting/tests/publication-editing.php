@@ -33,6 +33,10 @@ try{
  $newOfferBody=$fw->payload($newOffer,null,$identitySchema,'https://botanikart.ru');
  verify($newOfferBody['offerId']==='ba-local-unique-123','New Flowwow offerId is not deterministic');
  verify($fw->payload($newOffer,null,$identitySchema,'https://botanikart.ru')['offerId']===$newOfferBody['offerId'],'Flowwow offerId changed across retries');
+  // Browser forms serialize unit IDs as numbers even when Flowwow's schema uses strings.
+  $textUnitSchema=$identitySchema;foreach($textUnitSchema as &$unitField)if(($unitField['field']??'')==='height')$unitField['measure']=[['id'=>'2','name'=>'см']];unset($unitField);
+  $textUnitBody=$fw->payload($newOffer,null,$textUnitSchema,'https://botanikart.ru');
+  verify($textUnitBody['height']['measure']==='2','Flowwow numeric form value was rejected or not normalized to schema unit ID');
  $result=$fw->publish($edit,'https://botanikart.ru');verify($result['state']==='published','Update not verified');
  $writes=array_values(array_filter($calls,fn($c)=>str_starts_with($c[1],'/apiseller/products/update')));$body=$writes[0][2]['products'][0];
  verify($body['offerId']==='existing-offer'&&$body['productType']===1&&$body['subCategoryId']===9,'Existing identity/type changed');
