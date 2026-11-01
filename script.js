@@ -10,6 +10,24 @@ const money=n=>new Intl.NumberFormat('ru-RU').format(n)+' ₽';
 const categoryNames={florarium:'Флорариум',composition:'Живая композиция',potted:'Комнатное растение',plant:'Растение для флорариума',material:'Материалы и декор'};
 const productGroup=p=>p.catalogGroup||({succulent:'plant',ficus:'plant'}[p.category]||p.category);
 const groupOrder={florarium:0,composition:1,potted:2,plant:3,material:4};
+// The shop's existing group remains unchanged. Presentation type is used for public filtering only.
+// Explicit product metadata takes precedence; unclear plants stay in "Все растения".
+const plantPotKind=p=>{
+ if(productGroup(p)==='plant')return 'plant';
+ if(productGroup(p)!=='potted')return null;
+ if(['technical','cachepot'].includes(p.potType))return p.potType;
+ const title=String(p.title||'').toLocaleLowerCase('ru-RU').replace(/ё/g,'е');
+ const description=String(p.description||'').toLocaleLowerCase('ru-RU').replace(/ё/g,'е');
+ if(/тех(?:ническ\w*|\.?)[\s.-]*горш|транспортировочн\w*\s+горш|без\s+(?:декоративного\s+)?кашпо/u.test(title))return 'technical';
+ if(/кашпо|керамическ\w*\s+горш|декоративн\w*\s+горш|прозрачн\w*\s+горш|стеклянн\w*\s+горш/u.test(title))return 'cachepot';
+ if(/тех(?:ническ\w*|\.?)[\s.-]*горш|транспортировочн\w*\s+горш|без\s+(?:декоративного\s+)?кашпо/u.test(description))return 'technical';
+ if(/кашпо|керамическ\w*\s+горш|декоративн\w*\s+горш/u.test(description))return 'cachepot';
+ return 'unspecified';
+};
+const publicProductCategory=p=>{
+ const kind=plantPotKind(p);
+ return kind==='technical'?'Растение в техническом горшке':kind==='cachepot'?'Растение в готовом кашпо':categoryNames[productGroup(p)]||'Растение';
+};
 const shortTitle=p=>p.title.replace(/^Флорариум с крышкой /,'').replace(/^Флорариум-экосистема /,'').replace(/^Флорариум закрытый /,'').replace(/^Флорариум /,'').replace(/^Композиция с автополивом /,'').replace(/^Композиция /,'').replace(' (фиттонии 4 вида, папоротник)','').replace(/ в (?:белом|зелёном|зеленом|чёрном|черном|прозрачном|нежно-розовом|нежно-фиолетовом|пепельно-сером|тёмно-синем|керамическом|светло-бежевом|белом керамическом|зеленом керамическом).*(?:кашпо|горшке)$/,'');
 function descriptionHTML(raw){
  const lines=String(raw||'').replace(/\r\n?/g,'\n').split('\n');
@@ -30,7 +48,7 @@ function descriptionHTML(raw){
 const availabilityLabel=p=>p.canOrder?'Раскупили':p.available?'В наличии':p.status==='sold'?'Нет в наличии':'Под заказ';
 function productCard(p){
  const size=p.width&&p.height?`<span>${p.width} × ${p.height} см</span>`:'';
- return `<button class="product-card ${p.source==='avito'?'source-avito':''} ${p.available?'':'is-unavailable'}" data-product="${escapeHTML(p.id)}" aria-label="Открыть ${escapeHTML(p.title)}"><span class="product-image"><img src="${escapeHTML(p.images[0])}" alt="${escapeHTML(p.title)}" loading="lazy"><span class="product-badge ${p.available?'':'muted'}" ${p.canOrder?'title="Можем сделать похожий на заказ"':''}>${availabilityLabel(p)}</span></span><span class="product-name">${escapeHTML(shortTitle(p))}</span><span class="product-card-meta">${escapeHTML(categoryNames[productGroup(p)]||'Растение')}${size}</span><span class="product-price">${money(p.price)}</span></button>`;
+ return `<button class="product-card ${p.source==='avito'?'source-avito':''} ${p.available?'':'is-unavailable'}" data-product="${escapeHTML(p.id)}" aria-label="Открыть ${escapeHTML(p.title)}"><span class="product-image"><img src="${escapeHTML(p.images[0])}" alt="${escapeHTML(p.title)}" loading="lazy"><span class="product-badge ${p.available?'':'muted'}" ${p.canOrder?'title="Можем сделать похожий на заказ"':''}>${availabilityLabel(p)}</span></span><span class="product-name">${escapeHTML(shortTitle(p))}</span><span class="product-card-meta">${escapeHTML(publicProductCategory(p))}${size}</span><span class="product-price">${money(p.price)}</span></button>`;
 }
 const featured=document.querySelector('[data-featured]');
 if(featured)featured.innerHTML=data.featured.map(id=>data.products.find(p=>p.id===id)).filter(p=>p?.available).slice(0,4).map(productCard).join('');
@@ -65,17 +83,19 @@ if(grid){
  const sectionButtons=[...document.querySelectorAll('[data-section]')],plantButtons=[...document.querySelectorAll('[data-plant-category]')];
  const url=new URL(location.href),initial=url.searchParams.get('section'),initialCategory=url.searchParams.get('category');
  if(Object.hasOwn(sections,initial))section=initial;
- if(['potted','plant'].includes(initialCategory)){section='plants';plantCategory=initialCategory;}
+ if(['technical','cachepot'].includes(url.searchParams.get('pot'))){section='plants';plantCategory=url.searchParams.get('pot');}
+ else if(initialCategory==='plant'){section='plants';plantCategory='plant';}
+ else if(initialCategory==='potted'){section='plants';plantCategory='all';}
  function render(updateURL=false){
   const query=search.value.toLocaleLowerCase('ru-RU').replace(/ё/g,'е').trim();
-  let items=data.products.filter(p=>(section==='all'||sections[section].includes(productGroup(p)))&&(section!=='plants'||plantCategory==='all'||productGroup(p)===plantCategory)&&(!stock.checked||p.available)&&(!query||(p.title+' '+p.description).toLocaleLowerCase('ru-RU').replace(/ё/g,'е').includes(query)));
+  let items=data.products.filter(p=>(section==='all'||sections[section].includes(productGroup(p)))&&(section!=='plants'||plantCategory==='all'||(plantCategory==='plant'?productGroup(p)==='plant':plantPotKind(p)===plantCategory))&&(!stock.checked||p.available)&&(!query||(p.title+' '+p.description).toLocaleLowerCase('ru-RU').replace(/ё/g,'е').includes(query)));
   items.sort(sort.value==='price-asc'?(a,b)=>a.price-b.price:sort.value==='price-desc'?(a,b)=>b.price-a.price:(a,b)=>(groupOrder[productGroup(a)]??9)-(groupOrder[productGroup(b)]??9)||Number(b.available)-Number(a.available)||a.title.localeCompare(b.title,'ru'));
   grid.innerHTML=items.map(productCard).join('');document.querySelector('[data-results]').textContent=`Показано ${items.length} из ${data.products.length}`;document.querySelector('.empty-catalog').hidden=items.length!==0;grid.hidden=items.length===0;
   sectionButtons.forEach(button=>{const active=button.dataset.section===section;button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active))});
   document.querySelector('.plant-subcategories').hidden=section!=='plants';
-  plantButtons.forEach(button=>{const active=button.dataset.plantCategory===plantCategory;button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active))});
+  plantButtons.forEach(button=>{const key=button.dataset.plantCategory;button.hidden=key==='plant'&&!data.products.some(p=>productGroup(p)==='plant');const active=key===plantCategory;button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active))});
   for(const [key,groups] of Object.entries(sections))document.querySelector(`[data-section-count="${key}"]`).textContent=data.products.filter(p=>groups.includes(productGroup(p))).length;
-  if(updateURL){const next=new URL(location.href);next.searchParams.delete('section');next.searchParams.delete('category');if(section!=='all')next.searchParams.set('section',section);if(section==='plants'&&plantCategory!=='all')next.searchParams.set('category',plantCategory);history.replaceState(null,'',next.pathname+next.search+next.hash)}
+  if(updateURL){const next=new URL(location.href);next.searchParams.delete('section');next.searchParams.delete('category');next.searchParams.delete('pot');if(section!=='all')next.searchParams.set('section',section);if(section==='plants'&&['technical','cachepot'].includes(plantCategory))next.searchParams.set('pot',plantCategory);else if(section==='plants'&&plantCategory==='plant')next.searchParams.set('category','plant');history.replaceState(null,'',next.pathname+next.search+next.hash)}
  }
  sectionButtons.forEach(button=>button.addEventListener('click',()=>{section=button.dataset.section;plantCategory='all';render(true)}));
  plantButtons.forEach(button=>button.addEventListener('click',()=>{plantCategory=button.dataset.plantCategory;render(true)}));
