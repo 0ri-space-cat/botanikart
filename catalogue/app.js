@@ -478,8 +478,9 @@ function updateCategoryHint(){
 }
 function updateEditorSaveSummary(){
  const form=$('#edit-form');
- const selected=['avito','flowwow'].filter(key=>form.elements['publish_'+key].checked).map(key=>names[key]);
- $('#editor-save-summary').textContent='Сохраняем: '+[form.elements.visible.checked?'На сайте':'Скрыт на сайте',...selected].join(' · ');
+ const grouped=Boolean($('#assortment-on')?.checked);
+ const selected=['avito','flowwow'].filter(key=>form.elements['publish_'+key].checked&&!(grouped&&key==='avito')).map(key=>names[key]);
+ $('#editor-save-summary').textContent='Сохраняем: '+[form.elements.visible.checked?'На сайте':'Скрыт на сайте',...selected,...(grouped?['Авито — через ассортимент']:[])].join(' · ');
 }
 function updatePurchaseChoice(){const inquiry=$('#edit-form').elements.purchase_mode.value==='inquiry';$('#purchase-hint').textContent=inquiry?'Покупатель сначала пишет вам в Telegram, чтобы согласовать выбранный товар.':'Покупатель может сразу оплатить товар на сайте.'}
 function updateVisibility(){const visible=$('#edit-form').elements.visible.checked;$('#visibility-caption').textContent=visible?'На сайте':'Скрыт с сайта';$('.eye-control').title=visible?'Скрыть с сайта':'Показать на сайте';updateEditorSaveSummary()}
