@@ -436,3 +436,6 @@
 
 /* Accepted by the marketplace, but not yet publicly active. */
 .pending-mark.accepted{display:inline-grid;place-items:center;width:16px;height:16px;margin-left:4px;border-radius:50%;background:#d9ecff;color:#2679bc;font-size:11px;line-height:1;font-weight:700}
+
+#editor .description-assortment-note{margin:0 0 12px;padding:10px 12px;border:1px solid #dae7d4;background:#f6faf2;border-radius:11px;color:#58705a;font-size:11px;line-height:1.55}
+#editor .description-assortment-note[hidden]{display:none!important}
