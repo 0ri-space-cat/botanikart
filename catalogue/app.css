@@ -433,3 +433,6 @@
  .ag-body .ag-add{flex-direction:column;align-items:stretch}
  .ag-body .ag-add select,.ag-body .ag-add button{width:100%;flex:0 0 auto}
 }
+
+/* Accepted by the marketplace, but not yet publicly active. */
+.pending-mark.accepted{display:inline-grid;place-items:center;width:16px;height:16px;margin-left:4px;border-radius:50%;background:#d9ecff;color:#2679bc;font-size:11px;line-height:1;font-weight:700}
