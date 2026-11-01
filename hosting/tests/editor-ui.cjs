@@ -71,10 +71,10 @@ const variants=Array.from({length:8},(_,i)=>({id:'variant-'+i,source:'manual',ve
 const ctx={clearTimeout,setTimeout,localStorage,products:variants,$:()=>host,channelData:p=>p.channels,
  publicationPending:c=>!!c.enabled&&['queued','awaiting_report'].includes(c.state),
  publicationOwned:owned,escape:s=>s,publicationResults:p=>rendered.push(p.id)};
-vm.runInNewContext(trackerSource+';renderPublicationTracker()',ctx);
+vm.runInNewContext(trackerSource+";rememberPublicationSave('variant-0');renderPublicationTracker()",ctx);
 assert.equal(rendered.length,1,'One shared Avito listing appeared as multiple publication operations');
 for(const p of variants){p.channels.avito.state='external';p.channels.avito.management='external';}
-rendered.length=0;vm.runInNewContext('renderPublicationTracker()',ctx);
+rendered.length=0;vm.runInNewContext("delete publicationWatching['variant-0'];renderPublicationTracker()",ctx);
 assert.equal(host.hidden,true,'Imported external listings appeared in the progress panel');
 
 // Historic successes/errors must never appear just because checkedAt was refreshed.
