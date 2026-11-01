@@ -280,9 +280,9 @@ for(const key of ['avito','flowwow']){
    // Start from the website wording for a new override; afterwards remember
    // the marketplace draft even if the seller deliberately empties it.
    input.value=descriptionDrafts[key]===null?$('#edit-form').elements.description.value:descriptionDrafts[key];
-   input.focus();
   }
   channelTouched[key]=true;dirty=true;updateDescriptionControls(key);
+  if(!check.checked)input.focus();
  });
  input.addEventListener('input',()=>{descriptionDrafts[key]=input.value;channelTouched[key]=true;dirty=true});
 }
