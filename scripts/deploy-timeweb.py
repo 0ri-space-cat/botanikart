@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """Upload a whitelisted release over SFTP, with pinned SSH host keys."""
 import argparse
+import json
 import os
 import posixpath
-import json
-import re
 import shlex
 import stat
 import uuid
@@ -78,61 +77,21 @@ def main():
             # Upload backend first, then data/assets, and entry pages last.
             upload(sftp, Path(__file__).resolve().parents[1] / "hosting/private", private, private=True)
             upload(sftp, public, target)
-            cache_path = os.environ.get('FLOWWOW_SOURCE_CACHE', '')
-            if cache_path and Path(cache_path).is_file():
-                cache = json.loads(Path(cache_path).read_text())
-                if not cache.get('items') or not isinstance(cache.get('schemas'), dict):
-                    raise RuntimeError('Incomplete Flowwow source cache')
-                upload_file = posixpath.join(private, 'flowwow-source.json')
-                pending = upload_file + '.upload-' + uuid.uuid4().hex
-                sftp.put(cache_path, pending)
-                sftp.chmod(pending, 0o600)
-                sftp.posix_rename(pending, upload_file)
-            for manifest_path in sorted((Path(__file__).resolve().parents[1] / 'imports').glob('*/catalog.json')):
-                manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
-                batch = manifest.get('batch', '')
-                if not re.fullmatch('[a-z0-9-]{1,80}', batch):
-                    raise RuntimeError('Invalid reviewed import identifier')
-                import_dir = posixpath.join(private, 'imports')
-                mkdirs(sftp, import_dir, 0o700)
-                remote_manifest = posixpath.join(import_dir, batch + '.json')
-                temporary = remote_manifest + '.upload-' + uuid.uuid4().hex
-                sftp.put(str(manifest_path), temporary)
-                sftp.chmod(temporary, 0o600)
-                sftp.posix_rename(temporary, remote_manifest)
-                command = '/opt/php83/bin/php ' + shlex.quote(posixpath.join(private, 'import-catalogue.php')) + ' ' + shlex.quote(remote_manifest) + ' --apply'
-                _, stdout, stderr = client.exec_command(command, timeout=30)
-                result = stdout.read().decode('utf-8')
-                if stdout.channel.recv_exit_status() != 0:
-                    raise RuntimeError('Reviewed catalogue import failed; its database transaction was rolled back')
-                print(result.strip())
-        credentials = os.environ.get("MARKETPLACES_CREDENTIALS")
-        if credentials:
-            # Never place credentials in command arguments, files or logs on the runner.
-            json.loads(credentials)
-            command = '/opt/php83/bin/php ' + shlex.quote(posixpath.join(private, 'configure-marketplaces.php'))
-            stdin, stdout, stderr = client.exec_command(command, timeout=30)
-            stdin.write(credentials)
-            stdin.flush()
-            stdin.channel.shutdown_write()
-            result = stdout.read().decode('utf-8')
-            if stdout.channel.recv_exit_status() != 0:
-                raise RuntimeError('Marketplace private configuration failed')
-            state = json.loads(result)
-            if state.get('configured') is not True:
-                raise RuntimeError('Marketplace setup was not confirmed')
-            print('Marketplace credentials configured privately; renewal date:', state.get('renewalDate'))
-        _, stdout, stderr = client.exec_command('/opt/php83/bin/php ' + shlex.quote(posixpath.join(private, 'sync-publications.php')), timeout=180)
-        result = stdout.read().decode('utf-8')
+        php = "/opt/php83/bin/php"
+        store_file = posixpath.join(private, "CatalogStore.php")
+        db_dir = posixpath.join(private, "catalogue")
+        snapshot = posixpath.join(target, "data/catalog.json")
+        code = (
+            "require " + json.dumps(store_file) + "; "
+            "$s=new \\BotanikArt\\CatalogStore(" + json.dumps(db_dir) + "," + json.dumps(snapshot) + "); "
+            "echo json_encode(['catalogueMigration'=>'complete','products'=>count($s->all(true))],JSON_THROW_ON_ERROR);"
+        )
+        _, stdout, stderr = client.exec_command(php + " -r " + shlex.quote(code), timeout=60)
+        migration = stdout.read().decode("utf-8")
         if stdout.channel.recv_exit_status() != 0:
-            print('Publication queue maintenance did not complete; website release remains deployed.')
-        else:
-            print('Publication queue:', result.strip())
-        _, stdout, stderr = client.exec_command('/opt/php83/bin/php ' + shlex.quote(posixpath.join(private, 'console.php')) + ' notifications-check', timeout=30)
-        diagnostic = stdout.read().decode('utf-8')
-        print(diagnostic.strip())
-        if stdout.channel.recv_exit_status() != 0:
-            print('Notification setup check needs attention; no payment configuration was changed.')
+            raise RuntimeError("Website catalogue migration did not complete; the database backup was preserved")
+        print("Standalone catalogue:", migration.strip())
+        # Legacy scheduled publication entrypoint is deliberately not invoked.
         print("Timeweb release uploaded. Private configuration and orders were preserved.")
     finally:
         client.close()

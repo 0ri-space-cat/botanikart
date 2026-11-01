@@ -48,7 +48,7 @@ function descriptionHTML(raw){
 const availabilityLabel=p=>p.canOrder?'Раскупили':p.available?'В наличии':p.status==='sold'?'Нет в наличии':'Под заказ';
 function productCard(p){
  const size=p.width&&p.height?`<span>${p.width} × ${p.height} см</span>`:'';
- return `<button class="product-card ${p.source==='avito'?'source-avito':''} ${p.available?'':'is-unavailable'}" data-product="${escapeHTML(p.id)}" aria-label="Открыть ${escapeHTML(p.title)}"><span class="product-image"><img src="${escapeHTML(p.images[0])}" alt="${escapeHTML(p.title)}" loading="lazy"><span class="product-badge ${p.available?'':'muted'}" ${p.canOrder?'title="Можем сделать похожий на заказ"':''}>${availabilityLabel(p)}</span></span><span class="product-name">${escapeHTML(shortTitle(p))}</span><span class="product-card-meta">${escapeHTML(publicProductCategory(p))}${size}</span><span class="product-price">${money(p.price)}</span></button>`;
+ return `<button class="product-card ${p.available?'':'is-unavailable'}" data-product="${escapeHTML(p.id)}" aria-label="Открыть ${escapeHTML(p.title)}"><span class="product-image"><img src="${escapeHTML(p.images[0])}" alt="${escapeHTML(p.title)}" loading="lazy"><span class="product-badge ${p.available?'':'muted'}" ${p.canOrder?'title="Можем сделать похожий на заказ"':''}>${availabilityLabel(p)}</span></span><span class="product-name">${escapeHTML(shortTitle(p))}</span><span class="product-card-meta">${escapeHTML(publicProductCategory(p))}${size}</span><span class="product-price">${money(p.price)}</span></button>`;
 }
 const featured=document.querySelector('[data-featured]');
 if(featured)featured.innerHTML=data.featured.map(id=>data.products.find(p=>p.id===id)).filter(p=>p?.available).slice(0,4).map(productCard).join('');
