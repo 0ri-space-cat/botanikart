@@ -92,12 +92,30 @@ assert.equal(host.hidden,true,'A background refresh revived an old publication r
 
 // Pending work remains visible, but closing the notice is remembered across reloads.
 p.channels.avito.state='queued';
-vm.runInNewContext('renderPublicationTracker()',ctx);
-assert.equal(host.hidden,false,'Genuine pending publication disappeared');
+vm.runInNewContext("rememberPublicationSave('variant-0');renderPublicationTracker()",ctx);
+assert.equal(host.hidden,false,'A new explicit pending publication disappeared');
 vm.runInNewContext("closePublicationReceipt('variant-0');renderPublicationTracker()",ctx);
 assert.equal(host.hidden,true,'Closed publication alert immediately returned');
 assert(storage['ba-publications-closed']?.includes('variant-0'),'Dismissal is not persisted');
 p.channels.avito.state='published';
 vm.runInNewContext('renderPublicationTracker()',ctx);
 assert.equal(host.hidden,true,'Closed publication unexpectedly reappeared when status updated');
+
+// Moderation is an acknowledged marketplace receipt, not an endless
+// publication toast. The job must still be polled until it is active.
+const finishedSource=js.slice(js.indexOf('const publicationFinished='),js.indexOf('function publicationWasClosed'));
+const settled=vm.runInNewContext(finishedSource+';publicationFinished',{
+ channelData:p=>p.channels,publicationOwned:owned,
+ publicationPending:c=>['queued','awaiting_confirmation','moderation'].includes(c.state)
+});
+const flowwowProduct={id:'f1',source:'manual',channels:{
+ avito:{enabled:false,management:'site',state:'off'},
+ flowwow:{enabled:true,management:'site',state:'moderation'}
+}};
+assert.equal(settled(flowwowProduct),true,'Flowwow moderation must not leave a permanent notification');
+flowwowProduct.channels.flowwow.state='awaiting_confirmation';
+assert.equal(settled(flowwowProduct),false,'Missing acceptance must continue showing progress');
+flowwowProduct.channels.flowwow.state='error';
+flowwowProduct.channels.flowwow.error='API rejected product';
+assert.equal(settled(flowwowProduct),false,'Real rejection must not disappear automatically');
 console.log('Publication UI checks passed: imported ownership, deduplicated listings, genuine progress and persistent dismissal.');
