@@ -25,6 +25,26 @@ assert(js.includes("images.unshift(...images.splice(Number(cover.dataset.cover),
 assert(js.includes('data-channel-quick-status=')&&js.includes('updateChannelQuickStatus'));
 assert(css.includes('.editor-section-heading')&&css.includes('.photo-empty')&&css.includes('.editor-save-context'));
 assert(css.includes('env(safe-area-inset-bottom)'),'Sticky save area must account for iPhone safe area');
+
+const groupJs=fs.readFileSync(path.join(root,'catalogue/assortments.js'),'utf8');
+new Function(groupJs);
+for(const key of ['site','avito','flowwow']){
+ assert(editor.includes('data-description-tab="'+key+'"'),'Missing description tab: '+key);
+ assert(editor.includes('data-description-panel="'+key+'"'),'Missing description panel: '+key);
+}
+for(const key of ['avito','flowwow']){
+ assert(editor.includes('data-description-inherit="'+key+'"'),'Missing website-description inheritance switch: '+key);
+ const count=[...editor.matchAll(new RegExp('name="description_'+key+'"','g'))].length;
+ assert.equal(count,1,'Duplicated platform description editor: '+key);
+}
+assert.equal([...editor.matchAll(/name="description"/g)].length,1,'Site description should be editable only once');
+assert(js.includes('function updateDescriptionTabs()')&&js.includes('function selectDescriptionTab('));
+assert(js.includes("description:descriptionInherited(key)?'':form.elements['description_'+key].value"),'Inherited descriptions must store an empty marketplace override');
+assert(js.includes("descriptionDrafts[key]=input.value"),'Switching back from inherited description must restore the independent draft');
+assert(groupJs.includes('updateDescriptionTabs();'),'Assortment mode must update which description tabs are available');
+assert(groupJs.includes('id="ag-create-member"'),'Assortments must allow creating a separate website product');
+assert(groupJs.includes("await openEditor(undefined,id)"),'New assortment item must be linked to selected group');
+assert(css.includes('.description-tabs')&&css.includes('.description-inherited-preview'),'Tab presentation styles missing');
 console.log('Editor UI checks passed: structure, required fields, photo actions, publication controls and mobile styles.');
 // Exercise actual tracker code: an imported shared listing must be one operation.
 const vm=require('node:vm');
