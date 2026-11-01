@@ -161,6 +161,11 @@ try {
         session_write_close();set_time_limit(45);respond($runner->process($id,'flowwow'));
     }
     if ($action==='confirm-avito' && $method==='POST') {session_write_close();set_time_limit(60);respond(['reports'=>$runner->reports()]);}
+    if ($action==='reconcile-flowwow' && $method==='POST') {
+        $id=$input['id']??null;
+        if(!is_string($id)||$id===''||strlen($id)>100)respond(['error'=>'invalid_request'],400);
+        session_write_close();set_time_limit(30);respond($runner->reconcileFlowwowError($id));
+    }
     if ($action==='retry-publication' && $method==='POST') {
         $id=$input['id']??null;$channel=$input['channel']??null;
         if(!is_string($id)||strlen($id)>100||!is_string($channel)||!in_array($channel,['avito','flowwow'],true))respond(['error'=>'invalid_request'],400);
