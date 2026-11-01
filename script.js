@@ -18,10 +18,10 @@ const plantPotKind=p=>{
  if(['technical','cachepot'].includes(p.potType))return p.potType;
  const title=String(p.title||'').toLocaleLowerCase('ru-RU').replace(/ё/g,'е');
  const description=String(p.description||'').toLocaleLowerCase('ru-RU').replace(/ё/g,'е');
- if(/тех(?:ническ\w*|\.?)[\s.-]*горш|транспортировочн\w*\s+горш|без\s+(?:декоративного\s+)?кашпо/u.test(title))return 'technical';
- if(/кашпо|керамическ\w*\s+горш|декоративн\w*\s+горш|прозрачн\w*\s+горш|стеклянн\w*\s+горш/u.test(title))return 'cachepot';
- if(/тех(?:ническ\w*|\.?)[\s.-]*горш|транспортировочн\w*\s+горш|без\s+(?:декоративного\s+)?кашпо/u.test(description))return 'technical';
- if(/кашпо|керамическ\w*\s+горш|декоративн\w*\s+горш/u.test(description))return 'cachepot';
+ if(/тех(?:ническ[а-я]*|\.?)[\s.-]*горш|транспортировочн[а-я]*\s+горш|без\s+(?:декоративного\s+)?кашпо/u.test(title))return 'technical';
+ if(/кашпо|керамическ[а-я]*\s+горш|декоративн[а-я]*\s+горш|прозрачн[а-я]*\s+горш|стеклянн[а-я]*\s+горш/u.test(title))return 'cachepot';
+ if(/тех(?:ническ[а-я]*|\.?)[\s.-]*горш|транспортировочн[а-я]*\s+горш|без\s+(?:декоративного\s+)?кашпо/u.test(description))return 'technical';
+ if(/кашпо|керамическ[а-я]*\s+горш|декоративн[а-я]*\s+горш/u.test(description))return 'cachepot';
  return 'unspecified';
 };
 const publicProductCategory=p=>{
