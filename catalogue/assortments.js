@@ -7,7 +7,7 @@ document.body.insertAdjacentHTML('beforeend',`<dialog id="assortment-list"><div 
 const agMenu=document.createElement('button');agMenu.className='subtle';agMenu.textContent='Ассортименты';document.querySelector('.header-actions').append(agMenu);
 async function agReload(){assortmentGroups=(await api('assortments')).groups;return assortmentGroups;}
 function agOptions(id){$('#assortment-select').innerHTML='<option value="">Выберите ассортимент</option>'+assortmentGroups.map(g=>`<option value="${agEscape(g.id)}">${agEscape(g.title)}</option>`).join('');$('#assortment-select').value=id||'';}
-function agMode(){const on=$('#assortment-on').checked;$('#assortment-choice').hidden=!on;const card=document.querySelector('[data-channel-card="avito"]');card.hidden=on;card.querySelectorAll('input,select,textarea,button').forEach(e=>e.disabled=on);if(!on)setChannelControls('avito');updateDescriptionTabs();}
+function agMode(){const on=$('#assortment-on').checked;$('#assortment-choice').hidden=!on;const card=document.querySelector('[data-channel-card="avito"]');card.hidden=on;card.querySelectorAll('input,select,textarea,button').forEach(e=>e.disabled=on);if(!on)setChannelControls('avito');updateDescriptionTabs();updateEditorSaveSummary();}
 const agOriginalOpen=openEditor;openEditor=async function(id,groupId=''){await agReload();agOriginalOpen(id);const assigned=editing?.assortmentId||groupId;$('#assortment-on').checked=Boolean(assigned);agOptions(assigned);agMode();};
 $('#assortment-on').addEventListener('change',()=>{dirty=true;agMode();});$('#assortment-select').addEventListener('change',()=>{dirty=true;agMode()});
 // Capture before the main save handler builds its payload. Backend owns the binding.
