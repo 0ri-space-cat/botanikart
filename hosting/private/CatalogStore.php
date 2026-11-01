@@ -51,7 +51,8 @@ final class CatalogStore
                 $c=json_decode($row['channel_document'],true,512,JSON_THROW_ON_ERROR);
                 $state=(string)($c['state']??'');
                 if(!in_array($state,['error','queued','awaiting_confirmation','waiting_connection'],true))continue;
-                if(!empty($c['publicationRequested']))continue;
+                // Never reset a deliberate withdrawal/hide intent.
+                if(empty($c['enabled'])||!empty($c['publicationRequested']))continue;
                 $remoteId=(string)($p['flowwowProductId']??'');
                 if($remoteId===''||$remoteId!==(string)($c['externalId']??''))continue;
                 // Marketplace-specific title, price or description overrides are
