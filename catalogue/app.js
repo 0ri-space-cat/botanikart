@@ -61,8 +61,8 @@ const publicationStage=c=>{
  if(c.state==='moderation')return 'moderation';
  return 'sending';
 };
-function publicationResults(p,host){
- const rows=['avito','flowwow'].map(key=>({key,c:channelData(p)[key]||{}})).filter(({key,c})=>publicationOwned(p,key)&&(c.enabled||c.error));
+function publicationResults(p,host,keys=['avito','flowwow']){
+ const rows=keys.map(key=>({key,c:channelData(p)[key]||{}})).filter(({key,c})=>publicationOwned(p,key)&&(c.enabled||c.error));
  host.hidden=!rows.length;
  host.innerHTML=rows.map(({key,c})=>{
   const stage=publicationStage(c);
@@ -114,17 +114,19 @@ function watchPublicationReceipts(list,host){
  host.querySelectorAll('[data-receipt-product]').forEach(el=>publicationObserver.observe(el));
 }
 function renderPublicationTracker(){
+ // The marketplace tab filters both products and publication receipts.
+ const keys=source==='all'?['avito','flowwow']:['avito','flowwow'].includes(source)?[source]:[];
  const host=$('#publication-save-result');
  if(!host)return;
  publicationObserver?.disconnect();publicationTimers.forEach(clearTimeout);
- const active=products.filter(p=>!p.deleted&&!publicationWasClosed(p)&&Boolean(publicationWatching[p.id])&&publicationReceipts[p.id]!==publicationReceiptKey(p)&&['avito','flowwow'].some(key=>publicationOwned(p,key)&&publicationPending(channelData(p)[key]||{})));
+ const active=products.filter(p=>!p.deleted&&!publicationWasClosed(p)&&Boolean(publicationWatching[p.id])&&publicationReceipts[p.id]!==publicationReceiptKey(p)&&keys.some(key=>publicationOwned(p,key)&&publicationPending(channelData(p)[key]||{})));
  const currentId=host.dataset.productId;
  const unseen=p=>!publicationWasClosed(p)&&publicationReceipts[p.id]!==publicationReceiptKey(p);
  const current=products.find(p=>p.id===currentId&&Boolean(publicationWatching[p.id])&&unseen(p));
  // Never turn 24 hours of historical/imported status updates into notifications.
  // A completed result reappears only if this browser actually saved the product.
  const recent=products.filter(p=>!p.deleted&&!active.includes(p)&&!publicationWasClosed(p)&&
-   Boolean(publicationWatching[p.id])&&unseen(p)&&['avito','flowwow'].some(key=>
+   Boolean(publicationWatching[p.id])&&unseen(p)&&keys.some(key=>
      publicationOwned(p,key)&&['published','error'].includes((channelData(p)[key]||{}).state))).slice(0,3);
  const seenListings=new Set();
  const list=[...(current?[current]:[]),...active.filter(p=>p.id!==currentId),...recent.filter(p=>p.id!==currentId)].filter(p=>{const a=channelData(p).avito||{};if(!a.externalId||!publicationPending(a)||publicationPending(channelData(p).flowwow||{}))return true;const key=a.externalId;if(seenListings.has(key))return false;seenListings.add(key);return true;});
@@ -133,10 +135,10 @@ function renderPublicationTracker(){
  host.hidden=false;
  host.innerHTML=list.map(p=>{
   const fresh=p.id===currentId;
-  const pending=['avito','flowwow'].some(key=>publicationOwned(p,key)&&publicationPending(channelData(p)[key]||{}));
+  const pending=keys.some(key=>publicationOwned(p,key)&&publicationPending(channelData(p)[key]||{}));
   return `<section class="publication-tracker-item" data-receipt-product="${escape(p.id)}"><button class="notice-close" type="button" data-close-publication="${escape(p.id)}" aria-label="Закрыть уведомление">×</button><h3><span aria-hidden="true">✓</span> ${fresh?'Товар добавлен на сайт':'Товар сохранён в каталоге'}</h3><p class="publication-tracker-title">${escape(p.title)}</p><div class="publication-tracker-channels" data-tracker-product="${escape(p.id)}"></div></section>`;
  }).join('');
- for(const p of list){const box=[...host.querySelectorAll('[data-tracker-product]')].find(el=>el.dataset.trackerProduct===p.id);if(box)publicationResults(p,box)}
+ for(const p of list){const box=[...host.querySelectorAll('[data-tracker-product]')].find(el=>el.dataset.trackerProduct===p.id);if(box)publicationResults(p,box,keys)}
  watchPublicationReceipts(list,host);
 }
 
