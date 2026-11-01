@@ -24,7 +24,10 @@ const plantPotKind=p=>{
  if(/кашпо|керамическ[а-я]*\s+горш|декоративн[а-я]*\s+горш/u.test(description))return 'cachepot';
  return 'unspecified';
 };
+const plantType=p=>['succulent','indoor','terrarium'].includes(p.plantType)?p.plantType:productGroup(p)==='plant'?'terrarium':'indoor';
 const publicProductCategory=p=>{
+ if(productGroup(p)==='potted'&&plantType(p)==='succulent')return 'Суккулент';
+ if(productGroup(p)==='potted'&&plantType(p)==='terrarium')return 'Растение для флорариума';
  const kind=plantPotKind(p);
  return kind==='technical'?'Растение в техническом горшке':kind==='cachepot'?'Растение в готовом кашпо':categoryNames[productGroup(p)]||'Растение';
 };
@@ -77,28 +80,33 @@ dialog.addEventListener('close',()=>{document.body.classList.remove('modal-open'
 lightbox.querySelector('.close-lightbox').addEventListener('click',()=>lightbox.close());
 const grid=document.querySelector('[data-catalog]');
 if(grid){
- let section='all',plantCategory='all';
+ let section='all',plantCategory='all',potCategory='all';
  const sections={florarium:['florarium','composition'],plants:['potted','plant'],material:['material']};
  const search=document.querySelector('.catalog-search input'),sort=document.querySelector('.catalog-controls select'),stock=document.querySelector('[data-stock]');
  const sectionButtons=[...document.querySelectorAll('[data-section]')],plantButtons=[...document.querySelectorAll('[data-plant-category]')];
  const url=new URL(location.href),initial=url.searchParams.get('section'),initialCategory=url.searchParams.get('category');
+ const potButtons=[...document.querySelectorAll('[data-pot-category]')];
+ if(['succulent','indoor','terrarium'].includes(url.searchParams.get('plant'))){section='plants';plantCategory=url.searchParams.get('plant');}
  if(Object.hasOwn(sections,initial))section=initial;
- if(['technical','cachepot'].includes(url.searchParams.get('pot'))){section='plants';plantCategory=url.searchParams.get('pot');}
- else if(initialCategory==='plant'){section='plants';plantCategory='plant';}
+ if(['technical','cachepot'].includes(url.searchParams.get('pot'))){section='plants';plantCategory='indoor';potCategory=url.searchParams.get('pot');}
+ else if(initialCategory==='plant'){section='plants';plantCategory='terrarium';}
  else if(initialCategory==='potted'){section='plants';plantCategory='all';}
  function render(updateURL=false){
   const query=search.value.toLocaleLowerCase('ru-RU').replace(/ё/g,'е').trim();
-  let items=data.products.filter(p=>(section==='all'||sections[section].includes(productGroup(p)))&&(section!=='plants'||plantCategory==='all'||(plantCategory==='plant'?productGroup(p)==='plant':plantPotKind(p)===plantCategory))&&(!stock.checked||p.available)&&(!query||(p.title+' '+p.description).toLocaleLowerCase('ru-RU').replace(/ё/g,'е').includes(query)));
+  let items=data.products.filter(p=>(section==='all'||sections[section].includes(productGroup(p)))&&(section!=='plants'||plantCategory==='all'||plantType(p)===plantCategory)&&(section!=='plants'||plantCategory!=='indoor'||potCategory==='all'||plantPotKind(p)===potCategory)&&(!stock.checked||p.available)&&(!query||(p.title+' '+p.description).toLocaleLowerCase('ru-RU').replace(/ё/g,'е').includes(query)));
   items.sort(sort.value==='price-asc'?(a,b)=>a.price-b.price:sort.value==='price-desc'?(a,b)=>b.price-a.price:(a,b)=>(groupOrder[productGroup(a)]??9)-(groupOrder[productGroup(b)]??9)||Number(b.available)-Number(a.available)||a.title.localeCompare(b.title,'ru'));
   grid.innerHTML=items.map(productCard).join('');document.querySelector('[data-results]').textContent=`Показано ${items.length} из ${data.products.length}`;document.querySelector('.empty-catalog').hidden=items.length!==0;grid.hidden=items.length===0;
   sectionButtons.forEach(button=>{const active=button.dataset.section===section;button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active))});
   document.querySelector('.plant-subcategories').hidden=section!=='plants';
-  plantButtons.forEach(button=>{const key=button.dataset.plantCategory;button.hidden=key==='plant'&&!data.products.some(p=>productGroup(p)==='plant');const active=key===plantCategory;button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active))});
+  plantButtons.forEach(button=>{const key=button.dataset.plantCategory;const active=key===plantCategory;button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active))});
+  document.querySelector('.pot-subcategories').hidden=section!=='plants'||plantCategory!=='indoor';
+  potButtons.forEach(b=>{const on=b.dataset.potCategory===potCategory;b.classList.toggle('active',on);b.setAttribute('aria-pressed',String(on))});
   for(const [key,groups] of Object.entries(sections))document.querySelector(`[data-section-count="${key}"]`).textContent=data.products.filter(p=>groups.includes(productGroup(p))).length;
-  if(updateURL){const next=new URL(location.href);next.searchParams.delete('section');next.searchParams.delete('category');next.searchParams.delete('pot');if(section!=='all')next.searchParams.set('section',section);if(section==='plants'&&['technical','cachepot'].includes(plantCategory))next.searchParams.set('pot',plantCategory);else if(section==='plants'&&plantCategory==='plant')next.searchParams.set('category','plant');history.replaceState(null,'',next.pathname+next.search+next.hash)}
+  if(updateURL){const next=new URL(location.href);next.searchParams.delete('section');next.searchParams.delete('category');next.searchParams.delete('pot');next.searchParams.delete('plant');if(section!=='all')next.searchParams.set('section',section);if(section==='plants'&&plantCategory!=='all')next.searchParams.set('plant',plantCategory);if(section==='plants'&&plantCategory==='indoor'&&potCategory!=='all')next.searchParams.set('pot',potCategory);history.replaceState(null,'',next.pathname+next.search+next.hash)}
  }
- sectionButtons.forEach(button=>button.addEventListener('click',()=>{section=button.dataset.section;plantCategory='all';render(true)}));
- plantButtons.forEach(button=>button.addEventListener('click',()=>{plantCategory=button.dataset.plantCategory;render(true)}));
+ sectionButtons.forEach(button=>button.addEventListener('click',()=>{section=button.dataset.section;plantCategory='all';potCategory='all';render(true)}));
+ plantButtons.forEach(button=>button.addEventListener('click',()=>{plantCategory=button.dataset.plantCategory;potCategory='all';render(true)}));
+ potButtons.forEach(b=>b.onclick=()=>{potCategory=b.dataset.potCategory;render(true)});
  search.addEventListener('input',()=>render());sort.addEventListener('change',()=>render());stock.addEventListener('change',()=>render());
  document.querySelector('[data-reset]').addEventListener('click',()=>{section='all';plantCategory='all';search.value='';stock.checked=false;sort.value='default';render(true)});render();
 }

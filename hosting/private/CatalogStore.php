@@ -21,6 +21,7 @@ final class CatalogStore
         $this->initializeEmptyCatalogue();
         $this->migrateStandaloneOnce();
         $this->migratePlantCategoriesOnce();
+        $this->migratePlantTypesOnce();
     }
 
     private function marker(string $name): bool
@@ -61,6 +62,12 @@ final class CatalogStore
         if($p['catalogGroup']==='potted'&&!in_array($p['potType']??'', ['technical','cachepot'],true)){
             $text=mb_strtolower(($p['title']??'').' '.($p['description']??''));
             $p['potType']=preg_match('/тех(?:ническ[а-я]*|\.?)[\s.-]*горш|транспортировочн[а-я]*\s+горш|без\s+(?:декоративного\s+)?кашпо/u',$text)?'technical':(preg_match('/кашпо|керамическ[а-я]*\s+горш|декоративн[а-я]*\s+горш/u',$text)?'cachepot':'technical');
+        }
+        if($p['catalogGroup']==='potted'&&!in_array($p['plantType']??'', ['succulent','indoor','terrarium'],true)){
+            $title=mb_strtolower($p['title']??'');$description=mb_strtolower($p['description']??'');
+            if(preg_match('/суккулент|кактус|алоэ|эхевер|эчевер|хаворт|крассул|толстян|литопс|эониум|седум|очиток|гастери|крестовник\s+роули|curio|senecio/u',$title))$p['plantType']='succulent';
+            elseif(preg_match('/для\s+флорариум/u',$title)||(($p['potType']??'')!=='cachepot'&&preg_match('/(?:подход[а-я]*|идеальн[а-я]*|растени[а-я]*)[^.!?\n]{0,65}для\s+(?:озеленения\s+|закрытых\s+|влажных\s+)?флорариум|для\s+закрытых\s+флорариум/u',$description)))$p['plantType']='terrarium';
+            else $p['plantType']='indoor';
         }
         $p['category']=$p['catalogGroup'];
         if(($p['status']??'')==='order')$p['status']='preorder';
@@ -112,6 +119,21 @@ final class CatalogStore
         }catch(\Throwable $e){$this->db->exec('ROLLBACK');throw $e;}
     }
 
+    private function migratePlantTypesOnce(): void
+    {
+        if($this->marker('plant_types:v3'))return;
+        $this->backup();$this->db->exec('BEGIN IMMEDIATE');
+        try{
+            $update=$this->db->prepare('UPDATE products SET document=?,version=version+1 WHERE id=?');
+            foreach($this->db->query('SELECT id,document FROM products') as $row){
+                $p=json_decode($row['document'],true,512,JSON_THROW_ON_ERROR);
+                if(($p['catalogGroup']??'')!=='potted')continue;
+                $update->execute([json_encode($this->normalizeProduct($p),JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),$row['id']]);
+            }
+            $this->db->exec("INSERT INTO metadata(name,value) VALUES('plant_types:v3','done')");$this->db->exec('COMMIT');
+        }catch(\Throwable $e){$this->db->exec('ROLLBACK');throw $e;}
+    }
+
     public function all(bool $administrative=false): array
     {
         $sql=$administrative?'SELECT *,rowid AS catalogue_order FROM products ORDER BY rowid':'SELECT *,rowid AS catalogue_order FROM products WHERE hidden=0 AND missing=0 AND deleted=0 ORDER BY rowid';
@@ -157,7 +179,7 @@ final class CatalogStore
             $images=$input['images']??[];if(!is_array($images)||!array_is_list($images)||!$images||count($images)>20)throw new \InvalidArgumentException('invalid_images');
             foreach($images as $image){$uploaded=is_string($image)&&preg_match('~^assets/uploads/catalogue/[a-f0-9]{32}\.jpg$~D',$image)&&is_file(dirname($this->snapshot,2).'/'.$image);if(!$uploaded&&!in_array($image,$prior['images']??[],true))throw new \InvalidArgumentException('invalid_images');}
             $soldOnSite=!empty($prior['soldOnSite'])&&$status==='sold';if($soldOnSite)$status=$prior['status']??'ready';
-            $product=array_merge($prior,['id'=>$id?:'local-'.bin2hex(random_bytes(12)),'title'=>$title,'description'=>$description,'price'=>round((float)$price,2),'category'=>$group,'catalogGroup'=>$group,'potType'=>($group==='potted'&&in_array($input['potType']??'', ['technical','cachepot'],true)?$input['potType']:'unspecified'),'images'=>array_values(array_unique($images)),'available'=>$status==='ready','status'=>$status,'purchaseMode'=>$purchaseMode,'soldOnSite'=>$soldOnSite]);
+            $product=array_merge($prior,['id'=>$id?:'local-'.bin2hex(random_bytes(12)),'title'=>$title,'description'=>$description,'price'=>round((float)$price,2),'category'=>$group,'catalogGroup'=>$group,'plantType'=>($group==='potted'&&in_array($input['plantType']??'', ['succulent','indoor','terrarium'],true)?$input['plantType']:($prior['plantType']??null)),'potType'=>($group==='potted'&&in_array($input['potType']??'', ['technical','cachepot'],true)?$input['potType']:'unspecified'),'images'=>array_values(array_unique($images)),'available'=>$status==='ready','status'=>$status,'purchaseMode'=>$purchaseMode,'soldOnSite'=>$soldOnSite]);
             $product=$this->normalizeProduct($product);$id=$product['id'];$doc=json_encode($product,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
             if($existing){$update=$this->db->prepare('UPDATE products SET source=\'manual\',document=?,hidden=?,missing=0,managed=1,version=version+1,updated_at=? WHERE id=? AND version=?');$update->execute([$doc,(int)$hidden,gmdate('c'),$id,$version]);}
             else{$update=$this->db->prepare('INSERT INTO products(id,source,document,hidden,missing,managed,deleted,updated_at) VALUES(?,\'manual\',?,?,0,1,0,?)');$update->execute([$id,$doc,(int)$hidden,gmdate('c')]);}

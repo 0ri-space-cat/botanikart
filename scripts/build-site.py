@@ -25,6 +25,9 @@ PAGES = (
     "payment-result.js",
 )
 PUBLIC_ASSETS = (
+    "plant-succulent.png",
+    "plant-indoor.png",
+    "plant-terrarium.png",
     "category-florarium.png",
     "category-plants.png",
     "category-material.png",
