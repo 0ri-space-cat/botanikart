@@ -179,6 +179,31 @@ final class PublicationRunner
         $this->flushAvitoUpload();
         return ['results'=>$results];
     }
+    /**
+     * Reconcile an older false Flowwow failure with a read-only API lookup.
+     * This path never creates, updates, unhides or retries any product.
+     */
+    public function reconcileFlowwowError(string $id): array
+    {
+        $lock=fopen($this->directory.'/catalogue/publications.lock','c');
+        if(!$lock||!flock($lock,LOCK_EX|LOCK_NB)){if($lock)fclose($lock);return ['busy'=>true];}
+        try{
+            $q=$this->store->db->prepare("SELECT * FROM publication_jobs WHERE product_id=? AND channel='flowwow' AND state='retry'");
+            $q->execute([$id]);$job=$q->fetch(\PDO::FETCH_ASSOC);
+            if(!$job)return ['skipped'=>true];
+            $rows=array_values(array_filter($this->store->all(true),fn($p)=>$p['id']===$id));
+            if(!$rows)return ['skipped'=>true];
+            $p=$rows[0];$c=$p['channels']['flowwow']??[];
+            if(empty($c['enabled'])||($c['state']??'')!=='error'||($c['management']??'')!=='site')
+                return ['skipped'=>true];
+            $check=$this->flowwow()->confirmPublished($p);
+            if(!in_array($check['state']??'', ['published','moderation'],true))
+                return ['verified'=>false];
+            if(!$this->recordResult($job,$check+['error'=>''],$check['state']==='published'?'confirmed':'moderation'))
+                return ['skipped'=>true];
+            return ['verified'=>true,'state'=>$check['state']];
+        }finally{flock($lock,LOCK_UN);fclose($lock);}
+    }
     public function reports(): array
     {
         $lock=fopen($this->directory.'/catalogue/reports.lock','c');if(!$lock||!flock($lock,LOCK_EX|LOCK_NB)){if($lock)fclose($lock);return ['busy'=>true];}
