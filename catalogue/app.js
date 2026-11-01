@@ -66,7 +66,7 @@ function publicationResults(p,host,keys=['avito','flowwow']){
  host.hidden=!rows.length;
  host.innerHTML=rows.map(({key,c})=>{
   const stage=publicationStage(c);
-  const status={error:'Ошибка публикации',published:'Товар опубликован',moderation:'Товар на модерации',sending:'Отправляется'}[stage]+(stage==='sending'&&c.state==='awaiting_report'?' — ожидает обработки Авито':stage==='sending'&&c.state==='blocked_by_feed'?' — ждёт исправления другого товара':'');
+  const status={error:'Ошибка публикации',published:'Товар опубликован',moderation:key==='flowwow'?'Ожидает активации на Flowwow':'Товар на модерации',sending:'Отправляется'}[stage]+(stage==='sending'&&c.state==='awaiting_report'?' — ожидает обработки Авито':stage==='sending'&&c.state==='blocked_by_feed'?' — ждёт исправления другого товара':'');
   const icon=stage==='error'?'✕':stage==='published'?'✓✓':stage==='moderation'?'✓':'<span class="publication-spinner" aria-hidden="true"></span>';
   const details=stage==='error'&&c.error?`<p class="publication-error-reason">${escape(c.error)}</p>`:'';
   const retry=stage==='error'&&c.enabled&&c.management==='site'?`<button type="button" class="publication-action" data-retry-channel="${key}" data-product-id="${escape(p.id)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.4 6M20 4v7h-7"/></svg><span data-retry-label>Повторить попытку</span></button>`:'';
@@ -159,11 +159,28 @@ async function api(action,body,params={}){
 function showLogin(){authenticated=false;$('#session-loading').hidden=true;$('#catalog-view').hidden=true;$('#orders-view').hidden=true;$('#login-view').hidden=false;$('#logout').hidden=true;$('#editor').close();products=[]}
 async function load(){await schemaReady;const result=await api('products');products=result.products;connections=result.connections||{};renderConnections();render();renderPublicationTracker()}
 async function showCatalog(){authenticated=true;window.scrollTo(0,0);$('#session-loading').hidden=true;$('#login-view').hidden=true;$('#catalog-view').hidden=false;$('#logout').hidden=false;await load();checkConnections();loadOrders().catch(()=>{});if(location.hash.startsWith('#orders'))openOrders()}
+function patchProductGrid(html){
+ const grid=$('#products'),template=document.createElement('template');template.innerHTML=html;
+ const existing=new Map([...grid.children].map(el=>[el.dataset.id,el]));let cursor=grid.firstElementChild;
+ for(const fresh of [...template.content.children]){
+  const card=existing.get(fresh.dataset.id)||fresh;existing.delete(fresh.dataset.id);
+  if(card!==fresh){
+   if(card.className!==fresh.className)card.className=fresh.className;
+   const image=card.querySelector('img'),nextImage=fresh.querySelector('img');
+   if(image.getAttribute('src')!==nextImage.getAttribute('src'))image.setAttribute('src',nextImage.getAttribute('src'));
+   const body=card.querySelector('.product-body'),nextBody=fresh.querySelector('.product-body');if(body.innerHTML!==nextBody.innerHTML)body.replaceWith(nextBody);
+   const badge=card.querySelector('.hidden-badge'),nextBadge=fresh.querySelector('.hidden-badge');
+   if(!nextBadge)badge?.remove();else if(!badge)image.after(nextBadge);else if(badge.outerHTML!==nextBadge.outerHTML)badge.replaceWith(nextBadge);
+  }
+  if(card!==cursor)grid.insertBefore(card,cursor);cursor=card.nextElementSibling;
+ }
+ for(const card of existing.values())card.remove();
+}
 function render(){
  const query=$('#search').value.toLocaleLowerCase('ru-RU').replace(/ё/g,'е').trim();const visibility=$('#visibility').value;const category=$('#category').value;
  const items=products.filter(p=>(visibility==='archive'?p.deleted:!p.deleted)&&(category==='all'||productGroup(p)===category)&&matchesChannel(p,source)&&(!query||(p.title+' '+p.description).toLocaleLowerCase('ru-RU').replace(/ё/g,'е').includes(query))&&(visibility==='all'||visibility==='archive'||visibility==='hidden'&&(p.hidden||p.sourceMissing)||visibility==='visible'&&!p.hidden&&!p.sourceMissing||visibility==='ready'&&p.available&&!p.soldOnSite||visibility==='sold'&&(p.status==='sold'||p.soldOnSite)));
  $('#total').textContent=products.length;$('#empty').hidden=items.length!==0;
- $('#products').innerHTML=items.map(p=>`<button class="product ${p.source==='avito'?'source-avito':''} ${p.hidden||p.sourceMissing||p.deleted?'is-hidden':''}" data-id="${escape(p.id)}"><img src="${escape(imageURL(p.images?.[0]||'assets/logo-mark-roots.png'))}" alt="" loading="lazy">${p.deleted?'<span class="hidden-badge">В архиве</span>':(p.hidden||p.sourceMissing?'<span class="hidden-badge">Скрыт</span>':'')}<div class="product-body"><span class="publication-badges">${productBadges(p)}${p.assortmentId?'<span class="assortment-badge" title="В составе ассортимента Авито">▦</span>':''}</span>${['avito','flowwow'].filter(k=>publicationOwned(p,k)&&channelData(p)[k]?.error).map(k=>`<span class="product-publication-error">✕ ${escape(names[k])}: ошибка публикации</span>`).join('')}<h2>${escape(p.title)}</h2><span class="product-category">${escape(categories[productGroup(p)]||'Растение')}</span><span class="product-price">${money(p.price)}</span><span class="product-status">${escape(p.soldOnSite?'Раскупили':(statuses[p.status]||(p.available?'В наличии':'Под заказ')))}</span></div></button>`).join('');
+ patchProductGrid(items.map(p=>`<button class="product ${p.source==='avito'?'source-avito':''} ${p.hidden||p.sourceMissing||p.deleted?'is-hidden':''}" data-id="${escape(p.id)}"><img src="${escape(imageURL(p.images?.[0]||'assets/logo-mark-roots.png'))}" alt="" loading="lazy">${p.deleted?'<span class="hidden-badge">В архиве</span>':(p.hidden||p.sourceMissing?'<span class="hidden-badge">Скрыт</span>':'')}<div class="product-body"><span class="publication-badges">${productBadges(p)}${p.assortmentId?'<span class="assortment-badge" title="В составе ассортимента Авито">▦</span>':''}</span>${['avito','flowwow'].filter(k=>publicationOwned(p,k)&&channelData(p)[k]?.error).map(k=>`<span class="product-publication-error">✕ ${escape(names[k])}: ошибка публикации</span>`).join('')}<h2>${escape(p.title)}</h2><span class="product-category">${escape(categories[productGroup(p)]||'Растение')}</span><span class="product-price">${money(p.price)}</span><span class="product-status">${escape(p.soldOnSite?'Раскупили':(statuses[p.status]||(p.available?'В наличии':'Под заказ')))}</span></div></button>`).join(''));
 }
 function renderPhotos(){
  const gallery=$('#photos');
@@ -331,7 +348,7 @@ for(const key of ['avito','flowwow']){
 $('#edit-form').elements.description.addEventListener('input',()=>{for(const key of ['avito','flowwow'])if(descriptionInherited(key))updateDescriptionControls(key)});
 
 function renderPublicationSettings(p){
- const form=$('#edit-form');publicationResults(p,$('#editor-publication-results'));for(const key of ['avito','flowwow']){const c=channelData(p)[key];form.elements['publish_'+key].checked=Boolean(c.enabled);form.elements['publish_'+key].disabled=Boolean(p.deleted);for(const f of ['price','title','description']){form.elements[f+'_'+key].value=c[f]??'';form.elements[f+'_'+key].disabled=Boolean(p.deleted)}descriptionDrafts[key]=c.description||null;document.querySelector(`[data-description-inherit="${key}"]`).checked=!c.description;$('#state-'+key).textContent=c.error?'Ошибка публикации':publicationPending(c)?'Публикуется…':c.state==='published'?'Опубликовано':c.state==='moderation'?'На модерации':'';document.querySelector(`[data-channel-body="${key}"]`).hidden=!c.error;document.querySelector(`[data-channel-expand="${key}"]`).setAttribute('aria-expanded',String(Boolean(c.error)));document.querySelector(`[data-channel-card="${key}"]`).classList.toggle('is-enabled',Boolean(c.enabled));updateChannelQuickStatus(key,c);}
+ const form=$('#edit-form');publicationResults(p,$('#editor-publication-results'));for(const key of ['avito','flowwow']){const c=channelData(p)[key];form.elements['publish_'+key].checked=Boolean(c.enabled);form.elements['publish_'+key].disabled=Boolean(p.deleted);for(const f of ['price','title','description']){form.elements[f+'_'+key].value=c[f]??'';form.elements[f+'_'+key].disabled=Boolean(p.deleted)}descriptionDrafts[key]=c.description||null;document.querySelector(`[data-description-inherit="${key}"]`).checked=!c.description;$('#state-'+key).textContent=c.error?'Ошибка публикации':c.state==='moderation'?(key==='flowwow'?'Не активен на Flowwow':'На модерации'):publicationPending(c)?'Публикуется…':c.state==='published'?'Опубликовано':'';document.querySelector(`[data-channel-body="${key}"]`).hidden=!c.error;document.querySelector(`[data-channel-expand="${key}"]`).setAttribute('aria-expanded',String(Boolean(c.error)));document.querySelector(`[data-channel-card="${key}"]`).classList.toggle('is-enabled',Boolean(c.enabled));updateChannelQuickStatus(key,c);}
  const av=channelData(p).avito;$('#avito-shared').hidden=!(av.sharedCount>1);$('#avito-shared').textContent=`На Авито это одно общее объявление для ${av.sharedCount||1} товаров. Изменения Авито затронут все товары этого общего объявления.`;
  if(av.listingTitle){form.elements.title_avito.placeholder=av.listingTitle;form.elements.description_avito.placeholder=av.listingDescription;form.elements.price_avito.placeholder=money(av.listingPrice);}
  flowwowEditorSequence++;flowwowEditorData=null;flowwowDrafts={};if(publicationOwned(p,'flowwow')&&channelData(p).flowwow.error)loadFlowwowEditor();for(const k of ['avito','flowwow'])setChannelControls(k);updateDescriptionTabs();selectDescriptionTab('site');
