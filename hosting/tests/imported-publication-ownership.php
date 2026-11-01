@@ -57,6 +57,17 @@ try {
     $store=new CatalogStore($directory,$root.'/data/catalog.json');
     ownCheck($store->channels('flowwow-321')['flowwow']['management']==='site',
         'Historical repair cancelled a genuine publication');
+    // A requested withdrawal is different from an accidental republish.
+    $withdraw=$store->channels('flowwow-321')['flowwow'];
+    $withdraw['enabled']=false;$withdraw['management']='site';
+    $withdraw['state']='error';$withdraw['error']='Hide not confirmed';
+    unset($withdraw['publicationRequested']);
+    $set->execute([json_encode($withdraw,JSON_UNESCAPED_UNICODE)]);
+    $store->db->exec("UPDATE publication_jobs SET state='retry' WHERE product_id='flowwow-321' AND channel='flowwow'");
+    $store=new CatalogStore($directory,$root.'/data/catalog.json');
+    ownCheck($store->channels('flowwow-321')['flowwow']['state']==='error'
+        &&$store->channels('flowwow-321')['flowwow']['enabled']===false,
+        'Legacy requested withdrawal was incorrectly cancelled');
     echo "Imported ownership checks passed: site-only edit, phantom-job repair, genuine publication.\n";
 } finally {
     $files=new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root,FilesystemIterator::SKIP_DOTS),RecursiveIteratorIterator::CHILD_FIRST);
