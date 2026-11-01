@@ -24,7 +24,7 @@ final class FlowwowPublisher
             $decoded=is_string($raw)?json_decode($raw,true):null;
             $details=is_array($decoded)?($decoded['errors'][0]['message']??$decoded['message']??null):null;
             $reason=is_string($details)?$this->safeError($details):'запрос не выполнен';
-            throw new \RuntimeException('Flowwow: '.$reason.' (HTTP '.$status.').');
+            throw new \RuntimeException('Flowwow: '.$reason.' (HTTP '.$status.').',$status);
         }
         $data=json_decode($raw,true,512,JSON_THROW_ON_ERROR);
         if(!is_array($data))throw new \RuntimeException('Flowwow: неожиданный ответ.');
@@ -214,10 +214,35 @@ final class FlowwowPublisher
             $mapping=$this->request('/apiseller/products/offersMappings',['offers'=>[['offerId'=>$offer,'productId'=>(int)$remoteId]]]);
             $this->ensureSuccess($mapping);
         }
-        $result=$this->request($source?'/apiseller/products/update':'/apiseller/products/create',['products'=>[$body]]);$this->ensureSuccess($result);
-        $this->ensureSuccess($this->request('/apiseller/products/unhide',['offers'=>[['offerId'=>$offer]]]));
-        $knownId=$remoteId ?: (string)($result['data'][0]['productId']??$result['items'][0]['productId']??'');
         $forCheck=$p;$forCheck['channels']['flowwow']['offerId']=$offer;
+        $knownId=$remoteId;
+        try {
+            $result=$this->request($source?'/apiseller/products/update':'/apiseller/products/create',['products'=>[$body]]);
+            $this->ensureSuccess($result);
+            $knownId=$remoteId ?: (string)($result['data'][0]['productId']??$result['items'][0]['productId']??'');
+        }catch(\Throwable $writeError){
+            // A timeout or a partial API response can arrive AFTER Flowwow
+            // created the product. Verify its stable offerId before reporting
+            // an error or attempting another write.
+            $observed=$this->confirmPublished($forCheck,$knownId);
+            if(in_array($observed['state']??'', ['published','moderation'],true))return $observed;
+            if($writeError instanceof \RuntimeException && in_array($writeError->getCode(),[0,408,429,500,502,503,504],true)){
+                // A transient/ambiguous result must not lead to an automatic duplicate.
+                return ['state'=>'awaiting_confirmation','offerId'=>$offer,'externalId'=>$knownId,
+                    'message'=>'Flowwow: проверяем, приняла ли площадка товар после сбоя связи.'];
+            }
+            throw $writeError;
+        }
+        try {
+            $this->ensureSuccess($this->request('/apiseller/products/unhide',['offers'=>[['offerId'=>$offer]]]));
+        }catch(\Throwable $unhideError){
+            // The product write was accepted. An activation delay or error is
+            // not evidence that creation failed. Keep checking the same offerId.
+            $observed=$this->confirmPublished($forCheck,$knownId);
+            if(in_array($observed['state']??'', ['published','moderation'],true))return $observed;
+            return ['state'=>'awaiting_confirmation','offerId'=>$offer,'externalId'=>$knownId,
+                'message'=>'Товар отправлен в Flowwow; ожидаем подтверждения активации.'];
+        }
         return $this->confirmPublished($forCheck,$knownId);
     }
 }
