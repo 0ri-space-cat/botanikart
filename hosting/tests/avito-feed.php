@@ -10,6 +10,20 @@ $xml=$feed->render([$p],'https://botanikart.ru');$dom=new DOMDocument();assertFe
 assertFeed($dom->getElementsByTagName('Id')->item(0)->textContent==='ba-manual-fixture','ID not stable');
 assertFeed($dom->getElementsByTagName('Price')->item(0)->textContent==='450','Override price lost');
 assertFeed($dom->getElementsByTagName('Description')->item(0)->textContent===str_replace('\\n',"\n",$p['description']),'Description damaged');
+$separate=$p;
+$separate['channels']['avito']['description']='Только для Авито: курьер, самовывоз и доставка.';
+$xmlSeparate=$feed->render([$separate],'https://botanikart.ru');
+$avitoDoc=new DOMDocument();assertFeed($avitoDoc->loadXML($xmlSeparate),'Override XML malformed');
+assertFeed($avitoDoc->getElementsByTagName('Description')->item(0)->textContent===$separate['channels']['avito']['description'],
+ 'Independent Avito description not used in XML');
+$separate['description']='На сайте: без упоминания курьерской доставки.';
+$xmlAfterSiteEdit=$feed->render([$separate],'https://botanikart.ru');
+$afterDoc=new DOMDocument();assertFeed($afterDoc->loadXML($xmlAfterSiteEdit),'Site edited XML malformed');
+assertFeed($afterDoc->getElementsByTagName('Description')->item(0)->textContent===$separate['channels']['avito']['description'],
+ 'Website description changed the independent Avito text');
+assertFeed(!str_contains($xmlAfterSiteEdit,$separate['description']),
+ 'Website-only wording leaked into a separate Avito description');
+
 assertFeed($dom->getElementsByTagName('AdStatus')->item(0)->textContent==='Free','Paid promotion enabled');
 assertFeed($dom->getElementsByTagName('ListingFee')->item(0)->textContent==='Package','Balance fallback enabled');
 $cdn=$p;$cdn['images']=['https://content2.flowwow-images.com/data/flowers/example.jpg'];assertFeed(!$feed->check($cdn,'https://botanikart.ru')['warnings'],'Official source photo rejected');
