@@ -3,11 +3,53 @@ declare(strict_types=1);
 header('Content-Type: application/json; charset=utf-8');header('Cache-Control: no-store');header('X-Content-Type-Options: nosniff');header('X-Frame-Options: DENY');header('Referrer-Policy: no-referrer');
 function respond(array $data,int $status=200):never{http_response_code($status);echo json_encode($data,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);exit;}
 function renewCatalogueSessionCookie(bool $secure):void{$p=session_get_cookie_params();setcookie(session_name(),session_id(),['expires'=>time()+2592000,'path'=>$p['path'],'secure'=>$secure,'httponly'=>true,'samesite'=>'Strict']);}
+// Long-lived per-device login survives PHP session cleanup and iOS standalone app restarts.
+function catalogueRememberCookie(string $token,bool $secure,int $expires):void{
+ setcookie('BOTANIKART_REMEMBER',$token,['expires'=>$expires,'path'=>'/catalogue/','secure'=>$secure,'httponly'=>true,'samesite'=>'Lax']);
+}
+function catalogueRememberPath(string $directory,string $token):?string{
+ if(!preg_match('/^[a-f0-9]{64}$/D',$token))return null;
+ return $directory.'/'.hash('sha256',$token).'.json';
+}
+function catalogueRememberRead(string $directory,string $token,string $revision):bool{
+ $path=catalogueRememberPath($directory,$token);
+ if($path===null||!is_file($path))return false;
+ $raw=@file_get_contents($path);if($raw===false)return false;
+ $data=json_decode($raw,true);
+ return is_array($data)&&hash_equals($revision,(string)($data['revision']??''))&&(int)($data['expires']??0)>time();
+}
+function catalogueRememberWrite(string $directory,string $token,string $revision):int{
+ $path=catalogueRememberPath($directory,$token);
+ if($path===null)throw new RuntimeException('Invalid remember token');
+ $expires=time()+31536000;
+ $payload=json_encode(['revision'=>$revision,'expires'=>$expires],JSON_THROW_ON_ERROR);
+ if(file_put_contents($path,$payload,LOCK_EX)===false)throw new RuntimeException('Remember token storage unavailable');
+ @chmod($path,0600);
+ return $expires;
+}
+function catalogueRememberForget(string $directory,string $token):void{
+ $path=catalogueRememberPath($directory,$token);
+ if($path!==null&&is_file($path))@unlink($path);
+}
+
 try{
  $private=dirname(__DIR__).'/api/.private';$authFile=$private.'/catalogue-auth.php';if(!is_file($authFile))respond(['error'=>'setup_required'],503);$auth=require $authFile;
  $secure=(!empty($_SERVER['HTTPS'])&&$_SERVER['HTTPS']!=='off')||($_SERVER['HTTP_X_FORWARDED_PROTO']??'')==='https';$localTest=getenv('CATALOGUE_LOCAL_TEST')==='1'&&in_array($_SERVER['REMOTE_ADDR']??'', ['127.0.0.1','::1'],true);if(!$secure&&!$localTest)respond(['error'=>'https_required'],403);
  $sessions=$private.'/catalogue/sessions';if(!is_dir($sessions))mkdir($sessions,0700,true);ini_set('session.use_strict_mode','1');ini_set('session.gc_maxlifetime','2592000');ini_set('session.gc_probability','0');session_save_path($sessions);session_name('BOTANIKART_CATALOGUE');session_set_cookie_params(['lifetime'=>2592000,'path'=>'/catalogue/','secure'=>$secure,'httponly'=>true,'samesite'=>'Strict']);session_start();
- if(($_SESSION['lastSeen']??0)<time()-2592000||($_SESSION['revision']??'')!==$auth['revision'])$_SESSION=[];$_SESSION['revision']=$auth['revision'];$_SESSION['lastSeen']=time();$_SESSION['csrf']??=bin2hex(random_bytes(32));if(isset($_SESSION['user']))renewCatalogueSessionCookie($secure);
+ $rememberDir=$private.'/catalogue/remember';if(!is_dir($rememberDir)&&!mkdir($rememberDir,0700,true)&&!is_dir($rememberDir))throw new RuntimeException('Remember directory unavailable');
+ $rememberToken=is_string($_COOKIE['BOTANIKART_REMEMBER']??null)?$_COOKIE['BOTANIKART_REMEMBER']:'';
+ if(($_SESSION['lastSeen']??0)<time()-2592000||($_SESSION['revision']??'')!==$auth['revision'])$_SESSION=[];
+ if(!isset($_SESSION['user'])&&catalogueRememberRead($rememberDir,$rememberToken,$auth['revision'])){
+  session_regenerate_id(true);
+  $_SESSION=['user'=>$auth['username'],'revision'=>$auth['revision'],'lastSeen'=>time(),'csrf'=>bin2hex(random_bytes(32))];
+ }
+ $_SESSION['revision']=$auth['revision'];$_SESSION['lastSeen']=time();$_SESSION['csrf']??=bin2hex(random_bytes(32));
+ if(isset($_SESSION['user'])){
+  renewCatalogueSessionCookie($secure);
+  if(catalogueRememberRead($rememberDir,$rememberToken,$auth['revision'])){
+   catalogueRememberCookie($rememberToken,$secure,catalogueRememberWrite($rememberDir,$rememberToken,$auth['revision']));
+  }
+ }
  $action=$_GET['action']??'session';$method=$_SERVER['REQUEST_METHOD']??'GET';if(!in_array($method,['GET','POST'],true))respond(['error'=>'method_not_allowed'],405);
  if($method==='POST'){$origin=$_SERVER['HTTP_ORIGIN']??'';$expected=($secure?'https://':'http://').($_SERVER['HTTP_HOST']??'');if($origin!==''&&$origin!==$expected)respond(['error'=>'forbidden'],403);if(!hash_equals($_SESSION['csrf'],$_SERVER['HTTP_X_CSRF_TOKEN']??''))respond(['error'=>'session_expired'],403);}
  if($action==='session')respond(['authenticated'=>isset($_SESSION['user']),'csrf'=>$_SESSION['csrf'],'user'=>$_SESSION['user']??null]);
@@ -16,10 +58,10 @@ try{
  if($action==='login'&&$method==='POST'){
   $address=hash('sha256',($_SERVER['REMOTE_ADDR']??'').$auth['revision']);$db=$store->db;$db->exec('BEGIN IMMEDIATE');$get=$db->prepare('SELECT * FROM login_attempts WHERE address=?');$get->execute([$address]);$attempt=$get->fetch(\PDO::FETCH_ASSOC);$active=$attempt&&(int)$attempt['started']>time()-900;if($active&&(int)$attempt['attempts']>=8){$db->exec('COMMIT');respond(['error'=>'too_many_attempts'],429);}
   $username=is_string($input['username']??null)?trim($input['username']):'';$password=is_string($input['password']??null)?$input['password']:'';$valid=strlen($password)<=72&&password_verify($password,$auth['password_hash']);if(!hash_equals($auth['username'],$username)||!$valid){$set=$db->prepare('INSERT INTO login_attempts(address,attempts,started) VALUES(?,?,?) ON CONFLICT(address) DO UPDATE SET attempts=excluded.attempts,started=excluded.started');$set->execute([$address,$active?(int)$attempt['attempts']+1:1,$active?(int)$attempt['started']:time()]);$db->exec('COMMIT');respond(['error'=>'invalid_credentials'],401);}
-  $db->prepare('DELETE FROM login_attempts WHERE address=? OR started<?')->execute([$address,time()-900]);$db->exec('COMMIT');session_regenerate_id(true);$_SESSION=['user'=>$auth['username'],'revision'=>$auth['revision'],'lastSeen'=>time(),'csrf'=>bin2hex(random_bytes(32))];renewCatalogueSessionCookie($secure);respond(['authenticated'=>true,'csrf'=>$_SESSION['csrf'],'user'=>$_SESSION['user']]);
+  $db->prepare('DELETE FROM login_attempts WHERE address=? OR started<?')->execute([$address,time()-900]);$db->exec('COMMIT');session_regenerate_id(true);$_SESSION=['user'=>$auth['username'],'revision'=>$auth['revision'],'lastSeen'=>time(),'csrf'=>bin2hex(random_bytes(32))];renewCatalogueSessionCookie($secure);if($rememberToken!=='')catalogueRememberForget($rememberDir,$rememberToken);$rememberToken=bin2hex(random_bytes(32));catalogueRememberCookie($rememberToken,$secure,catalogueRememberWrite($rememberDir,$rememberToken,$auth['revision']));respond(['authenticated'=>true,'csrf'=>$_SESSION['csrf'],'user'=>$_SESSION['user']]);
  }
  if(!isset($_SESSION['user']))respond(['error'=>'authentication_required'],401);$_SESSION['lastSeen']=time();
- if($action==='logout'&&$method==='POST'){$_SESSION=[];session_destroy();setcookie(session_name(),'', ['expires'=>time()-3600,'path'=>'/catalogue/','secure'=>$secure,'httponly'=>true,'samesite'=>'Strict']);respond(['ok'=>true]);}
+ if($action==='logout'&&$method==='POST'){catalogueRememberForget($rememberDir,$rememberToken);catalogueRememberCookie('',$secure,time()-3600);$_SESSION=[];session_destroy();setcookie(session_name(),'', ['expires'=>time()-3600,'path'=>'/catalogue/','secure'=>$secure,'httponly'=>true,'samesite'=>'Strict']);respond(['ok'=>true]);}
  if($action==='products'&&$method==='GET')respond(['products'=>$store->all(true)]);
  if($action==='save'&&$method==='POST'){
   if(($input['status']??'')==='ready'&&is_file($private.'/config.php'))foreach($store->all(true) as $p)if($p['id']===($input['id']??'')&&!empty($p['soldOnSite'])&&!empty($p['saleOrderId'])){if(($input['version']??0)!==$p['version'])throw new \UnexpectedValueException('edit_conflict');require_once $private.'/PaymentService.php';(new \BotanikArt\PaymentService(require $private.'/config.php'))->restock($p['id'],$p['saleOrderId']);break;}
